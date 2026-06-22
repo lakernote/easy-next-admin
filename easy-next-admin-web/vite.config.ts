@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 export default defineConfig(({ mode }) => {
+  // 只读取 VITE_ 前缀变量，避免把无关服务端环境变量暴露给前端。
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080'
 
@@ -15,6 +16,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5174,
+      // 本地开发代理解决跨域；生产环境由 nginx.conf 代理。
       proxy: {
         '/api': {
           target: apiProxyTarget,
@@ -47,6 +49,7 @@ export default defineConfig(({ mode }) => {
               return undefined
             }
 
+            // 将大型依赖拆成稳定 vendor chunk，便于浏览器缓存和构建产物排查。
             if (id.includes('/element-plus/') || id.includes('/@element-plus/')) {
               return 'vendor-element-plus'
             }

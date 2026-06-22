@@ -2,10 +2,10 @@ package com.laker.admin.module.schedule.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.schedule.core.ScheduleJobManager;
@@ -34,10 +34,10 @@ public class ScheduleJobController {
     @EasyPermission(EasyPermissions.Schedule.JOB_LIST)
     public PageResponse<ScheduleJobView> pageAll(@RequestParam(required = false, defaultValue = "1") long page,
                                                  @RequestParam(required = false, defaultValue = "10") long limit) {
-        Page<ScheduleJob> roadPage = new Page<>(page, limit);
         LambdaQueryWrapper<ScheduleJob> queryWrapper = new QueryWrapper<ScheduleJob>().lambda();
-        Page<ScheduleJob> pageList = scheduleJobService.page(roadPage, queryWrapper);
-        return PageResponse.ok(ScheduleJobView.fromList(pageList.getRecords()), pageList.getTotal());
+        return EasyPageSupport.response(
+                scheduleJobService.page(EasyPageSupport.page(page, limit), queryWrapper),
+                ScheduleJobView::from);
     }
 
     @PostMapping

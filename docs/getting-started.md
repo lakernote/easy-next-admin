@@ -31,7 +31,7 @@
 临时覆盖端口时，可以直接在命令前加环境变量：
 
 ```bash
-MYSQL_PORT=13306 REDIS_PORT=16379 docker compose up -d mysql redis
+MYSQL_PORT=13306 REDIS_PORT=16379 docker compose up -d
 ```
 
 如果经常需要覆盖，也可以自己创建根目录 `.env`，该文件不会提交到仓库：
@@ -53,7 +53,7 @@ REDIS_PASSWORD=111222
 - Redis 7.4，Docker 镜像 `redis:7.4-alpine`，默认端口 `6379`，密码 `111222`
 
 ```bash
-docker compose up -d mysql redis
+docker compose up -d
 ```
 
 停止依赖：
@@ -61,17 +61,6 @@ docker compose up -d mysql redis
 ```bash
 docker compose down
 ```
-
-如果本地库因为迁移历史或测试数据导致启动异常，可以备份并重建：
-
-```bash
-mkdir -p work/db-backups
-docker exec easy-next-admin-mysql mysqldump --default-character-set=utf8mb4 -uroot -p123456 --single-transaction --set-gtid-purged=OFF easy-next-admin > "work/db-backups/easy-next-admin-$(date +%Y%m%d%H%M%S).sql"
-docker exec easy-next-admin-mysql mysql -uroot -p123456 -e "DROP DATABASE IF EXISTS \`easy-next-admin\`; CREATE DATABASE \`easy-next-admin\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-docker exec -i easy-next-admin-mysql mysql --default-character-set=utf8mb4 -uroot -p123456 easy-next-admin < easy-next-admin-server/src/main/resources/db/migration/V1__init.sql
-```
-
-上面的命令会备份当前 MySQL 数据库到 `work/db-backups`，然后用 `easy-next-admin-server/src/main/resources/db/migration/V1__init.sql` 重新初始化。
 
 ## 启动服务端
 
@@ -88,14 +77,16 @@ mvn spring-boot:run
 - Flyway：启动时自动执行 `db/migration/V1__init.sql`
 - OpenAPI：`http://127.0.0.1:8080/swagger-ui.html`
 
-Redis 默认按企业部署形态启用，需要先启动本地 Redis。Redis 连接和能力开关统一放在 `easy` 命名空间下，便于集中理解：
+Redis 在当前脚手架中默认启用。`local` profile 会使用 `application-local.yaml` 中的本地连接默认值：`redis://localhost:6379`，密码 `111222`。因此前面执行过 `docker compose up -d` 后，直接 `mvn spring-boot:run` 即可连接本地 Redis。
+
+Redis 连接和能力开关统一放在 `easy` 命名空间下。需要排查连接参数或显式覆盖时，可以这样启动：
 
 ```bash
 mvn spring-boot:run \
   -Dspring-boot.run.arguments="--easy.features.redis=true --easy.spring.redis.password=111222"
 ```
 
-启用 Redis 后，缓存、会话、验证码、重复请求、幂等、限流和分布式锁会自动切到 Redis/Redisson 实现。临时不依赖 Redis 时可启动参数覆盖 `--easy.features.redis=false`，这些运行态能力会回退到本地内存或 MySQL。
+启用 Redis 后，缓存、会话、验证码、重复请求、幂等、限流和分布式锁会自动切到 Redis/Redisson 实现。临时不想启动 Redis 时，可用启动参数覆盖 `--easy.features.redis=false`，这些运行态能力会回退到本地内存或 MySQL。
 
 Kafka 默认不启用。如果本地需要调试 Kafka 基础设施，启动时增加 `--easy.features.kafka=true --easy.spring.kafka.bootstrap-servers=127.0.0.1:9092`。
 
@@ -112,7 +103,7 @@ npm run dev
 如果需要长期覆盖前端配置，可以自己创建 `easy-next-admin-web/.env.local`。这套变量只给 Vite 前端使用，和根目录 `.env` 不是一回事：
 
 - 根目录 `.env`：给 Docker Compose 用，控制 MySQL、Redis 镜像、端口和密码。
-- `easy-next-admin-web/.env.local`：给前端开发和构建用，控制页面标题、接口基础路径、本地代理目标。
+- `easy-next-admin-web/.env.local`：给前端开发和构建用，控制接口基础路径和本地代理目标。
 
 本地个性化配置建议写入 `easy-next-admin-web/.env.local`，该文件不会提交到仓库：
 
@@ -142,7 +133,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev
 
 ## 演示账号
 
-登录页会从 `GET /api/auth/demo-accounts` 读取演示账号。该接口只在 `local` / `demo` profile 返回账号清单，非演示环境返回空列表，避免生产登录页暴露初始化密码。
+登录页会从 `GET /api/auth/demo-accounts` 读取演示账号。该接口只在 `local` profile 返回账号清单，非本地环境返回空列表，避免生产登录页暴露初始化密码。
 
 | 角色 | 账号 | 密码 |
 | --- | --- | --- |
@@ -151,7 +142,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev
 | 普通员工 | `staff` | `easynext` |
 | 审计人员 | `auditor` | `easynext` |
 
-这些账号用于本地开发和公开体验环境，方便第一次启动后直接验证权限、流程、审计和监控页面。正式生产环境必须替换初始化密码，且不要启用 `local` / `demo` profile。
+这些账号用于本地开发，方便第一次启动后直接验证权限、流程、审计和监控页面。正式生产环境必须替换初始化密码，且不要启用 `local` profile。
 
 首次登录只校验账号密码。同一用户名和客户端 IP 登录失败后，后续登录会要求验证码。
 
@@ -174,7 +165,7 @@ VITE_API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev
 调整环境变量后再启动依赖：
 
 ```bash
-MYSQL_PORT=13306 docker compose up -d mysql redis
+MYSQL_PORT=13306 docker compose up -d
 ```
 
 然后启动服务端时覆盖数据源地址：
@@ -194,7 +185,7 @@ mvn spring-boot:run \
 ```bash
 docker compose down
 docker volume rm easy-next-admin_mysqlData
-docker compose up -d mysql
+docker compose up -d
 ```
 
 如果本地数据需要保留，先临时启用旧插件完成账号迁移，迁移后再移除临时配置。可以在本机临时给 MySQL 启动参数追加 `--mysql-native-password=ON`，不要把它作为脚手架默认配置提交。容器启动后先检查账号认证插件：

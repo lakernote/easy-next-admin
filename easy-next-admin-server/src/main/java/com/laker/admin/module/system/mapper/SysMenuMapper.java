@@ -2,7 +2,7 @@ package com.laker.admin.module.system.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.laker.admin.module.system.dto.workbench.PermissionResourceSummary;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -14,7 +14,7 @@ import java.util.List;
  * @author laker
  * @since 2021-08-04
  */
-public interface SysMenuMapper extends BaseMapper<SysPower> {
+public interface SysMenuMapper extends BaseMapper<SysMenuResource> {
 
     @Select("""
             select coalesce(sum(case when type in (0, 1) then 1 else 0 end), 0) as menu_total,
@@ -39,7 +39,7 @@ public interface SysMenuMapper extends BaseMapper<SysPower> {
                    deleted,
                    version,
                    type,
-                   power_code as powerCode,
+                   permission_code as permissionCode,
                    component_path as componentPath,
                    visible,
                    create_by as createBy,
@@ -49,7 +49,7 @@ public interface SysMenuMapper extends BaseMapper<SysPower> {
                and deleted = 0
              order by pid, sort, id
             """)
-    List<SysPower> findAllByStatusOrderBySort(Boolean enable);
+    List<SysMenuResource> findAllByStatusOrderBySort(Boolean enable);
 
     @Select("""
             select distinct
@@ -67,7 +67,7 @@ public interface SysMenuMapper extends BaseMapper<SysPower> {
                    m.deleted,
                    m.version,
                    m.type,
-                   m.power_code as powerCode,
+                   m.permission_code as permissionCode,
                    m.component_path as componentPath,
                    m.visible,
                    m.create_by as createBy,
@@ -81,12 +81,12 @@ public interface SysMenuMapper extends BaseMapper<SysPower> {
                 on rp.role_id = ur.role_id
                and rp.deleted = 0
               join sys_menu m
-                on m.id = rp.power_id
+                on m.id = rp.permission_resource_id
                and m.deleted = 0
                and m.enable = 1
              where ur.deleted = 0
                and ur.user_id = #{userId}
              order by m.pid, m.sort, m.id
             """)
-    List<SysPower> findEnabledByUserId(@Param("userId") Long userId);
+    List<SysMenuResource> findEnabledByUserId(@Param("userId") Long userId);
 }

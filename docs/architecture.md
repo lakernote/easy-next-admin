@@ -199,7 +199,7 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 
 - `type`：`0` 目录、`1` 页面、`2` 按钮。
 - `href`：页面路由路径。
-- `power_code`：页面或按钮权限码，必须与后端 `EasyPermissions` 保持一致。
+- `permission_code`：页面或按钮权限码，必须与后端 `EasyPermissions` 保持一致。
 - `component_path`：页面资源对应的本地 Vue SFC，例如 `@/views/system/UserView.vue`。
 - `visible`、`enable`、`sort`：控制可见性、启停和排序。
 

@@ -22,16 +22,16 @@ import com.laker.admin.module.system.dto.RolePermissionDto;
 import com.laker.admin.module.system.dto.SystemRoleQuery;
 import com.laker.admin.module.system.dto.SystemRoleView;
 import com.laker.admin.module.system.dto.workbench.EnabledCountSummary;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.entity.SysDept;
 import com.laker.admin.module.system.entity.SysRole;
 import com.laker.admin.module.system.entity.SysRoleDept;
-import com.laker.admin.module.system.entity.SysRolePower;
+import com.laker.admin.module.system.entity.SysRolePermission;
 import com.laker.admin.module.system.mapper.SysRoleMapper;
 import com.laker.admin.module.system.service.ISysDeptService;
 import com.laker.admin.module.system.service.ISysMenuService;
 import com.laker.admin.module.system.service.ISysRoleDeptService;
-import com.laker.admin.module.system.service.ISysRolePowerService;
+import com.laker.admin.module.system.service.ISysRolePermissionService;
 import com.laker.admin.module.system.service.ISysRoleService;
 import com.laker.admin.module.system.service.ISysUserRoleService;
 import org.apache.commons.lang3.StringUtils;
@@ -62,7 +62,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     private static final int LOWEST_ROLE_LEVEL = Integer.MAX_VALUE;
 
     private final ISysMenuService sysMenuService;
-    private final ISysRolePowerService sysRolePowerService;
+    private final ISysRolePermissionService sysRolePermissionService;
     private final ISysRoleDeptService sysRoleDeptService;
     private final ISysUserRoleService sysUserRoleService;
     private final ISysDeptService sysDeptService;
@@ -71,7 +71,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     private final SensitiveAuditService sensitiveAuditService;
 
     public SysRoleServiceImpl(ISysMenuService sysMenuService,
-                              ISysRolePowerService sysRolePowerService,
+                              ISysRolePermissionService sysRolePermissionService,
                               ISysRoleDeptService sysRoleDeptService,
                               ISysUserRoleService sysUserRoleService,
                               ISysDeptService sysDeptService,
@@ -79,7 +79,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
                               DataScopeAssignmentPolicy dataScopeAssignmentPolicy,
                               SensitiveAuditService sensitiveAuditService) {
         this.sysMenuService = sysMenuService;
-        this.sysRolePowerService = sysRolePowerService;
+        this.sysRolePermissionService = sysRolePermissionService;
         this.sysRoleDeptService = sysRoleDeptService;
         this.sysUserRoleService = sysUserRoleService;
         this.sysDeptService = sysDeptService;
@@ -182,7 +182,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
                 .roleId(roleId)
                 .dataScope(normalizeDataScope(role.getDataScope()))
                 .deptIds(roleDeptIds(roleId))
-                .permissionCodes(sysRolePowerService.listPermissionCodesByRoleId(roleId))
+                .permissionCodes(sysRolePermissionService.listPermissionCodesByRoleId(roleId))
                 .assignableDataScopes(new ArrayList<>(assignableDataScopeCodes(EasySecurityContext.getPrincipal())))
                 .roleUserCount(countRoleUsers(roleId))
                 .build();
@@ -204,33 +204,33 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .toList();
-        List<SysPower> powers = List.of();
+        List<SysMenuResource> resources = List.of();
         if (!permissionCodes.isEmpty()) {
-            powers = sysMenuService.list(Wrappers.<SysPower>lambdaQuery()
-                    .in(SysPower::getPowerCode, permissionCodes)
-                    .eq(SysPower::getEnable, true));
-            validatePermissionCodes(permissionCodes, powers);
+            resources = sysMenuService.list(Wrappers.<SysMenuResource>lambdaQuery()
+                    .in(SysMenuResource::getPermissionCode, permissionCodes)
+                    .eq(SysMenuResource::getEnable, true));
+            validatePermissionCodes(permissionCodes, resources);
             validateAssignablePermissionCodes(permissionCodes);
         }
         if (StringUtils.isNotBlank(actualRequest.getDataScope())) {
             updateRoleDataScope(roleId, actualRequest.getDataScope());
         }
         saveRoleDepartments(roleId, actualRequest);
-        sysRolePowerService.deleteByRoleId(roleId);
+        sysRolePermissionService.deleteByRoleId(roleId);
         if (permissionCodes.isEmpty()) {
             permissionVersionService.increaseForRole(roleId);
             recordRoleAuthorization(roleId, permissionCodes.size(), previousDataScope, previousDeptIds, actualRequest);
             return true;
         }
-        List<Long> powerIds = expandPowerIdsWithAncestors(powers);
-        List<SysRolePower> rolePowers = new ArrayList<>();
-        powerIds.forEach(powerId -> {
-            SysRolePower rolePower = new SysRolePower();
-            rolePower.setRoleId(roleId);
-            rolePower.setPowerId(powerId);
-            rolePowers.add(rolePower);
+        List<Long> resourceIds = expandResourceIdsWithAncestors(resources);
+        List<SysRolePermission> rolePermissions = new ArrayList<>();
+        resourceIds.forEach(resourceId -> {
+            SysRolePermission rolePermission = new SysRolePermission();
+            rolePermission.setRoleId(roleId);
+            rolePermission.setPermissionResourceId(resourceId);
+            rolePermissions.add(rolePermission);
         });
-        boolean saved = rolePowers.isEmpty() || sysRolePowerService.saveBatch(rolePowers);
+        boolean saved = rolePermissions.isEmpty() || sysRolePermissionService.saveBatch(rolePermissions);
         if (saved) {
             permissionVersionService.increaseForRole(roleId);
             recordRoleAuthorization(roleId, permissionCodes.size(), previousDataScope, previousDeptIds, actualRequest);
@@ -251,7 +251,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "角色下存在用户，不能删除");
         }
         permissionVersionService.increaseForRole(roleId);
-        sysRolePowerService.deleteByRoleId(roleId);
+        sysRolePermissionService.deleteByRoleId(roleId);
         sysRoleDeptService.deleteByRoleId(roleId);
         sysUserRoleService.deleteByRoleId(roleId);
         boolean deleted = this.removeById(roleId);
@@ -363,9 +363,9 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         }
     }
 
-    private void validatePermissionCodes(List<String> permissionCodes, List<SysPower> powers) {
-        Set<String> existingCodes = powers.stream()
-                .map(SysPower::getPowerCode)
+    private void validatePermissionCodes(List<String> permissionCodes, List<SysMenuResource> resources) {
+        Set<String> existingCodes = resources.stream()
+                .map(SysMenuResource::getPermissionCode)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toSet());
         List<String> invalidCodes = permissionCodes.stream()
@@ -502,23 +502,23 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
         return role == null || role.getRoleLevel() == null ? LOWEST_ROLE_LEVEL : role.getRoleLevel();
     }
 
-    private List<Long> expandPowerIdsWithAncestors(List<SysPower> powers) {
-        if (powers == null || powers.isEmpty()) {
+    private List<Long> expandResourceIdsWithAncestors(List<SysMenuResource> resources) {
+        if (resources == null || resources.isEmpty()) {
             return List.of();
         }
-        Map<Long, SysPower> resourceMap = sysMenuService.list()
+        Map<Long, SysMenuResource> resourceMap = sysMenuService.list()
                 .stream()
-                .filter(power -> power.getMenuId() != null)
-                .collect(Collectors.toMap(SysPower::getMenuId, power -> power, (left, right) -> left));
-        Set<Long> powerIds = new LinkedHashSet<>();
-        powers.forEach(power -> addPowerAndAncestors(power, resourceMap, powerIds));
-        return new ArrayList<>(powerIds);
+                .filter(resource -> resource.getMenuId() != null)
+                .collect(Collectors.toMap(SysMenuResource::getMenuId, resource -> resource, (left, right) -> left));
+        Set<Long> resourceIds = new LinkedHashSet<>();
+        resources.forEach(resource -> addResourceAndAncestors(resource, resourceMap, resourceIds));
+        return new ArrayList<>(resourceIds);
     }
 
-    private void addPowerAndAncestors(SysPower power, Map<Long, SysPower> resourceMap, Set<Long> powerIds) {
-        SysPower current = power;
+    private void addResourceAndAncestors(SysMenuResource resource, Map<Long, SysMenuResource> resourceMap, Set<Long> resourceIds) {
+        SysMenuResource current = resource;
         while (current != null && current.getMenuId() != null) {
-            powerIds.add(current.getMenuId());
+            resourceIds.add(current.getMenuId());
             Long parentId = current.getPid();
             if (parentId == null || parentId <= 0) {
                 return;

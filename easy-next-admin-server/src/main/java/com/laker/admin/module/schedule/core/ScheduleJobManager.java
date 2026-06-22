@@ -3,7 +3,7 @@ package com.laker.admin.module.schedule.core;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.laker.admin.infrastructure.lock.IEasyLocker;
 import com.laker.admin.infrastructure.lock.base.EasyLocker;
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import com.laker.admin.module.schedule.entity.ScheduleJob;
 import com.laker.admin.module.schedule.service.IScheduleJobService;
 import lombok.extern.slf4j.Slf4j;

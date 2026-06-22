@@ -8,15 +8,15 @@ import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.infrastructure.security.datascope.model.DataScopeType;
 import com.laker.admin.module.audit.service.SensitiveAuditService;
 import com.laker.admin.module.system.dto.RolePermissionDto;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.entity.SysDept;
 import com.laker.admin.module.system.entity.SysRole;
 import com.laker.admin.module.system.entity.SysRoleDept;
-import com.laker.admin.module.system.entity.SysRolePower;
+import com.laker.admin.module.system.entity.SysRolePermission;
 import com.laker.admin.module.system.service.ISysDeptService;
 import com.laker.admin.module.system.service.ISysMenuService;
 import com.laker.admin.module.system.service.ISysRoleDeptService;
-import com.laker.admin.module.system.service.ISysRolePowerService;
+import com.laker.admin.module.system.service.ISysRolePermissionService;
 import com.laker.admin.module.system.service.ISysUserRoleService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,45 +38,45 @@ class SysRoleServiceImplTest {
     @SuppressWarnings({"unchecked", "rawtypes"})
     void saveRolePermissionsKeepsNavigationAncestorsForSelectedPages() {
         ISysMenuService sysMenuService = mock(ISysMenuService.class);
-        ISysRolePowerService sysRolePowerService = mock(ISysRolePowerService.class);
+        ISysRolePermissionService sysRolePermissionService = mock(ISysRolePermissionService.class);
         ISysRoleDeptService sysRoleDeptService = mock(ISysRoleDeptService.class);
         ISysUserRoleService sysUserRoleService = mock(ISysUserRoleService.class);
         PermissionVersionService permissionVersionService = mock(PermissionVersionService.class);
         SysRoleServiceImpl service = new TestableSysRoleService(
                 sysMenuService,
-                sysRolePowerService,
+                sysRolePermissionService,
                 sysRoleDeptService,
                 sysUserRoleService,
                 permissionVersionService,
                 mock(SensitiveAuditService.class));
         Long roleId = 200L;
 
-        List<SysPower> selectedPages = List.of(
-                power(11L, 10L, "sys:role:list"),
-                power(21L, 20L, "audit:behavior:view"),
-                power(31L, 30L, "workflow:view"));
-        List<SysPower> allResources = List.of(
-                power(10L, 0L, null),
-                power(11L, 10L, "sys:role:list"),
-                power(12L, 10L, "sys:user:list"),
-                power(20L, 0L, null),
-                power(21L, 20L, "audit:behavior:view"),
-                power(30L, 0L, null),
-                power(31L, 30L, "workflow:view"));
+        List<SysMenuResource> selectedPages = List.of(
+                menuResource(11L, 10L, "sys:role:list"),
+                menuResource(21L, 20L, "audit:behavior:view"),
+                menuResource(31L, 30L, "workflow:view"));
+        List<SysMenuResource> allResources = List.of(
+                menuResource(10L, 0L, null),
+                menuResource(11L, 10L, "sys:role:list"),
+                menuResource(12L, 10L, "sys:user:list"),
+                menuResource(20L, 0L, null),
+                menuResource(21L, 20L, "audit:behavior:view"),
+                menuResource(30L, 0L, null),
+                menuResource(31L, 30L, "workflow:view"));
         when(sysMenuService.list(any(Wrapper.class)))
                 .thenReturn(selectedPages);
         when(sysMenuService.list()).thenReturn(allResources);
-        when(sysRolePowerService.saveBatch(any(Collection.class))).thenReturn(true);
+        when(sysRolePermissionService.saveBatch(any(Collection.class))).thenReturn(true);
 
         boolean saved = service.saveRolePermissions(roleId, RolePermissionDto.builder()
                 .permissionCodes(List.of("sys:role:list", "audit:behavior:view", "workflow:view"))
                 .build());
 
         assertThat(saved).isTrue();
-        ArgumentCaptor<Collection<SysRolePower>> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(sysRolePowerService).saveBatch(captor.capture());
+        ArgumentCaptor<Collection<SysRolePermission>> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(sysRolePermissionService).saveBatch(captor.capture());
         assertThat(captor.getValue())
-                .extracting(SysRolePower::getPowerId)
+                .extracting(SysRolePermission::getPermissionResourceId)
                 .containsExactlyInAnyOrder(10L, 11L, 20L, 21L, 30L, 31L)
                 .doesNotContain(12L);
         verify(permissionVersionService).increaseForRole(roleId);
@@ -86,7 +86,7 @@ class SysRoleServiceImplTest {
     @SuppressWarnings({"unchecked", "rawtypes"})
     void saveRolePermissionsPersistsCustomDepartmentScope() {
         ISysMenuService sysMenuService = mock(ISysMenuService.class);
-        ISysRolePowerService sysRolePowerService = mock(ISysRolePowerService.class);
+        ISysRolePermissionService sysRolePermissionService = mock(ISysRolePermissionService.class);
         ISysRoleDeptService sysRoleDeptService = mock(ISysRoleDeptService.class);
         ISysUserRoleService sysUserRoleService = mock(ISysUserRoleService.class);
         PermissionVersionService permissionVersionService = mock(PermissionVersionService.class);
@@ -94,7 +94,7 @@ class SysRoleServiceImplTest {
         ISysDeptService sysDeptService = mock(ISysDeptService.class);
         TestableSysRoleService service = new TestableSysRoleService(
                 sysMenuService,
-                sysRolePowerService,
+                sysRolePermissionService,
                 sysRoleDeptService,
                 sysUserRoleService,
                 sysDeptService,
@@ -130,7 +130,7 @@ class SysRoleServiceImplTest {
     void assignableDataScopeCodesShouldNotExceedCurrentOperatorScope() {
         SysRoleServiceImpl service = new TestableSysRoleService(
                 mock(ISysMenuService.class),
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -158,7 +158,7 @@ class SysRoleServiceImplTest {
     void saveRolePermissionsRejectsNonStandardDataScope() {
         SysRoleServiceImpl service = new TestableSysRoleService(
                 mock(ISysMenuService.class),
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -176,7 +176,7 @@ class SysRoleServiceImplTest {
     void saveRolePermissionsRejectsUnknownDataScope() {
         SysRoleServiceImpl service = new TestableSysRoleService(
                 mock(ISysMenuService.class),
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -196,7 +196,7 @@ class SysRoleServiceImplTest {
         ISysMenuService sysMenuService = mock(ISysMenuService.class);
         SysRoleServiceImpl service = new TestableSysRoleService(
                 sysMenuService,
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -214,7 +214,7 @@ class SysRoleServiceImplTest {
     void saveRolePermissionsRejectsCustomDepartmentScopeWithoutDepartments() {
         SysRoleServiceImpl service = new TestableSysRoleService(
                 mock(ISysMenuService.class),
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -232,7 +232,7 @@ class SysRoleServiceImplTest {
     void saveRolePermissionsRejectsBuiltInAdminRole() {
         SysRoleServiceImpl service = new TestableSysRoleService(
                 mock(ISysMenuService.class),
-                mock(ISysRolePowerService.class),
+                mock(ISysRolePermissionService.class),
                 mock(ISysRoleDeptService.class),
                 mock(ISysUserRoleService.class),
                 mock(PermissionVersionService.class),
@@ -246,12 +246,12 @@ class SysRoleServiceImplTest {
                 .hasMessageContaining("内置超级管理员角色");
     }
 
-    private static SysPower power(Long menuId, Long pid, String powerCode) {
-        SysPower power = new SysPower();
-        power.setMenuId(menuId);
-        power.setPid(pid);
-        power.setPowerCode(powerCode);
-        return power;
+    private static SysMenuResource menuResource(Long menuId, Long pid, String permissionCode) {
+        SysMenuResource resource = new SysMenuResource();
+        resource.setMenuId(menuId);
+        resource.setPid(pid);
+        resource.setPermissionCode(permissionCode);
+        return resource;
     }
 
     private static SysDept dept(Long deptId) {
@@ -266,36 +266,36 @@ class SysRoleServiceImplTest {
         private String updatedDataScope;
 
         private TestableSysRoleService(ISysMenuService sysMenuService,
-                                       ISysRolePowerService sysRolePowerService,
+                                       ISysRolePermissionService sysRolePermissionService,
                                        ISysRoleDeptService sysRoleDeptService,
                                        ISysUserRoleService sysUserRoleService,
                                        PermissionVersionService permissionVersionService,
                                        SensitiveAuditService sensitiveAuditService) {
-            this(sysMenuService, sysRolePowerService, sysRoleDeptService, sysUserRoleService, mock(ISysDeptService.class), permissionVersionService, sensitiveAuditService, "staff");
+            this(sysMenuService, sysRolePermissionService, sysRoleDeptService, sysUserRoleService, mock(ISysDeptService.class), permissionVersionService, sensitiveAuditService, "staff");
         }
 
         private TestableSysRoleService(ISysMenuService sysMenuService,
-                                       ISysRolePowerService sysRolePowerService,
+                                       ISysRolePermissionService sysRolePermissionService,
                                        ISysRoleDeptService sysRoleDeptService,
                                        ISysUserRoleService sysUserRoleService,
                                        ISysDeptService sysDeptService,
                                        PermissionVersionService permissionVersionService,
                                        SensitiveAuditService sensitiveAuditService) {
-            this(sysMenuService, sysRolePowerService, sysRoleDeptService, sysUserRoleService, sysDeptService, permissionVersionService, sensitiveAuditService, "staff");
+            this(sysMenuService, sysRolePermissionService, sysRoleDeptService, sysUserRoleService, sysDeptService, permissionVersionService, sensitiveAuditService, "staff");
         }
 
         private TestableSysRoleService(ISysMenuService sysMenuService,
-                                       ISysRolePowerService sysRolePowerService,
+                                       ISysRolePermissionService sysRolePermissionService,
                                        ISysRoleDeptService sysRoleDeptService,
                                        ISysUserRoleService sysUserRoleService,
                                        PermissionVersionService permissionVersionService,
                                        SensitiveAuditService sensitiveAuditService,
                                        String roleCode) {
-            this(sysMenuService, sysRolePowerService, sysRoleDeptService, sysUserRoleService, mock(ISysDeptService.class), permissionVersionService, sensitiveAuditService, roleCode);
+            this(sysMenuService, sysRolePermissionService, sysRoleDeptService, sysUserRoleService, mock(ISysDeptService.class), permissionVersionService, sensitiveAuditService, roleCode);
         }
 
         private TestableSysRoleService(ISysMenuService sysMenuService,
-                                       ISysRolePowerService sysRolePowerService,
+                                       ISysRolePermissionService sysRolePermissionService,
                                        ISysRoleDeptService sysRoleDeptService,
                                        ISysUserRoleService sysUserRoleService,
                                        ISysDeptService sysDeptService,
@@ -303,7 +303,7 @@ class SysRoleServiceImplTest {
                                        SensitiveAuditService sensitiveAuditService,
                                        String roleCode) {
             super(sysMenuService,
-                    sysRolePowerService,
+                    sysRolePermissionService,
                     sysRoleDeptService,
                     sysUserRoleService,
                     sysDeptService,

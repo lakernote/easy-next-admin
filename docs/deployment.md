@@ -19,7 +19,7 @@ easy-next-admin-server/target/easyNextAdmin.jar
 如需运行测试：
 
 ```bash
-mvn -pl easy-next-admin-server -am test
+mvn -pl easy-next-admin-server -am verify
 ```
 
 ## 后端 JAR 部署
@@ -77,7 +77,7 @@ java \
 
 - 使用非 `local` profile 启动，避免加载本地开发配置；Swagger UI 和 OpenAPI JSON 在通用配置中默认关闭。
 - 内网和公网部署都使用 `prod` profile，并通过环境变量或启动参数提供数据库、Redis、对象存储、线程池容量和真实前端域名。
-- 不启用 `local` / `demo` profile；`/api/auth/demo-accounts` 在生产环境会返回空列表，仍需替换初始化账号密码。
+- 不启用 `local` profile；`/api/auth/demo-accounts` 在生产环境会返回空列表，仍需替换初始化账号密码。
 - 使用外部 MySQL 和 Redis，避免把生产状态放在应用容器内。
 - Redis 使用能力级开关 `easy.features.redis=true`。开启后缓存、会话、验证码、重复请求、幂等、限流和分布式锁会自动切到 Redis/Redisson 实现。
 - Kafka 使用能力级开关 `easy.features.kafka=true`。未开启时不会创建 Kafka Producer、Consumer、Topic Admin 和健康检查，避免单机开发误连 `localhost:9092`。
@@ -168,15 +168,15 @@ mvn -pl easy-next-admin-server -am -DskipTests package
 docker build -f easy-next-admin-server/Dockerfile -t easy-next-admin-server:local .
 ```
 
-后端 Dockerfile 放在 `easy-next-admin-server/`，但构建上下文仍然要使用仓库根目录 `.`。镜像构建会复制本地 Maven 产物 `easy-next-admin-server/target/easyNextAdmin.jar`，因此必须先在本地或 CI 中完成 Maven 打包。这样 Docker 镜像阶段只做运行环境封装，不在镜像构建里重复下载 Maven 依赖。
+后端 Dockerfile 放在 `easy-next-admin-server/`，但构建上下文仍然要使用仓库根目录 `.`。镜像构建会复制本地 Maven 产物 `easy-next-admin-server/target/easyNextAdmin.jar`，因此必须先在本地或 CI 中完成 Maven 打包。这样 Docker 镜像阶段只做运行环境封装，不在镜像构建里重复下载 Maven 依赖。后端镜像默认使用 `SPRING_PROFILES_ACTIVE=prod` 启动；本地临时调试容器时，可通过 `-e SPRING_PROFILES_ACTIVE=local` 显式覆盖。
 
-运行后端容器示例：
+运行后端容器示例。下面命令只用于本机快速验证后端镜像：数据库连宿主机 MySQL，并显式关闭 Redis，避免单容器示例误连 `redis://redis:6379`。接近生产的容器部署应去掉 `EASY_FEATURE_REDIS=false`，并传入真实 Redis 地址和密码。
 
 ```bash
 docker run --rm -p 8080:8080 \
   -e JAVA_OPTS="-Xms512m -Xmx1024m" \
+  -e EASY_FEATURE_REDIS=false \
   easy-next-admin-server:local \
-  --spring.profiles.active=prod \
   --spring.datasource.url="jdbc:mysql://host.docker.internal:3306/easy-next-admin?serverTimezone=GMT%2B8&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&useSSL=false&allowPublicKeyRetrieval=true" \
   --spring.datasource.username=root \
   --spring.datasource.password=123456
@@ -219,7 +219,7 @@ mvn -pl easy-next-admin-server -am -DskipTests package
 cd easy-next-admin-web && npm run build
 ```
 
-仓库内置 GitHub Actions 工作流会在 push 和 PR 时运行后端测试、前端单元测试和前端构建；本地仍可按需只运行对应命令。
+仓库内置 GitHub Actions 工作流会在 push 和 PR 时运行后端 `verify`、前端单元测试和前端构建；本地仍可按需只运行对应命令。
 
 发布后检查：
 
@@ -227,4 +227,4 @@ cd easy-next-admin-web && npm run build
 - 前端刷新任意二级路由不会 404。
 - 登录、工作台、用户管理、角色授权、流程待办、实时日志至少各验证一次。
 - 用户导入模板、1000 行限制、导出 CSV 脱公式注入至少验证一次。
-- 公开生产环境必须替换初始化账号密码；体验环境可以使用 `demo` profile 展示登录页演示账号。
+- 公开生产环境必须替换初始化账号密码；如需公开体验环境，应单独准备脱敏账号和隔离数据，不复用生产配置。

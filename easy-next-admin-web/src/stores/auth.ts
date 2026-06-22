@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import {
-  loginApi,
-  logoutApi,
-  profileApi
+  getAuthProfile,
+  login,
+  logout
 } from '@/features/auth/api'
 import type {
   AuthEntityId,
@@ -108,7 +108,7 @@ export const useAuthStore = defineStore('auth', {
     },
     async login(payload: LoginPayload, options: LoginOptions = {}) {
       this.rememberLogin = options.rememberMe ?? true
-      const response = await loginApi(payload)
+      const response = await login(payload)
       const data = response.data
       this.accessToken = data.accessToken
       this.user = data.user || { userId: '', userName: payload.username, nickName: payload.username }
@@ -117,18 +117,18 @@ export const useAuthStore = defineStore('auth', {
       this.permissions = data.permissions || []
       this.menus = data.menus || []
       this.profileLoaded = false
-      const profile = await profileApi()
+      const profile = await getAuthProfile()
       this.applyProfile(profile.data)
     },
     async loadProfile() {
       if (!this.accessToken) return
-      const profile = await profileApi()
+      const profile = await getAuthProfile()
       this.applyProfile(profile.data)
     },
     async logoutCurrentSession() {
       try {
         if (this.accessToken) {
-          await logoutApi()
+          await logout()
         }
       } catch {
         // 本地退出不能被网络波动阻塞；服务端会话仍会按过期时间兜底清理。

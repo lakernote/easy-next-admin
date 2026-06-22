@@ -27,7 +27,7 @@ public class MenuVo implements EasyTreeUtil.TreeNode<MenuVo> {
 
     private Integer type;
 
-    private String powerCode;
+    private String permissionCode;
 
     private String componentPath;
 

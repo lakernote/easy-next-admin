@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditApiDailyVisitView;
@@ -62,7 +63,6 @@ public class AuditApiLogController {
     public PageResponse<AuditApiLogView> pageAll(@RequestParam(required = false, defaultValue = "1") long page,
                                                  @RequestParam(required = false, defaultValue = "10") long limit,
                                                  String keyWord) {
-        Page<AuditApiLog> roadPage = new Page<>(page, limit);
         LambdaQueryWrapper<AuditApiLog> queryWrapper = new QueryWrapper<AuditApiLog>().lambda();
         if (StringUtils.hasText(keyWord)) {
             queryWrapper.and(wrapper -> wrapper
@@ -82,11 +82,11 @@ public class AuditApiLogController {
             }
         });
         queryWrapper.orderByDesc(AuditApiLog::getCreateTime);
-        Page<AuditApiLog> pageList = auditApiLogService.page(roadPage, queryWrapper);
+        Page<AuditApiLog> pageList = auditApiLogService.page(EasyPageSupport.page(page, limit), queryWrapper);
         List<AuditApiLog> records = pageList.getRecords();
         Map<Long, SysUser> users = usersById(records);
         records.forEach(auditLog -> auditLog.setUser(users.get(auditLog.getUserId())));
-        return PageResponse.ok(AuditApiLogView.fromList(records), pageList.getTotal());
+        return EasyPageSupport.response(pageList, AuditApiLogView::from);
     }
 
     private Map<Long, SysUser> usersById(List<AuditApiLog> records) {
@@ -105,7 +105,7 @@ public class AuditApiLogController {
 
     @GetMapping("/visits7day")
     @EasyPermission(EasyPermissions.Audit.BEHAVIOR_VIEW)
-    public Response<List<AuditApiDailyVisitView>> visits7day() {
+    public Response<List<AuditApiDailyVisitView>> visits7Day() {
         if (!auditVisibilitySupport.canReadAllUsers()) {
             return Response.ok(List.of());
         }
@@ -115,7 +115,7 @@ public class AuditApiLogController {
 
     @GetMapping("/visitsTop10IP")
     @EasyPermission(EasyPermissions.Audit.BEHAVIOR_VIEW)
-    public PageResponse<AuditApiTopIpView> visitsTop10IP() {
+    public PageResponse<AuditApiTopIpView> visitsTop10Ip() {
         if (!auditVisibilitySupport.canReadAllUsers()) {
             return PageResponse.ok(List.of(), 0);
         }

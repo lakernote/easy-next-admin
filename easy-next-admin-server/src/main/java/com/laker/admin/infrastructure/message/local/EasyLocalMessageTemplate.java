@@ -5,7 +5,6 @@ import com.laker.admin.infrastructure.json.EasyJsonException;
 import com.laker.admin.infrastructure.message.local.entity.LocalMessage;
 import com.laker.admin.infrastructure.message.local.mapper.LocalMessageMapper;
 import org.springframework.aop.support.AopUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
@@ -13,7 +12,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Date;
 import java.util.Map;
@@ -25,29 +23,20 @@ import java.util.Map;
 @Component
 @ConditionalOnProperty(prefix = "easy.features", name = "outbox", havingValue = "true", matchIfMissing = true)
 public class EasyLocalMessageTemplate {
-    @Autowired
-    private LocalMessageMapper localMessageMapper;
-    @Autowired
-    private EasyJsonCodec jsonCodec;
+    private final LocalMessageMapper localMessageMapper;
+    private final EasyJsonCodec jsonCodec;
+    private final PlatformTransactionManager transactionManager;
+
+    public EasyLocalMessageTemplate(LocalMessageMapper localMessageMapper,
+                                    EasyJsonCodec jsonCodec,
+                                    PlatformTransactionManager transactionManager) {
+        this.localMessageMapper = localMessageMapper;
+        this.jsonCodec = jsonCodec;
+        this.transactionManager = transactionManager;
+    }
 
     /**
-     * 高级抽象，对事务管理的常见操作进行了封装，提供了简洁的 API 来处理事务。开发者无需手动处理事务的开启、提交和回滚等细节，只需关注业务逻辑即可。
-     * transactionTemplate.execute(status -> {
-     * // 业务逻辑
-     * return null;
-     * });
-     */
-    @Autowired
-    TransactionTemplate transactionTemplate;
-
-    /**
-     * 低级抽象，提供了对事务管理的底层操作，允许开发者手动控制事务的开启、提交和回滚等细节。适用于需要更细粒度控制事务的场景。
-     */
-    @Autowired
-    PlatformTransactionManager transactionManager;
-
-    /**
-     *
+     * 本地事务成功后再执行远程操作；远程失败只标记消息失败，由重试任务接管。
      */
     public void execute(ILocalMessageOperation localMessageOperation, Map<String, Object> params) {
 

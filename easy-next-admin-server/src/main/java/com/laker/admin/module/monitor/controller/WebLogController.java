@@ -8,7 +8,6 @@ import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.monitor.dto.WebLogFileSnapshot;
 import com.laker.admin.module.monitor.service.WebLogFileService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.logging.LogLevel;
 import org.springframework.boot.logging.LoggerGroup;
@@ -47,12 +46,17 @@ public class WebLogController {
             "org.apache.ibatis"
     );
 
-    @Autowired
-    private LoggingSystem loggingSystem;
-    @Autowired
-    private LoggerGroups loggerGroups;
-    @Autowired
-    private WebLogFileService webLogFileService;
+    private final LoggingSystem loggingSystem;
+    private final LoggerGroups loggerGroups;
+    private final WebLogFileService webLogFileService;
+
+    public WebLogController(LoggingSystem loggingSystem,
+                            LoggerGroups loggerGroups,
+                            WebLogFileService webLogFileService) {
+        this.loggingSystem = loggingSystem;
+        this.loggerGroups = loggerGroups;
+        this.webLogFileService = webLogFileService;
+    }
 
     @GetMapping("/file/snapshot")
     @ResponseBody

@@ -5,7 +5,6 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
@@ -20,9 +19,11 @@ import java.lang.reflect.Method;
 public class IdempotentAspect {
 
     private final ExpressionParser parser = new SpelExpressionParser();
+    private final IdempotentHandler idempotentService;
 
-    @Autowired
-    private IdempotentHandler idempotentService;
+    public IdempotentAspect(IdempotentHandler idempotentService) {
+        this.idempotentService = idempotentService;
+    }
 
     /**
      * 环绕通知

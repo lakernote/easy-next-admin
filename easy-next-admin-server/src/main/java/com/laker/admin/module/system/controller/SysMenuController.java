@@ -10,7 +10,7 @@ import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.system.dto.MenuVo;
 import com.laker.admin.module.system.dto.PermissionResourceDto;
 import com.laker.admin.module.system.dto.PermissionResourceRequest;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.service.ISysMenuService;
 
 import jakarta.validation.Valid;
@@ -54,7 +54,7 @@ public class SysMenuController {
     @GetMapping("/{id}")
     @EasyPermission(EasyPermissions.System.MENU_LIST)
     public Response<PermissionResourceDto> get(@PathVariable Long id) {
-        SysPower resource = sysMenuService.getById(id);
+        SysMenuResource resource = sysMenuService.getById(id);
         if (resource == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "权限资源不存在");
         }

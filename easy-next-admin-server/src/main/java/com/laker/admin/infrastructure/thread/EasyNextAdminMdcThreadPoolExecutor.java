@@ -16,7 +16,7 @@ import java.util.concurrent.TimeoutException;
  * @author laker
  */
 @Slf4j
-public class EasyNextAdminMDCThreadPoolExecutor extends EasyNextAdminThreadPoolExecutor {
+public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolExecutor {
     /**
      * 简易线程池构造器
      *
@@ -24,7 +24,7 @@ public class EasyNextAdminMDCThreadPoolExecutor extends EasyNextAdminThreadPoolE
      * @param queueSize 等待队列,e.g:1000
      * @param prefix    线程名前缀,e.g:MCP-POOL
      */
-    public EasyNextAdminMDCThreadPoolExecutor(int poolSize, int queueSize, String prefix) {
+    public EasyNextAdminMdcThreadPoolExecutor(int poolSize, int queueSize, String prefix) {
         super(poolSize, queueSize, prefix);
         // 非核心线程如果处于闲置状态超过该值，就会被销毁。如果设置allowCoreThreadTimeOut(true)，则会也作用于核心线程。
         this.allowCoreThreadTimeOut(true);

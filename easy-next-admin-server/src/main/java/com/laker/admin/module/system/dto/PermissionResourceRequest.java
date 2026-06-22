@@ -20,7 +20,7 @@ public class PermissionResourceRequest {
     private String remark;
     @NotNull(message = "资源类型不能为空")
     private Integer type;
-    private String powerCode;
+    private String permissionCode;
     private String componentPath;
     private Boolean visible;
 }

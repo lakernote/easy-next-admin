@@ -73,24 +73,31 @@ class EnterpriseScaffoldSurfaceTest {
     @Test
     void ciAndDeploymentBaselineShouldKeepLocalProdProfilesAndNginxHardening() throws IOException {
         Path workflow = Path.of("../.github/workflows/ci.yml");
+        Path dockerfile = Path.of("Dockerfile");
         Path localProfile = Path.of("src/main/resources/application-local.yaml");
         Path prodProfile = Path.of("src/main/resources/application-prod.yaml");
         Path nginxConfig = Path.of("../easy-next-admin-web/nginx.conf");
 
         assertThat(workflow).exists();
+        assertThat(dockerfile).exists();
         assertThat(Path.of("src/main/resources/application-intranet.yaml")).doesNotExist();
         assertThat(localProfile).exists();
         assertThat(prodProfile).exists();
 
         String ci = Files.readString(workflow);
+        String serverDockerfile = Files.readString(dockerfile);
         String local = Files.readString(localProfile);
         String prod = Files.readString(prodProfile);
         String nginx = Files.readString(nginxConfig);
 
         assertThat(ci).contains(
-                "mvn -pl easy-next-admin-server -am test",
+                "mvn -pl easy-next-admin-server -am verify",
                 "npm run test:unit",
                 "npm run build");
+        assertThat(serverDockerfile).contains(
+                "SPRING_PROFILES_ACTIVE=prod",
+                "HEALTHCHECK",
+                "exec java");
         assertThat(local).contains(
                 "logger-level: full",
                 "show-details: always",
@@ -165,6 +172,39 @@ class EnterpriseScaffoldSurfaceTest {
                 "someShared",
                 "normalflux",
                 "circuit error");
+
+        List<String> systemEntityNames = fileNames(Path.of("src/main/java/com/laker/admin/module/system/entity"));
+        assertThat(systemEntityNames)
+                .contains("SysMenuResource.java", "SysRolePermission.java")
+                .doesNotContain("SysPower.java", "SysRolePower.java");
+    }
+
+    @Test
+    void serverCodeShouldAvoidFieldInjectionAndLegacyAcronymNames() throws IOException {
+        Path javaRoot = Path.of("src/main/java/com/laker/admin");
+        List<String> fieldInjections = new ArrayList<>();
+        try (Stream<Path> paths = Files.walk(javaRoot)) {
+            paths.filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .forEach(path -> collectAutowiredFields(path, fieldInjections));
+        }
+        assertThat(fieldInjections).isEmpty();
+
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/lock/base/AbstractEasyLocker.java")).exists();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/lock/base/AbstractSimpleIEasyLocker.java")).doesNotExist();
+        assertThat(fileNames(Path.of("src/main/java/com/laker/admin/infrastructure/thread")))
+                .contains("EasyNextAdminMdcThreadPoolExecutor.java")
+                .doesNotContain("EasyNextAdminMDCThreadPoolExecutor.java");
+
+        String auditApiLogController = Files.readString(
+                Path.of("src/main/java/com/laker/admin/module/audit/controller/AuditApiLogController.java"));
+        String threadPoolConfig = Files.readString(
+                Path.of("src/main/java/com/laker/admin/config/thread/EasyThreadPoolConfig.java"));
+        assertThat(auditApiLogController)
+                .contains("visits7Day()", "visitsTop10Ip()")
+                .doesNotContain("visits7day()", "visitsTop10IP()");
+        assertThat(threadPoolConfig)
+                .contains("businessMdcThreadPool()")
+                .doesNotContain("businessMDCThreadPool()");
     }
 
     @Test
@@ -355,6 +395,30 @@ class EnterpriseScaffoldSurfaceTest {
             }
         } catch (IOException ex) {
             throw new IllegalStateException("读取控制器失败：" + path, ex);
+        }
+    }
+
+    private void collectAutowiredFields(Path path, List<String> fieldInjections) {
+        try {
+            List<String> lines = Files.readAllLines(path);
+            for (int i = 0; i < lines.size() - 1; i++) {
+                String annotationLine = lines.get(i).trim();
+                if (!annotationLine.matches("@Autowired(\\(.*\\))?")) {
+                    continue;
+                }
+                String nextLine = lines.get(i + 1).trim();
+                if (nextLine.endsWith(";") && !nextLine.contains("(")) {
+                    fieldInjections.add(path + ":" + (i + 1) + " -> " + nextLine);
+                }
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("读取 Java 文件失败：" + path, ex);
+        }
+    }
+
+    private List<String> fileNames(Path directory) throws IOException {
+        try (Stream<Path> paths = Files.list(directory)) {
+            return paths.map(path -> path.getFileName().toString()).toList();
         }
     }
 

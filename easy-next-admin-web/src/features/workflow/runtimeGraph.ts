@@ -1,4 +1,4 @@
-import { parseWorkflowGraphJson } from './source'
+import { parseWorkflowGraphJson } from './graphSource'
 import type { WorkflowGraph, WorkflowInstanceDetail } from './types'
 
 export type GraphNodeState = 'done' | 'current' | 'todo'

@@ -9,7 +9,7 @@ import './styles/index.css'
 
 const app = createApp(App)
 
-// 前端启动入口：全局能力只在这里注册，业务页面通过 router/store/api 解耦。
+// 前端启动入口：全局能力只在这里注册，业务页面通过 router/store/features 解耦。
 app.use(createPinia())
 app.use(ElementPlus)
 app.use(router)

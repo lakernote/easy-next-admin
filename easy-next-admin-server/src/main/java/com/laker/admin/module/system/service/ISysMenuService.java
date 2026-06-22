@@ -5,28 +5,23 @@ import com.laker.admin.module.system.dto.MenuVo;
 import com.laker.admin.module.system.dto.PermissionResourceDto;
 import com.laker.admin.module.system.dto.PermissionResourceRequest;
 import com.laker.admin.module.system.dto.workbench.PermissionResourceSummary;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 
 import java.util.List;
 
 /**
- * <p>
- * 系统菜单表 服务类
- * </p>
- *
- * @author laker
- * @since 2021-08-04
+ * 菜单权限资源服务。
  */
-public interface ISysMenuService extends IService<SysPower> {
+public interface ISysMenuService extends IService<SysMenuResource> {
     List<MenuVo> menu();
 
-    List<SysPower> listResources();
+    List<SysMenuResource> listResources();
 
     List<PermissionResourceDto> listResourceViews();
 
     List<PermissionResourceDto> listEnabledResourceViews();
 
-    List<SysPower> listEnabledResourcesByUserId(Long userId);
+    List<SysMenuResource> listEnabledResourcesByUserId(Long userId);
 
     PermissionResourceSummary countPermissionResourceSummary();
 

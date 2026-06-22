@@ -17,7 +17,7 @@ import com.laker.admin.infrastructure.security.support.EasySecurityToken;
 import com.laker.admin.module.system.dto.auth.AuthLoginRequest;
 import com.laker.admin.module.system.dto.auth.AuthTokenResponse;
 import com.laker.admin.module.system.entity.SysDept;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.entity.SysRole;
 import com.laker.admin.module.system.entity.SysUser;
 import com.laker.admin.module.system.service.ISysDeptService;
@@ -175,7 +175,7 @@ class EasyAuthServiceTest {
     }
 
     @Test
-    void loginShouldReuseLoadedUserAndMenuPowers() {
+    void loginShouldReuseLoadedUserAndMenuPermissionResources() {
         ISysUserService localUserService = mock(ISysUserService.class);
         ISysDeptService deptService = mock(ISysDeptService.class);
         ISysUserRoleService userRoleService = mock(ISysUserRoleService.class);
@@ -210,12 +210,12 @@ class EasyAuthServiceTest {
         role.setRoleName("超级管理员");
         role.setEnable(true);
         role.setDataScope("ALL");
-        SysPower menu = new SysPower();
+        SysMenuResource menu = new SysMenuResource();
         menu.setMenuId(1000L);
         menu.setPid(0L);
         menu.setTitle("工作台");
         menu.setType(1);
-        menu.setPowerCode(EasyPermissions.Dashboard.VIEW);
+        menu.setPermissionCode(EasyPermissions.Dashboard.VIEW);
         menu.setEnable(true);
         HttpServletRequest httpRequest = mock(HttpServletRequest.class);
         when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
@@ -226,7 +226,7 @@ class EasyAuthServiceTest {
         when(deptService.list()).thenReturn(List.of(dept));
         when(userRoleService.listRoleIdsByUserId(1L)).thenReturn(List.of(100L));
         when(roleService.list(org.mockito.ArgumentMatchers.<Wrapper<SysRole>>any())).thenReturn(List.of(role));
-        when(menuService.list(org.mockito.ArgumentMatchers.<Wrapper<SysPower>>any())).thenReturn(List.of(menu));
+        when(menuService.list(org.mockito.ArgumentMatchers.<Wrapper<SysMenuResource>>any())).thenReturn(List.of(menu));
         AuthLoginRequest request = new AuthLoginRequest();
         request.setUsername("admin");
         request.setPassword("easynext");
@@ -236,7 +236,7 @@ class EasyAuthServiceTest {
         assertThat(response.getUser().getUserId()).isEqualTo(1L);
         assertThat(response.getMenus()).hasSize(1);
         verify(localUserService, never()).getById(any());
-        verify(menuService, times(2)).list(org.mockito.ArgumentMatchers.<Wrapper<SysPower>>any());
+        verify(menuService, times(2)).list(org.mockito.ArgumentMatchers.<Wrapper<SysMenuResource>>any());
     }
 
     @Test
@@ -267,7 +267,7 @@ class EasyAuthServiceTest {
         when(localUserService.getOne(any())).thenReturn(user);
         when(passwordHasher.matches("easynext", "hash")).thenReturn(true);
         when(userRoleService.listRoleIdsByUserId(1L)).thenReturn(List.of());
-        when(menuService.list(org.mockito.ArgumentMatchers.<Wrapper<SysPower>>any())).thenReturn(List.of());
+        when(menuService.list(org.mockito.ArgumentMatchers.<Wrapper<SysMenuResource>>any())).thenReturn(List.of());
         AuthLoginRequest request = new AuthLoginRequest();
         request.setUsername("admin");
         request.setPassword("easynext");

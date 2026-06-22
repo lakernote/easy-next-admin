@@ -1,4 +1,4 @@
-package com.laker.admin.module.enums;
+package com.laker.admin.module.schedule.enums;
 
 import com.baomidou.mybatisplus.annotation.EnumValue;
 import lombok.Getter;

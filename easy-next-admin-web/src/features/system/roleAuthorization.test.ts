@@ -18,7 +18,7 @@ describe('role authorization menu tree', () => {
             pid: 1,
             title: '发起流程',
             type: 1,
-            powerCode: 'workflow:instance:start',
+            permissionCode: 'workflow:instance:start',
             href: '/workflow/start',
             enable: true,
             visible: true,
@@ -28,7 +28,7 @@ describe('role authorization menu tree', () => {
                 pid: 11,
                 title: '提交流程申请',
                 type: 2,
-                powerCode: 'workflow:instance:start',
+                permissionCode: 'workflow:instance:start',
                 enable: true,
                 visible: false
               }
@@ -39,7 +39,7 @@ describe('role authorization menu tree', () => {
             pid: 1,
             title: '请假申请',
             type: 1,
-            powerCode: 'workflow:instance:start',
+            permissionCode: 'workflow:instance:start',
             href: '/workflow/leave',
             enable: true,
             visible: false
@@ -49,7 +49,7 @@ describe('role authorization menu tree', () => {
             pid: 1,
             title: '我的流程',
             type: 1,
-            powerCode: 'workflow:view',
+            permissionCode: 'workflow:view',
             href: '/workflow/tasks',
             enable: true,
             visible: true,
@@ -59,7 +59,7 @@ describe('role authorization menu tree', () => {
                 pid: 13,
                 title: '同意任务',
                 type: 2,
-                powerCode: 'workflow:task:approve',
+                permissionCode: 'workflow:task:approve',
                 enable: true,
                 visible: false
               }
@@ -72,7 +72,7 @@ describe('role authorization menu tree', () => {
         pid: 0,
         title: '接口文档',
         type: 1,
-        powerCode: 'developer:api-docs:view',
+        permissionCode: 'developer:api-docs:view',
         href: '/developer/api-docs',
         enable: true,
         visible: true

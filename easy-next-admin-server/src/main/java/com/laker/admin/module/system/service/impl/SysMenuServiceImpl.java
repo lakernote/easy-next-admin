@@ -13,10 +13,10 @@ import com.laker.admin.module.system.dto.MenuVo;
 import com.laker.admin.module.system.dto.PermissionResourceDto;
 import com.laker.admin.module.system.dto.PermissionResourceRequest;
 import com.laker.admin.module.system.dto.workbench.PermissionResourceSummary;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.mapper.SysMenuMapper;
 import com.laker.admin.module.system.service.ISysMenuService;
-import com.laker.admin.module.system.service.ISysRolePowerService;
+import com.laker.admin.module.system.service.ISysRolePermissionService;
 import com.laker.admin.common.util.EasyTreeUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +34,7 @@ import java.util.List;
  * @since 2021-08-04
  */
 @Service
-public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> implements ISysMenuService {
+public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenuResource> implements ISysMenuService {
     private static final long ROOT_PARENT_ID = 0L;
     private static final int RESOURCE_TYPE_DIRECTORY = 0;
     private static final int RESOURCE_TYPE_PAGE = 1;
@@ -43,16 +43,16 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
     private static final int MAX_PARENT_LOOKUP_DEPTH = 32;
 
     private final SysMenuMapper sysMenuMapper;
-    private final ISysRolePowerService sysRolePowerService;
+    private final ISysRolePermissionService sysRolePermissionService;
     private final PermissionVersionService permissionVersionService;
     private final SensitiveAuditService sensitiveAuditService;
 
     public SysMenuServiceImpl(SysMenuMapper sysMenuMapper,
-                              ISysRolePowerService sysRolePowerService,
+                              ISysRolePermissionService sysRolePermissionService,
                               PermissionVersionService permissionVersionService,
                               SensitiveAuditService sensitiveAuditService) {
         this.sysMenuMapper = sysMenuMapper;
-        this.sysRolePowerService = sysRolePowerService;
+        this.sysRolePermissionService = sysRolePermissionService;
         this.permissionVersionService = permissionVersionService;
         this.sensitiveAuditService = sensitiveAuditService;
     }
@@ -64,19 +64,19 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
             throw new EasyAuthException("未登录");
         }
         Long loginId = principal.getUserId();
-        List<SysPower> sysPowers;
+        List<SysMenuResource> menuResources;
         if (principal.isSuperAdmin()) {
-            sysPowers = sysMenuMapper.findAllByStatusOrderBySort(true);
+            menuResources = sysMenuMapper.findAllByStatusOrderBySort(true);
         } else {
-            sysPowers = listEnabledResourcesByUserId(loginId);
+            menuResources = listEnabledResourcesByUserId(loginId);
         }
-        final List<MenuVo> menuInfo = getMenuVos(sysPowers);
+        final List<MenuVo> menuInfo = toMenuViews(menuResources);
         return EasyTreeUtil.toTree(menuInfo, 0L);
     }
 
     @Override
-    public List<SysPower> listResources() {
-        return this.list(Wrappers.<SysPower>lambdaQuery().orderByAsc(SysPower::getPid, SysPower::getSort, SysPower::getMenuId));
+    public List<SysMenuResource> listResources() {
+        return this.list(Wrappers.<SysMenuResource>lambdaQuery().orderByAsc(SysMenuResource::getPid, SysMenuResource::getSort, SysMenuResource::getMenuId));
     }
 
     @Override
@@ -86,16 +86,16 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
 
     @Override
     public List<PermissionResourceDto> listEnabledResourceViews() {
-        return this.list(Wrappers.<SysPower>lambdaQuery()
-                        .eq(SysPower::getEnable, true)
-                        .orderByAsc(SysPower::getPid, SysPower::getSort, SysPower::getMenuId))
+        return this.list(Wrappers.<SysMenuResource>lambdaQuery()
+                        .eq(SysMenuResource::getEnable, true)
+                        .orderByAsc(SysMenuResource::getPid, SysMenuResource::getSort, SysMenuResource::getMenuId))
                 .stream()
                 .map(PermissionResourceDto::from)
                 .toList();
     }
 
     @Override
-    public List<SysPower> listEnabledResourcesByUserId(Long userId) {
+    public List<SysMenuResource> listEnabledResourcesByUserId(Long userId) {
         if (userId == null) {
             return List.of();
         }
@@ -111,7 +111,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
     @Transactional(rollbackFor = Exception.class)
     public PermissionResourceDto saveResource(PermissionResourceRequest request) {
         validateResourceRequest(request);
-        SysPower resource = toEntity(request);
+        SysMenuResource resource = toEntity(request);
         boolean saved = this.saveOrUpdate(resource);
         if (!saved) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "保存权限资源失败");
@@ -125,17 +125,17 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteResource(Long resourceId) {
-        SysPower resource = resourceId == null ? null : this.getById(resourceId);
+        SysMenuResource resource = resourceId == null ? null : this.getById(resourceId);
         if (resource == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "权限资源不存在");
         }
         boolean hasChildren = this.lambdaQuery()
-                .eq(SysPower::getPid, resourceId)
+                .eq(SysMenuResource::getPid, resourceId)
                 .exists();
         if (hasChildren) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "请先删除或迁移下级资源");
         }
-        sysRolePowerService.deleteByPowerId(resourceId);
+        sysRolePermissionService.deleteByPermissionResourceId(resourceId);
         boolean deleted = this.removeById(resourceId);
         if (deleted) {
             permissionVersionService.increaseForAllUsers();
@@ -144,11 +144,11 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         return deleted;
     }
 
-    private SysPower toEntity(PermissionResourceRequest request) {
+    private SysMenuResource toEntity(PermissionResourceRequest request) {
         if (request == null) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "权限资源不能为空");
         }
-        SysPower resource = new SysPower();
+        SysMenuResource resource = new SysMenuResource();
         resource.setMenuId(request.getMenuId());
         resource.setPid(request.getPid() == null ? ROOT_PARENT_ID : request.getPid());
         resource.setTitle(trim(request.getTitle()));
@@ -158,7 +158,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         resource.setEnable(request.getEnable() == null ? Boolean.TRUE : request.getEnable());
         resource.setRemark(trim(request.getRemark()));
         resource.setType(request.getType());
-        resource.setPowerCode(trim(request.getPowerCode()));
+        resource.setPermissionCode(trim(request.getPermissionCode()));
         resource.setComponentPath(request.getType() == RESOURCE_TYPE_PAGE ? trim(request.getComponentPath()) : null);
         resource.setVisible(request.getVisible() == null ? request.getType() != RESOURCE_TYPE_BUTTON : request.getVisible());
         return resource;
@@ -174,12 +174,12 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         if (request.getType() == null || request.getType() < 0 || request.getType() > 2) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "资源类型不正确");
         }
-        SysPower parent = findParentResource(request);
+        SysMenuResource parent = findParentResource(request);
         validateParentCycle(request, parent);
         if (request.getType() == RESOURCE_TYPE_DIRECTORY && parent != null && RESOURCE_TYPE_BUTTON == parent.getType()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "目录不能挂在按钮权限下");
         }
-        validateUniquePowerCode(request);
+        validateUniquePermissionCode(request);
         if (request.getType() == RESOURCE_TYPE_PAGE) {
             if (parent != null && RESOURCE_TYPE_DIRECTORY != parent.getType()) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "页面必须挂在目录下");
@@ -187,16 +187,16 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
             if (!StringUtils.hasText(request.getHref()) || !request.getHref().startsWith("/")) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "页面路由必须以 / 开头");
             }
-            if (!StringUtils.hasText(request.getPowerCode())) {
+            if (!StringUtils.hasText(request.getPermissionCode())) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "页面权限码不能为空");
             }
             if (!StringUtils.hasText(request.getComponentPath()) || !request.getComponentPath().startsWith("@/views/")) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "页面组件路径必须指向 src/views");
             }
             boolean routeExists = this.lambdaQuery()
-                    .eq(SysPower::getType, 1)
-                    .eq(SysPower::getHref, request.getHref())
-                    .ne(request.getMenuId() != null, SysPower::getMenuId, request.getMenuId())
+                    .eq(SysMenuResource::getType, 1)
+                    .eq(SysMenuResource::getHref, request.getHref())
+                    .ne(request.getMenuId() != null, SysMenuResource::getMenuId, request.getMenuId())
                     .exists();
             if (routeExists) {
                 throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "页面路由已存在");
@@ -206,36 +206,36 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
             if (parent == null || RESOURCE_TYPE_PAGE != parent.getType()) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "按钮权限必须挂在页面下");
             }
-            if (!StringUtils.hasText(request.getPowerCode())) {
+            if (!StringUtils.hasText(request.getPermissionCode())) {
                 throw new BusinessException(ErrorCode.VALIDATION_FAILED, "按钮权限码不能为空");
             }
         }
     }
 
-    private void validateUniquePowerCode(PermissionResourceRequest request) {
+    private void validateUniquePermissionCode(PermissionResourceRequest request) {
         if (request.getType() != RESOURCE_TYPE_BUTTON) {
             return;
         }
-        String powerCode = trim(request.getPowerCode());
-        if (!StringUtils.hasText(powerCode)) {
+        String permissionCode = trim(request.getPermissionCode());
+        if (!StringUtils.hasText(permissionCode)) {
             return;
         }
         boolean exists = this.lambdaQuery()
-                .eq(SysPower::getPowerCode, powerCode)
-                .eq(SysPower::getType, RESOURCE_TYPE_BUTTON)
-                .ne(request.getMenuId() != null, SysPower::getMenuId, request.getMenuId())
+                .eq(SysMenuResource::getPermissionCode, permissionCode)
+                .eq(SysMenuResource::getType, RESOURCE_TYPE_BUTTON)
+                .ne(request.getMenuId() != null, SysMenuResource::getMenuId, request.getMenuId())
                 .exists();
         if (exists) {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "按钮权限码已存在");
         }
     }
 
-    private void validateParentCycle(PermissionResourceRequest request, SysPower parent) {
+    private void validateParentCycle(PermissionResourceRequest request, SysMenuResource parent) {
         if (request.getMenuId() == null || parent == null) {
             return;
         }
         Long currentId = request.getMenuId();
-        SysPower cursor = parent;
+        SysMenuResource cursor = parent;
         int depth = 0;
         while (cursor != null && cursor.getPid() != null && cursor.getPid() > ROOT_PARENT_ID) {
             if (++depth > MAX_PARENT_LOOKUP_DEPTH) {
@@ -248,7 +248,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         }
     }
 
-    private SysPower findParentResource(PermissionResourceRequest request) {
+    private SysMenuResource findParentResource(PermissionResourceRequest request) {
         Long parentId = request.getPid();
         if (parentId == null || ROOT_PARENT_ID == parentId) {
             return null;
@@ -259,7 +259,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         if (request.getMenuId() != null && request.getMenuId().equals(parentId)) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "上级资源不能选择自己");
         }
-        SysPower parent = this.getById(parentId);
+        SysMenuResource parent = this.getById(parentId);
         if (parent == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "上级资源不存在");
         }
@@ -274,9 +274,9 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private static List<MenuVo> getMenuVos(List<SysPower> sysPowers) {
+    private static List<MenuVo> toMenuViews(List<SysMenuResource> menuResources) {
         List<MenuVo> menuInfo = new ArrayList<>();
-        for (SysPower e : sysPowers) {
+        for (SysMenuResource e : menuResources) {
             MenuVo menuVO = new MenuVo();
             menuVO.setId(e.getMenuId());
             menuVO.setPid(e.getPid());
@@ -288,7 +288,7 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysPower> imp
             menuVO.setEnable(e.getEnable());
             menuVO.setVisible(e.getVisible());
             menuVO.setType(e.getType());
-            menuVO.setPowerCode(e.getPowerCode());
+            menuVO.setPermissionCode(e.getPermissionCode());
             menuVO.setComponentPath(page ? e.getComponentPath() : null);
             menuInfo.add(menuVO);
         }

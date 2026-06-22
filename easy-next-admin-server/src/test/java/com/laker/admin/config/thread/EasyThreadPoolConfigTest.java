@@ -1,7 +1,7 @@
 package com.laker.admin.config.thread;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
-import com.laker.admin.infrastructure.thread.EasyNextAdminMDCThreadPoolExecutor;
+import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -90,7 +90,7 @@ class EasyThreadPoolConfigTest {
     @Test
     void shouldCreateTraceIdInBusinessMdcExecutorWhenCallerHasNoTraceId() throws InterruptedException {
         MDC.clear();
-        EasyNextAdminMDCThreadPoolExecutor executor = new EasyThreadPoolConfig().businessMDCThreadPool();
+        EasyNextAdminMdcThreadPoolExecutor executor = new EasyThreadPoolConfig().businessMdcThreadPool();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> traceId = new AtomicReference<>();
 

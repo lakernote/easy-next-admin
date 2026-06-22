@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditLoginLogView;
@@ -38,7 +39,6 @@ public class AuditLoginLogController {
                                                    @RequestParam(required = false, defaultValue = "10") long limit,
                                                    @RequestParam(required = false) String keyWord,
                                                    @RequestParam(required = false) String loginResult) {
-        Page<AuditLoginLog> pageRequest = new Page<>(page, limit);
         LambdaQueryWrapper<AuditLoginLog> queryWrapper = Wrappers.<AuditLoginLog>lambdaQuery()
                 .eq(StringUtils.hasText(loginResult), AuditLoginLog::getLoginResult, loginResult)
                 .and(StringUtils.hasText(keyWord), wrapper -> wrapper
@@ -57,7 +57,8 @@ public class AuditLoginLogController {
             }
         });
         queryWrapper.orderByDesc(AuditLoginLog::getLoginTime);
-        Page<AuditLoginLog> pageResult = auditLoginLogService.page(pageRequest, queryWrapper);
-        return PageResponse.ok(AuditLoginLogView.fromList(pageResult.getRecords()), pageResult.getTotal());
+        return EasyPageSupport.response(
+                auditLoginLogService.page(EasyPageSupport.page(page, limit), queryWrapper),
+                AuditLoginLogView::from);
     }
 }

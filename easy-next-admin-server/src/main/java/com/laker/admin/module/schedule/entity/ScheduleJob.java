@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

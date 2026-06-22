@@ -278,7 +278,7 @@
 <script setup lang="ts">
 import { Picture } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { downloadRepairAttachment } from '@/features/workflow/api'
+import { downloadRepairAttachment } from '@/features/workflow/repairApi'
 import { buildBusinessFields } from '@/features/workflow/businessFields'
 import { buildWorkflowParticipantMap, workflowParticipantProfile } from '@/features/workflow/participants'
 import { repairAttachmentsForDetail } from '@/features/workflow/repairAttachmentPreview'

@@ -18,7 +18,7 @@ describe('buildSidebarMenus', () => {
         type: 0,
         sort: 20,
         children: [
-          { id: 24, title: '按钮权限', type: 2, sort: 4, powerCode: 'sys:user:add' },
+          { id: 24, title: '按钮权限', type: 2, sort: 4, permissionCode: 'sys:user:add' },
           { id: 23, title: '隐藏菜单', type: 1, href: '/system/hidden', sort: 3, visible: false },
           { id: 22, title: '停用菜单', type: 1, href: '/system/disabled', sort: 1, enable: false },
           { id: 21, title: '用户管理', type: 1, href: '/system/users', sort: 2 },

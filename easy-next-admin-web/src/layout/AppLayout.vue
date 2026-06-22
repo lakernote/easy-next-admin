@@ -296,7 +296,7 @@ function findMenuPath(items: SidebarMenuItem[], path: string, parents: SidebarMe
 
 function findMenuPathByPermission(items: AuthMenu[], permissionCode: string): string {
   for (const item of items) {
-    if (item.powerCode === permissionCode && item.href?.startsWith('/')) {
+    if (item.permissionCode === permissionCode && item.href?.startsWith('/')) {
       return item.href
     }
     const childPath = findMenuPathByPermission(item.children || [], permissionCode)

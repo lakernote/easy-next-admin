@@ -77,7 +77,7 @@ For a new user-facing capability, check all of these:
 Start dependencies:
 
 ```bash
-docker compose up -d mysql redis
+docker compose up -d
 ```
 
 Backend:

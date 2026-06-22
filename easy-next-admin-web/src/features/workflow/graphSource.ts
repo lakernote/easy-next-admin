@@ -1,5 +1,6 @@
 import type { WorkflowGraph } from './types'
 
+// 流程图 JSON 的解析、清洗和启用校验集中在这里，页面只负责编辑交互。
 export interface WorkflowGraphSourceResult {
   ok: boolean
   graph?: WorkflowGraph

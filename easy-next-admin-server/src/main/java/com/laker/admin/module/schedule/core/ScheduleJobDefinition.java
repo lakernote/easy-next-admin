@@ -1,6 +1,6 @@
 package com.laker.admin.module.schedule.core;
 
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditErrorLogView;
@@ -48,7 +49,6 @@ public class AuditErrorLogController {
                                                    @RequestParam(required = false, defaultValue = "10") long limit,
                                                    @RequestParam(required = false) String keyWord,
                                                    @RequestParam(required = false) String errorType) {
-        Page<AuditErrorLog> pageRequest = new Page<>(page, limit);
         LambdaQueryWrapper<AuditErrorLog> queryWrapper = Wrappers.<AuditErrorLog>lambdaQuery()
                 .like(StringUtils.hasText(errorType), AuditErrorLog::getErrorType, errorType)
                 .and(StringUtils.hasText(keyWord), wrapper -> wrapper
@@ -65,11 +65,11 @@ public class AuditErrorLogController {
             }
         });
         queryWrapper.orderByDesc(AuditErrorLog::getCreatedAt);
-        Page<AuditErrorLog> pageResult = auditErrorLogService.page(pageRequest, queryWrapper);
+        Page<AuditErrorLog> pageResult = auditErrorLogService.page(EasyPageSupport.page(page, limit), queryWrapper);
         List<AuditErrorLog> records = pageResult.getRecords();
         Map<Long, SysUser> users = usersById(records);
         records.forEach(record -> record.setOperator(users.get(record.getOperatorId())));
-        return PageResponse.ok(AuditErrorLogView.fromList(records), pageResult.getTotal());
+        return EasyPageSupport.response(pageResult, AuditErrorLogView::from);
     }
 
     private Map<Long, SysUser> usersById(List<AuditErrorLog> records) {

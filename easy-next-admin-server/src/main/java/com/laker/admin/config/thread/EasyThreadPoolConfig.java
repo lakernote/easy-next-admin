@@ -2,7 +2,7 @@ package com.laker.admin.config.thread;
 
 import com.laker.admin.infrastructure.observability.trace.EasyMdcContext;
 import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
-import com.laker.admin.infrastructure.thread.EasyNextAdminMDCThreadPoolExecutor;
+import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -77,9 +77,9 @@ public class EasyThreadPoolConfig {
      * 业务线程池
      */
     @Bean
-    public EasyNextAdminMDCThreadPoolExecutor businessMDCThreadPool() {
+    public EasyNextAdminMdcThreadPoolExecutor businessMdcThreadPool() {
         EasyThreadPoolProperties.BusinessMdc businessMdc = properties.getBusinessMdc();
-        return new EasyNextAdminMDCThreadPoolExecutor(businessMdc.getPoolSize(), businessMdc.getQueueSize(), businessMdc.getThreadNamePrefix());
+        return new EasyNextAdminMdcThreadPoolExecutor(businessMdc.getPoolSize(), businessMdc.getQueueSize(), businessMdc.getThreadNamePrefix());
     }
 
     // 自定义的拒绝执行处理器，以更好地处理任务被拒绝的情况

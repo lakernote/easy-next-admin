@@ -438,7 +438,7 @@ import { PermissionCodes } from '@/permissions/codes'
 import EnableStatusSwitch from '@/components/table/EnableStatusSwitch.vue'
 import { useFluidTableHeight } from '@/components/table/useFluidTableHeight'
 import { useAuthStore } from '@/stores/auth'
-import { parseWorkflowGraphJson, sanitizeWorkflowGraphForSave, validateWorkflowGraphForEnable } from '@/features/workflow/source'
+import { parseWorkflowGraphJson, sanitizeWorkflowGraphForSave, validateWorkflowGraphForEnable } from '@/features/workflow/graphSource'
 import {
   deleteWorkflowDefinition,
   getWorkflowDefinition,
@@ -447,7 +447,7 @@ import {
   publishWorkflowDefinition,
   saveWorkflowDefinition,
   updateWorkflowDefinitionStatus,
-} from '@/features/workflow/api'
+} from '@/features/workflow/definitionApi'
 import type {
   WorkflowAssigneeOption,
   WorkflowDefinition,

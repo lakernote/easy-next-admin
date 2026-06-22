@@ -64,7 +64,7 @@ public class AuthController {
     @EasyIgnoreAuth
     @Operation(summary = "获取登录体验账号")
     public Response<List<DemoAccountResponse>> listDemoAccounts() {
-        if (!environment.acceptsProfiles(Profiles.of("local", "demo"))) {
+        if (!environment.acceptsProfiles(Profiles.of("local"))) {
             return Response.ok(List.of());
         }
         return Response.ok(List.of(

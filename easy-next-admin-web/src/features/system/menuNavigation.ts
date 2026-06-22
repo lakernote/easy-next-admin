@@ -91,7 +91,7 @@ function toNavigationNode(menu: SystemMenu): NavigationNode {
     menuId: menu.menuId,
     parentMenuId: menu.pid,
     name: menu.title,
-    code: menu.powerCode || '',
+    code: menu.permissionCode || '',
     icon: menu.icon,
     resource: menu.type === 1 ? menu.href : undefined,
     componentPath: menu.type === 1 ? menu.componentPath : undefined,

@@ -420,9 +420,9 @@ import {
   listRolePermissionResources,
   pageRoles,
   saveRole,
-  saveRoleAuthorization,
-  treeDepartments
-} from '@/features/system/api'
+  saveRoleAuthorization
+} from '@/features/system/roleApi'
+import { treeDepartments } from '@/features/system/departmentApi'
 import type { EntityId, RoleDataScope, SystemDepartment, SystemMenu, SystemRole, SystemRolePageQuery } from '@/features/system/types'
 import {
   buildRolePermissionMenuSections,

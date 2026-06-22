@@ -25,7 +25,7 @@ Dockerfile          服务端镜像构建
 启动本地依赖：
 
 ```bash
-docker compose up -d mysql redis
+docker compose up -d
 ```
 
 启动服务端：

@@ -1,6 +1,5 @@
 package com.laker.admin.integration;
 
-import com.laker.admin.common.model.Response;
 import com.laker.admin.module.system.dto.auth.AuthLoginRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +36,7 @@ class APIIT {
     @Test
     void testLogin() {
         AuthLoginRequest loginRequest = new AuthLoginRequest();
-        ResponseEntity<Response> response = restTemplate.postForEntity("/api/auth/login", loginRequest, Response.class);
+        ResponseEntity<String> response = restTemplate.postForEntity("/api/auth/login", loginRequest, String.class);
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 

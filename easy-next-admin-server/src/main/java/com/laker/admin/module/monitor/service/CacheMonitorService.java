@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Statistic;
 import org.redisson.api.RMapCache;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -51,7 +52,14 @@ public class CacheMonitorService {
     public CacheMonitorService(CacheManager cacheManager,
                                ObjectMapper objectMapper,
                                EasySensitiveDataMasker sensitiveDataMasker,
-                               @Autowired(required = false) MeterRegistry meterRegistry) {
+                               ObjectProvider<MeterRegistry> meterRegistryProvider) {
+        this(cacheManager, objectMapper, sensitiveDataMasker, meterRegistryProvider.getIfAvailable());
+    }
+
+    private CacheMonitorService(CacheManager cacheManager,
+                                ObjectMapper objectMapper,
+                                EasySensitiveDataMasker sensitiveDataMasker,
+                                MeterRegistry meterRegistry) {
         this.cacheManager = cacheManager;
         this.objectMapper = objectMapper;
         this.sensitiveDataMasker = sensitiveDataMasker;
@@ -61,7 +69,7 @@ public class CacheMonitorService {
     }
 
     public CacheMonitorService(CacheManager cacheManager, ObjectMapper objectMapper) {
-        this(cacheManager, objectMapper, new EasySensitiveDataMasker(objectMapper), null);
+        this(cacheManager, objectMapper, new EasySensitiveDataMasker(objectMapper), (MeterRegistry) null);
     }
 
     public CacheMonitorService(CacheManager cacheManager, ObjectMapper objectMapper, MeterRegistry meterRegistry) {

@@ -5,9 +5,16 @@
 [![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://adoptium.net/)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
 
-EasyNextAdmin 是一个面向中文企业后台二次开发的开源脚手架，采用 Spring Boot 3 + Vue 3 前后端分离架构。项目默认提供权限管理、组织与用户管理、用户导入导出、企业报表、运行监控、行为审计、实时日志、动态定时任务、轻量工作流、消息中心和文件中心，目标是让团队拿到代码后可以直接进入业务开发。
+EasyNextAdmin 是一套面向中文企业后台二次开发的 Spring Boot 3 + Vue 3 开源脚手架。它不是只展示页面的空壳模板，而是把企业后台常见的用户组织、角色权限、菜单路由、数据范围、审计、监控、文件、消息、定时任务和轻量流程串成一套可运行的工程基线。
 
-项目不定位为低代码平台、BI 平台或完整 BPM 平台。EasyNextAdmin 参考成熟开源项目的后台信息架构、权限模型和组件交互方式，但保留自己的产品边界和实现，不复制第三方模板品牌、演示页或无关功能。
+如果你要做 OA、运营后台、审批流、权限审计、运维管理、内部工具或企业信息化系统，EasyNextAdmin 的目标是让团队拉下代码后少搭基础设施，直接进入业务开发。
+
+## 为什么选择 EasyNextAdmin
+
+- **真实后台闭环**：登录、菜单、按钮权限、角色授权、数据范围、用户导入导出、审计、监控、WebLog、文件和流程都能本地跑通。
+- **前后端契约清晰**：菜单和权限资源以服务端 `sys_menu` 为事实源，前端动态路由和按钮权限都来自后端授权结果。
+- **技术栈新且克制**：Spring Boot 3、Java 17、Vue 3、TypeScript、Vite、Element Plus，不引入低代码、BI 或完整 BPM 平台的复杂度。
+- **适合二开学习**：代码按企业后台真实模块拆分，核心位置保留简洁中文注释，便于团队理解和扩展。
 
 ## 项目状态
 
@@ -16,6 +23,27 @@ EasyNextAdmin 是一个面向中文企业后台二次开发的开源脚手架，
 | 适合 | 不适合 |
 | --- | --- |
 | 中文企业后台二次开发、权限/组织/审计/流程类内网系统、需要前后端分离脚手架的团队 | 低代码平台、BI 平台、完整 BPM 引擎、只展示 UI 模板的项目 |
+
+## 界面预览
+
+业务工作台：
+
+![工作台](docs/assets/screenshots/readme-dashboard.png)
+
+核心业务流：
+
+| 提交申请单 | 审批待办列表 | 审批处理 |
+| --- | --- | --- |
+| ![提交申请单](docs/assets/screenshots/readme-submit-form.png) | ![审批待办列表](docs/assets/screenshots/readme-approval-list.png) | ![审批处理](docs/assets/screenshots/readme-approval-action.png) |
+
+<details>
+<summary>查看更多界面截图</summary>
+
+![登录入口](docs/assets/screenshots/readme-login.png)
+
+![用户管理](docs/assets/screenshots/readme-users.png)
+
+</details>
 
 ## 技术栈
 
@@ -35,18 +63,10 @@ EasyNextAdmin 是一个面向中文企业后台二次开发的开源脚手架，
 - Node.js 22 LTS 或 24 LTS，以及随 Node.js 安装的 npm
 - Docker 和 Docker Compose
 
-启动 MySQL、Redis：
+启动本地依赖：
 
 ```bash
-docker compose up -d mysql redis
-```
-
-如需重建本地库并导入初始化数据：
-
-```bash
-docker compose up -d mysql
-docker exec easy-next-admin-mysql mysql -uroot -p123456 -e "DROP DATABASE IF EXISTS \`easy-next-admin\`; CREATE DATABASE \`easy-next-admin\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-docker exec -i easy-next-admin-mysql mysql --default-character-set=utf8mb4 -uroot -p123456 easy-next-admin < easy-next-admin-server/src/main/resources/db/migration/V1__init.sql
+docker compose up -d
 ```
 
 启动后端：
@@ -64,13 +84,15 @@ npm ci
 npm run dev
 ```
 
+首次启动时，后端会通过 Flyway 自动创建表结构和初始化演示数据。
+
 访问地址：
 
 - 前端：http://127.0.0.1:5174
 - 后端：http://127.0.0.1:8080
 - OpenAPI：http://127.0.0.1:8080/swagger-ui.html
 
-默认演示账号。登录页只在 `local` / `demo` profile 通过 `/api/auth/demo-accounts` 返回这些账号；生产 profile 不返回演示密码，正式环境必须替换初始化密码：
+默认演示账号。登录页只在 `local` profile 通过 `/api/auth/demo-accounts` 返回这些账号；生产 profile 不返回演示密码，正式环境必须替换初始化密码：
 
 | 角色 | 账号 | 密码 | 用途 |
 | --- | --- | --- | --- |
@@ -148,14 +170,14 @@ easy-next-admin-web/dist
 发布或提交 PR 前建议至少运行：
 
 ```bash
-mvn -pl easy-next-admin-server -am test
+mvn -pl easy-next-admin-server -am verify
 cd easy-next-admin-web
 npm ci
 npm run test:unit
 npm run build
 ```
 
-本仓库已配置 GitHub Actions，在 `main` 分支 push 和 pull request 时会执行后端测试、前端单元测试和前端构建。
+本仓库已配置 GitHub Actions，在 `main` 分支 push 和 pull request 时会执行后端 `verify`、前端单元测试和前端构建。
 
 ## 文档
 

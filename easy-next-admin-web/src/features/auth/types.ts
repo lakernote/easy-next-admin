@@ -55,7 +55,7 @@ export interface AuthMenu {
   enable?: boolean
   visible?: boolean
   type?: number
-  powerCode?: string
+  permissionCode?: string
   componentPath?: string
   children?: AuthMenu[]
 }

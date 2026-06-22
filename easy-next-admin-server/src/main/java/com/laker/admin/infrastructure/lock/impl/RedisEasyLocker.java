@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.lock.impl;
 
-import com.laker.admin.infrastructure.lock.base.AbstractSimpleIEasyLocker;
+import com.laker.admin.infrastructure.lock.base.AbstractEasyLocker;
 import com.laker.admin.infrastructure.lock.base.EasyLocker;
 import io.lettuce.core.RedisCommandInterruptedException;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.List;
  * @author easynext
  */
 @Slf4j
-public class RedisEasyLocker extends AbstractSimpleIEasyLocker {
+public class RedisEasyLocker extends AbstractEasyLocker {
 
     private static final String LOCK_SCRIPT = "return redis.call('SET', KEYS[1], ARGV[1], 'PX', tonumber(ARGV[2]), 'NX') and true or false";
 

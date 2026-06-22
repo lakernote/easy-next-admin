@@ -78,11 +78,11 @@ function collectButtonPermissions(section: SystemMenu, menu: SystemMenu, menuCod
   const actions = new Map<string, RolePermission>()
   const childResources = menu.children || []
   childResources
-    .filter((child) => child.type === 2 && child.powerCode)
+    .filter((child) => child.type === 2 && child.permissionCode)
     .forEach((child) => {
-      if (!child.powerCode || child.powerCode === menuCode) return
-      actions.set(child.powerCode, {
-        code: child.powerCode,
+      if (!child.permissionCode || child.permissionCode === menuCode) return
+      actions.set(child.permissionCode, {
+        code: child.permissionCode,
         name: child.title,
         group: menu.title,
         type: 'button',
@@ -96,7 +96,7 @@ function collectButtonPermissions(section: SystemMenu, menu: SystemMenu, menuCod
 
 function toMenuPermission(section: SystemMenu, menu: SystemMenu): RolePermission {
   return {
-    code: menu.powerCode || '',
+    code: menu.permissionCode || '',
     name: menu.title,
     group: menu.title,
     type: 'menu',
@@ -107,7 +107,7 @@ function toMenuPermission(section: SystemMenu, menu: SystemMenu): RolePermission
 }
 
 function isVisiblePageMenu(menu: SystemMenu) {
-  return menu.type === 1 && Boolean(menu.powerCode) && menu.visible !== false
+  return menu.type === 1 && Boolean(menu.permissionCode) && menu.visible !== false
 }
 
 function uniqueCodes(codes: string[]) {

@@ -8,11 +8,11 @@
 | --- | --- | --- | --- | --- |
 | 工作台 | `/dashboard` | `src/views/dashboard`、`src/features/dashboard` | `module.system`、`module.workflow` | `dashboard:view` |
 | 认证授权 | `/login`、`/profile/security`、`/monitor/online` | `src/views/login/LoginView.vue`、`src/stores/auth.ts`、`src/api/request.ts` | `infrastructure.security`、`module.system` | 登录入口公开，业务接口按 `@EasyPermission` |
-| 用户管理 | `/system/users` | `src/views/system/UserView.vue`、`src/features/system/api.ts` | `module.system` | `sys:user:list/add/edit/delete/import/export` |
+| 用户管理 | `/system/users` | `src/views/system/UserView.vue`、`src/features/system/userApi.ts` | `module.system` | `sys:user:list/add/edit/delete/import/export` |
 | 角色权限 | `/system/roles` | `src/views/system/RoleView.vue` | `module.system` | `sys:role:list/edit` |
 | 菜单配置 | `/system/menus` | `src/views/system/MenuView.vue` | `module.system` | `sys:menu:list/edit` |
 | 组织架构 | `/system/departments` | `src/views/system/DepartmentView.vue` | `module.system` | `sys:dept:list/edit` |
-| 文件中心 | `/system/files` | `src/views/file/FileCenterView.vue` | `module.system` | `sys:file:list/upload/delete` |
+| 文件中心 | `/system/files` | `src/views/system/FileCenterView.vue` | `module.system` | `sys:file:list/upload/delete` |
 | 报表中心 | `/reports/enterprise` | `src/views/report/EnterpriseReportView.vue`、`src/features/report` | `module.report` | `report:view` |
 | 运行监控 | `/monitor/server` | `src/views/monitor/MonitorView.vue` | `module.monitor` | `monitor:server:view` |
 | 在线用户 | `/monitor/online` | `src/views/monitor/OnlineUserView.vue` | `infrastructure.security` | `monitor:online:view`、`auth:session:revoke` |
@@ -31,7 +31,7 @@
 | 功能组件 | 使用方式 | 设计要点 |
 | --- | --- | --- |
 | 工作台 | 登录后进入 `/dashboard`，查看待办、消息、系统状态和快捷入口。 | 只做运营入口，不承载复杂配置；待办、消息和监控指标均来自真实模块数据。 |
-| 认证授权 | 登录页调用 `/api/auth/login`，请求拦截器携带当前会话凭证，后端过滤器恢复当前用户，接口注解完成授权。 | 当前代码使用 Bearer token 和服务端会话快照，适合本地开发和前后端分离调试；权限版本让角色、菜单和用户授权变化能立即让旧会话失效。`/api/auth/demo-accounts` 只在 `local` / `demo` profile 返回演示账号。生产安全路线固定为 HttpOnly Cookie 会话 + CSRF 防护，不把浏览器可读 token 作为生产验收方案。 |
+| 认证授权 | 登录页调用 `/api/auth/login`，请求拦截器携带当前会话凭证，后端过滤器恢复当前用户，接口注解完成授权。 | 当前代码使用 Bearer token 和服务端会话快照，适合本地开发和前后端分离调试；权限版本让角色、菜单和用户授权变化能立即让旧会话失效。`/api/auth/demo-accounts` 只在 `local` profile 返回演示账号。生产安全路线固定为 HttpOnly Cookie 会话 + CSRF 防护，不把浏览器可读 token 作为生产验收方案。 |
 | 系统管理 | 通过用户、角色、菜单、部门页面维护组织和授权；用户管理页支持下载 CSV 模板、导入用户和按筛选条件导出用户。 | 菜单权限、按钮权限和后端权限码同源；用户详情、编辑、启停、删除、重置密码和部门维护都走数据权限边界。用户页维护直属上级并预览审批关系，部门页维护部门负责人，供工作流运行时派单。用户批量导入由 `SysUserImportExportService` 校验 CSV 类型、2MB 大小、1000 行上限、部门名称、角色编码和重复用户名；导出 CSV 会防 Excel 公式注入。 |
 | 文件中心 | 在 `/system/files` 上传、预览、下载和清理文件；图片、PDF 和文本类文件可直接预览。 | 业务模块通过文件 API 保存文件元数据，预览和下载复用鉴权下载接口，不在页面拼接裸地址。上传会校验大小、扩展名、MIME 和常见文件头签名，拒绝把可执行文件伪装成图片、PDF 或压缩包；病毒扫描和敏感内容检测应在企业网关或对象存储侧继续补齐。 |
 | 报表中心 | 在 `/reports/enterprise` 查看组织人员台账和采购流程复核两张 A4 纸质报表，并可使用浏览器打印。 | 报表接口只读，走 `report:view` 权限和当前账号数据范围；页面用固定版式表格、签核栏和报表编号呈现，不做 BI 配置器或大屏图表。 |
@@ -80,7 +80,7 @@
 | 缓存 | `/api/monitor/cache`、业务命名缓存 | `EasyCacheConfig`、`CacheMonitorService` | 命名缓存统一 TTL，监控页展示命中率、容量和脱敏 value 预览；敏感或强数据权限详情不做共享缓存。 |
 | 审计 | 退出登录、清理缓存、角色授权 | `@EasyAudit`、`AuditLogCollector`、`SensitiveAuditService` | 操作审计走注解，敏感数据变更走显式服务。 |
 | 脱敏 | 审计参数、接口访问日志、实时日志 | `EasySensitiveDataMasker`、`@EasyMask` | DTO 输出用注解，Map/请求参数/日志文本用组件。 |
-| Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | `EasyTraceIdFilter`、`EasyTraceIdContext`、`EasyMdcContext`、`EasyNextAdminMDCThreadPoolExecutor`、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建，跨线程、Kafka 生产消费和远程调用透传，日志打印 `traceId` 和认证后的 `userId`。 |
+| Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | `EasyTraceIdFilter`、`EasyTraceIdContext`、`EasyMdcContext`、`EasyNextAdminMdcThreadPoolExecutor`、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建，跨线程、Kafka 生产消费和远程调用透传，日志打印 `traceId` 和认证后的 `userId`。 |
 | 指标采集 | 用户管理、审计、监控 Controller | `@EasyMetrics`、`EasyMetricsAspect` | 给接口层采集耗时、结果和异常计数。 |
 | 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | `TraceContext`、`@EasyTrace`、`TraceCodeBlock`、`EasyHttpSlowRequestInterceptor`、`EasyMybatisTraceInterceptor` | 不依赖外部 tracing；入口超出阈值或异常时打印本地调用树，MyBatis 层 tag 只保留 `SqlCommandType`，连续重复叶子节点聚合为 `count/total/min/max`。 |
 | 定时任务 | 本地消息重试 | `@EasyJob`、`ScheduleJobManager` | 任务实现 `EasyJobHandler`，最终启停和 Cron 以数据库为准。 |
@@ -101,7 +101,7 @@
 | 审批关系 | `SysUserServiceImpl#saveUser`、`SysDeptServiceImpl#saveDepartment`、`SysUserRelationService` | 用户表维护 `manager_user_id` 作为直属上级，部门表维护 `leader_user_id` 作为部门负责人；用户列表批量补齐直属上级、部门负责人和上级部门负责人，流程配置页直接使用这些企业组织关系。 |
 | 用户角色绑定 | `ISysUserRoleService`、`SysUserRoleMapper` | `sys_user_role` 是纯关系表，保存前按用户硬删旧绑定，再批量插入新绑定；初始化 SQL 对 `(user_id, role_id)` 加唯一约束，防止重复授权。 |
 | 角色列表用户数 | `SysRoleServiceImpl#pageRoles`、`SysUserRoleMapper#countUsersByRoleIds` | 用户数由数据库按角色聚合，不把整张关系表拉回应用层再分组。 |
-| 角色权限保存 | `SysRoleServiceImpl#saveRolePermissions`、`ISysRolePowerService` | 保存授权时先按角色硬删旧权限，再批量写入选中权限及其父级导航；保存后递增权限版本并写敏感变更审计。 |
+| 角色权限保存 | `SysRoleServiceImpl#saveRolePermissions`、`ISysRolePermissionService` | 保存授权时先按角色硬删旧权限，再批量写入选中权限及其父级导航；保存后递增权限版本并写敏感变更审计。 |
 | 当前用户菜单 | `SysMenuMapper#findEnabledByUserId` | 普通用户菜单通过 `sys_user_role -> sys_role_permission -> sys_menu` 一次 JOIN 查询；超级管理员直接读取启用资源。 |
 | 组织层级 | `SysDeptServiceImpl#saveDepartment` | 保存部门时统一计算 `full_name` 和 `tree_path`，校验父级存在、禁止把父级改成自己或下级；删除部门前校验下级部门和部门用户。 |
 
@@ -121,7 +121,7 @@ EasyNextAdmin 不再维护前端硬编码菜单清单。目录、页面、按钮
 
 - `type = 1`：页面节点；`type = 0` 表示目录分组，`type = 2` 表示按钮。
 - `href`：页面路由，例如 `/messages`。
-- `power_code`：页面权限码，例如 `message:view`。
+- `permission_code`：页面权限码，例如 `message:view`。
 - `component_path`：本地页面路径，例如 `@/views/message/MessageCenterView.vue`。
 - `visible`、`enable`、`sort`：控制菜单可见性、资源启停和排序。
 
@@ -131,13 +131,13 @@ EasyNextAdmin 不再维护前端硬编码菜单清单。目录、页面、按钮
 
 ```sql
 INSERT INTO sys_menu
-    (id, title, type, href, icon, power_code, component_path, pid, sort, visible, enable)
+    (id, title, type, href, icon, permission_code, component_path, pid, sort, visible, enable)
 VALUES
     (9000, '消息中心', 1, '/messages', 'Bell', 'message:view',
      '@/views/message/MessageCenterView.vue', 0, 120, 1, 1);
 
 INSERT INTO sys_menu
-    (id, title, type, power_code, pid, sort, visible, enable)
+    (id, title, type, permission_code, pid, sort, visible, enable)
 VALUES
     (9001, '全部已读', 2, 'message:read-all', 9000, 10, 0, 1);
 ```
@@ -146,7 +146,7 @@ VALUES
 
 ## 权限使用
 
-页面可见性由 `/api/auth/me` 返回的授权菜单决定。页面路由生成后会把 `power_code` 写入 route meta，路由守卫统一校验。
+页面可见性由 `/api/auth/me` 返回的授权菜单决定。页面路由生成后会把响应字段 `permissionCode` 写入 route meta，路由守卫统一校验。
 
 按钮权限：
 
@@ -685,7 +685,7 @@ easy-next-admin-web/src/features/workflow
 ```text
 module/system
 easy-next-admin-web/src/views/system/UserView.vue
-easy-next-admin-web/src/features/system/api.ts
+easy-next-admin-web/src/features/system/userApi.ts
 ```
 
 用户管理页提供“导入用户”和“导出用户”按钮。导入流程先下载 CSV 模板，模板使用“部门名称”和“角色编码”完成组织和角色映射；上传后端会逐行校验必填项、重复用户名、部门状态和角色状态，并返回成功数、失败数和行级错误。导出按当前筛选条件直接返回用户 CSV，适合二开时复制到其他业务模块各自实现，不保留独立中心页。
@@ -698,4 +698,4 @@ easy-next-admin-web/src/features/system/api.ts
 4. 在 `src/views/<domain>` 新增页面，页面只调用 feature API。
 5. 在 `sys_menu` 登记目录、页面和按钮资源；页面资源写 `component_path`，按钮权限码与后端 `EasyPermissions` 和前端 `PermissionCodes` 保持一致。
 6. 更新本文档中的功能表和权限说明。
-7. 运行后端测试或打包、前端 `npm run build`。
+7. 运行后端 `verify` 或打包、前端 `npm run build`。

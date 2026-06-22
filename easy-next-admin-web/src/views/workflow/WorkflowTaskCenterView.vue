@@ -361,21 +361,23 @@ import {
   approveWorkflowTask,
   delegateWorkflowTask,
   getWorkflowTaskCenterSummary,
-  getWorkflowInstance,
-  getRepairRequestByWorkflowInstance,
-  listWorkflowAssignees,
   markWorkflowCcRead,
   pageWorkflowCc,
-  pageWorkflowInstances,
   pageWorkflowTasks,
   rejectWorkflowTask,
   remindWorkflowTask,
   removeSignWorkflowTask,
-  revokeWorkflowInstance,
   returnWorkflowTask,
-  transferWorkflowTask,
+  transferWorkflowTask
+} from '@/features/workflow/taskApi'
+import {
+  getWorkflowInstance,
+  pageWorkflowInstances,
+  revokeWorkflowInstance,
   type WorkflowInstanceScope
-} from '@/features/workflow/api'
+} from '@/features/workflow/instanceApi'
+import { listWorkflowAssignees } from '@/features/workflow/definitionApi'
+import { getRepairRequestByWorkflowInstance } from '@/features/workflow/repairApi'
 import { loadWorkflowTaskCenterTab, type WorkflowTaskCenterApi } from '@/features/workflow/taskCenterLoader'
 import type {
   WorkflowAssigneeOption,

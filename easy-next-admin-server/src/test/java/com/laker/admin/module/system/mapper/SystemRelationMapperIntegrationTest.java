@@ -2,7 +2,7 @@ package com.laker.admin.module.system.mapper;
 
 import com.laker.admin.module.system.dto.RoleUserCount;
 import com.laker.admin.module.system.dto.UserRoleBinding;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +23,7 @@ class SystemRelationMapperIntegrationTest {
     @Autowired
     private SysUserRoleMapper sysUserRoleMapper;
     @Autowired
-    private SysRolePowerMapper sysRolePowerMapper;
+    private SysRolePermissionMapper sysRolePermissionMapper;
     @Autowired
     private SysMenuMapper sysMenuMapper;
 
@@ -46,12 +46,12 @@ class SystemRelationMapperIntegrationTest {
 
     @Test
     void shouldResolvePermissionCodesAndMenusWithJoinQueries() {
-        List<String> permissionCodes = sysRolePowerMapper.selectPermissionCodesByRoleId(ADMIN_ROLE_ID);
-        List<SysPower> menus = sysMenuMapper.findEnabledByUserId(ADMIN_USER_ID);
+        List<String> permissionCodes = sysRolePermissionMapper.selectPermissionCodesByRoleId(ADMIN_ROLE_ID);
+        List<SysMenuResource> menus = sysMenuMapper.findEnabledByUserId(ADMIN_USER_ID);
 
         assertThat(permissionCodes).contains("dashboard:view", "sys:user:list");
         assertThat(menus)
-                .extracting(SysPower::getPowerCode)
+                .extracting(SysMenuResource::getPermissionCode)
                 .contains("dashboard:view", "sys:user:list");
     }
 }

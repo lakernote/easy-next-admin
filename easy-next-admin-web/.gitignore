@@ -1,3 +1,4 @@
+# 前端依赖、构建产物和本机临时配置不提交到仓库。
 node_modules
 dist
 *.local

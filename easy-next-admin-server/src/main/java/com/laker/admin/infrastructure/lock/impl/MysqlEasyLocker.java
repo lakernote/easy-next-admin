@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.lock.impl;
 
-import com.laker.admin.infrastructure.lock.base.AbstractSimpleIEasyLocker;
+import com.laker.admin.infrastructure.lock.base.AbstractEasyLocker;
 import com.laker.admin.infrastructure.lock.base.EasyLocker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,7 +15,7 @@ import java.time.Duration;
  * @author easynext
  */
 @Slf4j
-public class MysqlEasyLocker extends AbstractSimpleIEasyLocker {
+public class MysqlEasyLocker extends AbstractEasyLocker {
 
     /**
      * 原始sql 需要配合DuplicateKeyException使用，不优雅。

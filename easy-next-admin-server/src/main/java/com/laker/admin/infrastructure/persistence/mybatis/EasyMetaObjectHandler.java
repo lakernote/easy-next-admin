@@ -18,7 +18,7 @@ public class EasyMetaObjectHandler implements MetaObjectHandler {
     @Override
     public void insertFill(MetaObject metaObject) {
         log.debug("start insert fill ....");
-        UserInfoAndPowers userInfoAndPowers = EasyNextAdminSecurityUtils.getCurrentUserInfo();
+        UserInfoAndPermissions userInfoAndPowers = EasyNextAdminSecurityUtils.getCurrentUserInfo();
         Long userId = currentUserId(userInfoAndPowers);
         Long deptId = userInfoAndPowers == null ? null : userInfoAndPowers.getDeptId();
         if (userId != null) {
@@ -44,7 +44,7 @@ public class EasyMetaObjectHandler implements MetaObjectHandler {
         this.strictUpdateFill(metaObject, "updateTime", LocalDateTime::now, LocalDateTime.class);
     }
 
-    private Long currentUserId(UserInfoAndPowers userInfoAndPowers) {
+    private Long currentUserId(UserInfoAndPermissions userInfoAndPowers) {
         if (userInfoAndPowers != null) {
             return userInfoAndPowers.getUserId();
         }

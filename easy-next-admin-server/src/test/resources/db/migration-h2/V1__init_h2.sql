@@ -226,7 +226,7 @@ CREATE TABLE sys_menu (
   deleted TINYINT DEFAULT 0,
   version INT DEFAULT 0,
   type INT,
-  power_code VARCHAR(160),
+  permission_code VARCHAR(160),
   component_path VARCHAR(255),
   visible TINYINT,
   create_by BIGINT,
@@ -251,7 +251,7 @@ CREATE TABLE sys_user_role (
 CREATE TABLE sys_role_permission (
   id BIGINT PRIMARY KEY,
   role_id BIGINT NOT NULL,
-  power_id BIGINT NOT NULL,
+  permission_resource_id BIGINT NOT NULL,
   create_by BIGINT,
   create_dept_id BIGINT,
   create_time TIMESTAMP,
@@ -260,7 +260,7 @@ CREATE TABLE sys_role_permission (
   deleted TINYINT DEFAULT 0,
   version INT DEFAULT 0,
   remark VARCHAR(500),
-  UNIQUE (role_id, power_id)
+  UNIQUE (role_id, permission_resource_id)
 );
 
 CREATE TABLE sys_role_dept (
@@ -632,7 +632,7 @@ VALUES
   (202604280105001006, 202604280101000018, 202604280102000012, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0),
   (202604280105001007, 202604280101000024, 202604280102000006, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0);
 
-INSERT INTO sys_menu (id, pid, title, icon, href, sort, enable, remark, create_time, update_by, update_time, deleted, version, type, power_code, component_path, visible, create_by, create_dept_id)
+INSERT INTO sys_menu (id, pid, title, icon, href, sort, enable, remark, create_time, update_by, update_time, deleted, version, type, permission_code, component_path, visible, create_by, create_dept_id)
 VALUES
   (202604280104000001, 0, '工作台', 'DataBoard', '/dashboard', 10, 1, '进入企业工作台并查看系统概览。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'dashboard:view', '@/views/dashboard/WorkspaceView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000100, 0, '系统管理', 'Setting', '', 20, 1, '系统基础能力分组。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001),
@@ -649,7 +649,7 @@ VALUES
   (202604280104000121, 202604280104000102, '编辑角色与授权配置', '', '', 11, 1, '允许维护角色资料并配置菜单权限、按钮权限和数据范围策略。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:role:edit', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000131, 202604280104000103, '编辑权限资源', '', '', 11, 1, '允许维护目录、页面和按钮权限。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:menu:edit', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000141, 202604280104000104, '编辑部门', '', '', 11, 1, '允许维护部门和组织树。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:dept:edit', NULL, 0, 202604280101000001, 202604280103000001),
-  (202604280104000151, 202604280104000100, '文件中心', 'Document', '/system/files', 50, 1, '进入文件中心，查看文件元数据并通过鉴权接口下载。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'sys:file:list', '@/views/file/FileCenterView.vue', 1, 202604280101000001, 202604280103000001),
+  (202604280104000151, 202604280104000100, '文件中心', 'Document', '/system/files', 50, 1, '进入文件中心，查看文件元数据并通过鉴权接口下载。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'sys:file:list', '@/views/system/FileCenterView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000152, 202604280104000151, '上传文件', '', '', 11, 1, '允许上传白名单范围内的企业附件。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:file:upload', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000153, 202604280104000151, '删除文件', '', '', 12, 1, '允许删除文件元数据和存储对象。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:file:delete', NULL, 0, 202604280101000001, 202604280103000001),
   (202605260104000001, 0, '报表中心', 'DataAnalysis', '/reports/enterprise', 28, 1, '查看组织人员台账和采购流程复核纸质报表。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'report:view', '@/views/report/EnterpriseReportView.vue', 1, 202604280101000001, 202604280103000001),
@@ -694,10 +694,10 @@ VALUES
   (202604280104000416, 202604280104000413, '减签任务', '', '', 21, 1, '允许移除当前节点尚未处理的加签待办。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'workflow:task:remove-sign', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000411, 202604280104000413, '催办任务', '', '', 22, 1, '允许对待处理任务发起催办留痕。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'workflow:task:remind', NULL, 0, 202604280101000001, 202604280103000001);
 
-INSERT INTO sys_role_permission (id, role_id, power_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
-SELECT 202604290106010000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
+INSERT INTO sys_role_permission (id, role_id, permission_resource_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+SELECT 202604290106010000 + ROW_NUMBER() OVER (ORDER BY permission_resource.id),
        role_table.id,
-       power_table.id,
+       permission_resource.id,
        202604280101000001,
        202604280103000001,
        CURRENT_TIMESTAMP,
@@ -707,15 +707,15 @@ SELECT 202604290106010000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
        0,
        '超级管理员内置授权'
 FROM sys_role role_table
-JOIN sys_menu power_table ON power_table.deleted = 0
-                         AND power_table.enable = 1
+JOIN sys_menu permission_resource ON permission_resource.deleted = 0
+                         AND permission_resource.enable = 1
 WHERE role_table.role_code = 'admin'
   AND role_table.deleted = 0;
 
-INSERT INTO sys_role_permission (id, role_id, power_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
-SELECT 202604290106020000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
+INSERT INTO sys_role_permission (id, role_id, permission_resource_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+SELECT 202604290106020000 + ROW_NUMBER() OVER (ORDER BY permission_resource.id),
        role_table.id,
-       power_table.id,
+       permission_resource.id,
        202604280101000001,
        202604280103000001,
        CURRENT_TIMESTAMP,
@@ -725,10 +725,10 @@ SELECT 202604290106020000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
        0,
        '部门负责人默认授权'
 FROM sys_role role_table
-JOIN sys_menu power_table ON power_table.deleted = 0
-                         AND power_table.enable = 1
+JOIN sys_menu permission_resource ON permission_resource.deleted = 0
+                         AND permission_resource.enable = 1
                          AND (
-                             power_table.power_code IN (
+                             permission_resource.permission_code IN (
                                  'dashboard:view',
                                  'report:view',
                                  'sys:user:list',
@@ -760,7 +760,7 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                                           AND parent.enable = 1
                                  WHERE child.deleted = 0
                                    AND child.enable = 1
-                                   AND child.power_code IN (
+                                   AND child.permission_code IN (
                                        'dashboard:view',
                                        'report:view',
                                        'sys:user:list',
@@ -784,16 +784,16 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                        'message:view',
                                        'message:read'
                                    )
-                                   AND (child.pid = power_table.id OR parent.pid = power_table.id)
+                                   AND (child.pid = permission_resource.id OR parent.pid = permission_resource.id)
                              )
                          )
 WHERE role_table.role_code = 'dept_manager'
   AND role_table.deleted = 0;
 
-INSERT INTO sys_role_permission (id, role_id, power_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
-SELECT 202604290106030000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
+INSERT INTO sys_role_permission (id, role_id, permission_resource_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+SELECT 202604290106030000 + ROW_NUMBER() OVER (ORDER BY permission_resource.id),
        role_table.id,
-       power_table.id,
+       permission_resource.id,
        202604280101000001,
        202604280103000001,
        CURRENT_TIMESTAMP,
@@ -803,10 +803,10 @@ SELECT 202604290106030000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
        0,
        '普通员工默认授权'
 FROM sys_role role_table
-JOIN sys_menu power_table ON power_table.deleted = 0
-                         AND power_table.enable = 1
+JOIN sys_menu permission_resource ON permission_resource.deleted = 0
+                         AND permission_resource.enable = 1
                          AND (
-                             power_table.power_code IN (
+                             permission_resource.permission_code IN (
                                  'dashboard:view',
                                  'workflow:instance:start',
                                  'workflow:view',
@@ -824,7 +824,7 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                                           AND parent.enable = 1
                                  WHERE child.deleted = 0
                                    AND child.enable = 1
-                                   AND child.power_code IN (
+                                   AND child.permission_code IN (
                                        'dashboard:view',
                                        'workflow:instance:start',
                                        'workflow:view',
@@ -834,16 +834,16 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                        'message:view',
                                        'message:read'
                                    )
-                                   AND (child.pid = power_table.id OR parent.pid = power_table.id)
+                                   AND (child.pid = permission_resource.id OR parent.pid = permission_resource.id)
                              )
                          )
 WHERE role_table.role_code = 'staff'
   AND role_table.deleted = 0;
 
-INSERT INTO sys_role_permission (id, role_id, power_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
-SELECT 202604290106040000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
+INSERT INTO sys_role_permission (id, role_id, permission_resource_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+SELECT 202604290106040000 + ROW_NUMBER() OVER (ORDER BY permission_resource.id),
        role_table.id,
-       power_table.id,
+       permission_resource.id,
        202604280101000001,
        202604280103000001,
        CURRENT_TIMESTAMP,
@@ -853,10 +853,10 @@ SELECT 202604290106040000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
        0,
        '运维人员默认授权'
 FROM sys_role role_table
-JOIN sys_menu power_table ON power_table.deleted = 0
-                         AND power_table.enable = 1
+JOIN sys_menu permission_resource ON permission_resource.deleted = 0
+                         AND permission_resource.enable = 1
                          AND (
-                             power_table.power_code IN (
+                             permission_resource.permission_code IN (
                                  'dashboard:view',
                                  'monitor:server:view',
                                  'monitor:online:view',
@@ -887,7 +887,7 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                                           AND parent.enable = 1
                                  WHERE child.deleted = 0
                                    AND child.enable = 1
-                                   AND child.power_code IN (
+                                   AND child.permission_code IN (
                                        'dashboard:view',
                                        'monitor:server:view',
                                        'monitor:online:view',
@@ -910,16 +910,16 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                        'message:view',
                                        'message:read'
                                    )
-                                   AND (child.pid = power_table.id OR parent.pid = power_table.id)
+                                   AND (child.pid = permission_resource.id OR parent.pid = permission_resource.id)
                              )
                          )
 WHERE role_table.role_code = 'ops'
   AND role_table.deleted = 0;
 
-INSERT INTO sys_role_permission (id, role_id, power_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
-SELECT 202604290106050000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
+INSERT INTO sys_role_permission (id, role_id, permission_resource_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+SELECT 202604290106050000 + ROW_NUMBER() OVER (ORDER BY permission_resource.id),
        role_table.id,
-       power_table.id,
+       permission_resource.id,
        202604280101000001,
        202604280103000001,
        CURRENT_TIMESTAMP,
@@ -929,10 +929,10 @@ SELECT 202604290106050000 + ROW_NUMBER() OVER (ORDER BY power_table.id),
        0,
        '审计人员默认授权'
 FROM sys_role role_table
-JOIN sys_menu power_table ON power_table.deleted = 0
-                         AND power_table.enable = 1
+JOIN sys_menu permission_resource ON permission_resource.deleted = 0
+                         AND permission_resource.enable = 1
                          AND (
-                             power_table.power_code IN (
+                             permission_resource.permission_code IN (
                                  'dashboard:view',
                                  'report:view',
                                  'sys:role:list',
@@ -954,7 +954,7 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                                           AND parent.enable = 1
                                  WHERE child.deleted = 0
                                    AND child.enable = 1
-                                   AND child.power_code IN (
+                                   AND child.permission_code IN (
                                        'dashboard:view',
                                        'report:view',
                                        'sys:role:list',
@@ -968,7 +968,7 @@ JOIN sys_menu power_table ON power_table.deleted = 0
                                        'message:view',
                                        'message:read'
                                    )
-                                   AND (child.pid = power_table.id OR parent.pid = power_table.id)
+                                   AND (child.pid = permission_resource.id OR parent.pid = permission_resource.id)
                              )
                          )
 WHERE role_table.role_code = 'auditor'

@@ -197,16 +197,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { PermissionCodes } from '@/permissions/codes'
 import {
   approveWorkflowTask,
-  getRepairRequestByWorkflowInstance,
-  getWorkflowInstance,
-  listWorkflowAssignees,
-  pageWorkflowInstances,
   rejectWorkflowTask,
   remindWorkflowTask,
+  transferWorkflowTask
+} from '@/features/workflow/taskApi'
+import {
+  getWorkflowInstance,
+  pageWorkflowInstances,
   terminateWorkflowInstance,
-  transferWorkflowTask,
   type WorkflowInstanceScope
-} from '@/features/workflow/api'
+} from '@/features/workflow/instanceApi'
+import { listWorkflowAssignees } from '@/features/workflow/definitionApi'
+import { getRepairRequestByWorkflowInstance } from '@/features/workflow/repairApi'
 import type {
   RepairAttachment,
   WorkflowAssigneeOption,

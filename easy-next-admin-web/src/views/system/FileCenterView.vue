@@ -229,7 +229,7 @@ import { PermissionCodes } from '@/permissions/codes'
 import TableToolbar from '@/components/table/TableToolbar.vue'
 import { createTableColumnState, visibleColumnMap } from '@/components/table/tableColumns'
 import { useFluidTableHeight } from '@/components/table/useFluidTableHeight'
-import { batchDeleteSystemFiles, deleteSystemFile, downloadSystemFile, pageSystemFiles, uploadSystemFile } from '@/features/file/api'
+import { batchDeleteSystemFiles, deleteSystemFile, downloadSystemFile, pageSystemFiles, uploadSystemFile } from '@/features/system/fileApi'
 import {
   canPreviewFile,
   displayFileName,

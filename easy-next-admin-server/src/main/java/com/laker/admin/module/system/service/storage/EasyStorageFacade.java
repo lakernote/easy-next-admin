@@ -6,7 +6,7 @@ import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
 import com.laker.admin.common.util.EasyNextAdminSecurityUtils;
 import com.laker.admin.infrastructure.id.EasyIdGenerator;
-import com.laker.admin.infrastructure.persistence.mybatis.UserInfoAndPowers;
+import com.laker.admin.infrastructure.persistence.mybatis.UserInfoAndPermissions;
 import com.laker.admin.module.system.entity.SysFile;
 import com.laker.admin.module.system.service.ISysFileService;
 import org.springframework.stereotype.Service;
@@ -67,7 +67,7 @@ public class EasyStorageFacade {
         String safeOriginalName = sanitizeFilename(originalFilename);
         String filePath = easyStorage.store(checkedInputStream, contentLength, normalizedContentType, storageName);
         SysFile sysFile = new SysFile();
-        UserInfoAndPowers currentUserInfo = EasyNextAdminSecurityUtils.getCurrentUserInfo();
+        UserInfoAndPermissions currentUserInfo = EasyNextAdminSecurityUtils.getCurrentUserInfo();
         sysFile.setUserId(currentUserInfo.getUserId());
         sysFile.setNickName(currentUserInfo.getNickName());
         sysFile.setFilePath(filePath);

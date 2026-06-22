@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatWorkflowGraphSource, parseWorkflowGraphJson, parseWorkflowGraphSource, sanitizeWorkflowGraphForSave, validateWorkflowGraphForEnable } from './source'
+import { formatWorkflowGraphSource, parseWorkflowGraphJson, parseWorkflowGraphSource, sanitizeWorkflowGraphForSave, validateWorkflowGraphForEnable } from './graphSource'
 import type { WorkflowGraph } from './types'
 
 describe('workflow graph source helpers', () => {

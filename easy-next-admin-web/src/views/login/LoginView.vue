@@ -110,7 +110,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { ArrowRight, Check, Key, User } from '@element-plus/icons-vue'
-import { captchaApi, demoAccountsApi } from '@/features/auth/api'
+import { getCaptcha, listDemoAccounts } from '@/features/auth/api'
 import type { DemoAccount } from '@/features/auth/types'
 import { useAuthStore } from '@/stores/auth'
 import { firstAuthorizedPath, syncDynamicRoutes } from '@/router/dynamicRoutes'
@@ -155,7 +155,7 @@ function useDemoAccount(account: DemoAccount) {
 
 async function loadDemoAccounts() {
   try {
-    const response = await demoAccountsApi()
+    const response = await listDemoAccounts()
     demoAccounts.value = response.data || []
     fillDemoPasswordFromCurrentUser()
   } catch {
@@ -206,7 +206,7 @@ async function submit() {
 async function loadCaptcha() {
   captchaLoading.value = true
   try {
-    const response = await captchaApi()
+    const response = await getCaptcha()
     form.captchaId = response.data.captchaId
     form.captchaCode = ''
     captchaImage.value = response.data.imageBase64

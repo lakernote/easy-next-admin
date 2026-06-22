@@ -24,8 +24,8 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Run backend tests
-        run: mvn -pl easy-next-admin-server -am test
+      - name: Run backend verification
+        run: mvn -pl easy-next-admin-server -am verify
 
   frontend:
     name: Frontend checks

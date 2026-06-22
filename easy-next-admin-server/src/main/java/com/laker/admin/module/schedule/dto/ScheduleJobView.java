@@ -1,7 +1,7 @@
 package com.laker.admin.module.schedule.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import com.laker.admin.module.schedule.entity.ScheduleJob;
 import lombok.Builder;
 import lombok.Data;

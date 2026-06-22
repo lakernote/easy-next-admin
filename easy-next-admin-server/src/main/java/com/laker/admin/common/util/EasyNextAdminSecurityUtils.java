@@ -2,7 +2,7 @@ package com.laker.admin.common.util;
 
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
-import com.laker.admin.infrastructure.persistence.mybatis.UserInfoAndPowers;
+import com.laker.admin.infrastructure.persistence.mybatis.UserInfoAndPermissions;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -14,12 +14,12 @@ public class EasyNextAdminSecurityUtils {
         // do nothing
     }
 
-    public static UserInfoAndPowers getCurrentUserInfo() {
+    public static UserInfoAndPermissions getCurrentUserInfo() {
         AuthPrincipal principal = EasySecurityContext.getPrincipal();
         if (principal == null) {
             return null;
         }
-        return UserInfoAndPowers.builder()
+        return UserInfoAndPermissions.builder()
                 .userId(principal.getUserId())
                 .userName(principal.getUserName())
                 .nickName(principal.getNickName())

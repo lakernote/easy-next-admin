@@ -94,7 +94,7 @@ export interface SystemMenu {
   enable?: boolean
   remark?: string
   type: 0 | 1 | 2
-  powerCode?: string
+  permissionCode?: string
   componentPath?: string
   visible?: boolean
   children?: SystemMenu[]
@@ -110,7 +110,7 @@ export interface SystemMenuResourcePayload {
   enable?: boolean
   remark?: string
   type: 0 | 1 | 2
-  powerCode?: string
+  permissionCode?: string
   componentPath?: string
   visible?: boolean
 }

@@ -65,7 +65,7 @@ describe('dynamic route menu helpers', () => {
         type: 1,
         sort: 10,
         href: '/implementation/missing',
-        powerCode: 'sys:menu:list',
+        permissionCode: 'sys:menu:list',
         componentPath: '@/views/system/MissingView.vue'
       }
     ]

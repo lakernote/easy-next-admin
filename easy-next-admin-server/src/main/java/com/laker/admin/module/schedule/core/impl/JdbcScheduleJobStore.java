@@ -2,7 +2,7 @@ package com.laker.admin.module.schedule.core.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.laker.admin.infrastructure.security.datascope.context.EasyDataScopeContext;
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import com.laker.admin.module.schedule.core.ScheduleJobStore;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJob;

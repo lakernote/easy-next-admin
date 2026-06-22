@@ -2,7 +2,6 @@ package com.laker.admin.infrastructure.mq.kafka;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +14,11 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "easy.features", name = "kafka", havingValue = "true")
 public class EasyKafkaTopicConfig {
 
-    @Autowired
-    private EasyKafkaConfig easyKafkaConfig;
+    private final EasyKafkaConfig easyKafkaConfig;
+
+    public EasyKafkaTopicConfig(EasyKafkaConfig easyKafkaConfig) {
+        this.easyKafkaConfig = easyKafkaConfig;
+    }
 
     /**
      * 以编程方式创建主题

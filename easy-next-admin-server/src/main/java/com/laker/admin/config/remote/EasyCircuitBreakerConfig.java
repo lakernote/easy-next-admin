@@ -1,6 +1,6 @@
 package com.laker.admin.config.remote;
 
-import com.laker.admin.infrastructure.thread.EasyNextAdminMDCThreadPoolExecutor;
+import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 import org.springframework.cloud.circuitbreaker.resilience4j.Resilience4JCircuitBreakerFactory;
@@ -24,8 +24,8 @@ public class EasyCircuitBreakerConfig {
                     .circuitBreakerConfig(CircuitBreakerConfig.ofDefaults())
                     .build());
 
-            factory.configureGroupExecutorService(group -> new EasyNextAdminMDCThreadPoolExecutor(3, 3, group));
-            factory.configureExecutorService(new EasyNextAdminMDCThreadPoolExecutor(3, 3, "easy-feign"));
+            factory.configureGroupExecutorService(group -> new EasyNextAdminMdcThreadPoolExecutor(3, 3, group));
+            factory.configureExecutorService(new EasyNextAdminMdcThreadPoolExecutor(3, 3, "easy-feign"));
         };
     }
 }

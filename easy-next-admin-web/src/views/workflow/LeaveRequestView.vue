@@ -137,7 +137,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { PermissionCodes } from '@/permissions/codes'
-import { applyLeaveRequest } from '@/features/workflow/api'
+import { applyLeaveRequest } from '@/features/workflow/applicationApi'
 import {
   calculateLeaveDaysFromRange,
   calculateLeaveEndTimeFromDays,

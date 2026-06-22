@@ -1,6 +1,6 @@
 package com.laker.admin.module.schedule.dto;
 
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import com.laker.admin.module.schedule.entity.ScheduleJob;
 import lombok.Data;
 

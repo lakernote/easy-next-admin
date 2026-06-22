@@ -15,10 +15,10 @@ import java.util.concurrent.ScheduledFuture;
  * @author easynext
  */
 @Slf4j
-public abstract class AbstractSimpleIEasyLocker implements IEasyLocker {
+public abstract class AbstractEasyLocker implements IEasyLocker {
     private final TaskScheduler taskScheduler;
 
-    protected AbstractSimpleIEasyLocker(TaskScheduler taskScheduler) {
+    protected AbstractEasyLocker(TaskScheduler taskScheduler) {
         this.taskScheduler = taskScheduler;
     }
 

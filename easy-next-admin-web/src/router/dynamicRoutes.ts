@@ -11,7 +11,7 @@ interface DynamicRouteMenu {
   path: string
   title: string
   icon?: string
-  powerCode?: string
+  permissionCode?: string
   componentPath: string
   visible: boolean
 }
@@ -34,7 +34,7 @@ export function syncDynamicRoutes(router: Router, menus: AuthMenu[]) {
     item.path,
     item.title,
     item.icon || '',
-    item.powerCode || '',
+    item.permissionCode || '',
     item.componentPath,
     item.visible ? '1' : '0'
   ]))
@@ -54,7 +54,7 @@ export function syncDynamicRoutes(router: Router, menus: AuthMenu[]) {
         title: menu.title,
         icon: menu.icon,
         requiresAuth: true,
-        permissionCode: menu.powerCode,
+        permissionCode: menu.permissionCode,
         dynamic: true,
         fixed: menu.path === homeRoute?.path,
         componentPath: menu.componentPath,
@@ -119,7 +119,7 @@ function collectRouteMenus(menus: AuthMenu[]) {
         path,
         title: menu.title,
         icon: menu.icon,
-        powerCode: menu.powerCode,
+        permissionCode: menu.permissionCode,
         componentPath: menu.componentPath,
         visible: menu.visible !== false
       })

@@ -11,23 +11,23 @@ const menus: SystemMenu[] = [
     sort: 20,
     enable: true,
     children: [
-      { menuId: 22, pid: 20, title: '角色权限', href: '/system/roles', type: 1, powerCode: 'sys:role:list', sort: 20, enable: true },
+      { menuId: 22, pid: 20, title: '角色权限', href: '/system/roles', type: 1, permissionCode: 'sys:role:list', sort: 20, enable: true },
       {
         menuId: 21,
         pid: 20,
         title: '用户管理',
         href: '/system/users',
         type: 1,
-        powerCode: 'sys:user:list',
+        permissionCode: 'sys:user:list',
         sort: 10,
         enable: true,
         children: [
-          { menuId: 211, pid: 21, title: '新增用户', type: 2, powerCode: 'sys:user:add', sort: 11, enable: true }
+          { menuId: 211, pid: 21, title: '新增用户', type: 2, permissionCode: 'sys:user:add', sort: 11, enable: true }
         ]
       }
     ]
   },
-  { menuId: 10, pid: 0, title: '工作台', href: '/dashboard', type: 1, powerCode: 'dashboard:view', sort: 10, enable: true },
+  { menuId: 10, pid: 0, title: '工作台', href: '/dashboard', type: 1, permissionCode: 'dashboard:view', sort: 10, enable: true },
   {
     menuId: 30,
     pid: 0,
@@ -36,7 +36,7 @@ const menus: SystemMenu[] = [
     sort: 30,
     enable: true,
     children: [
-      { menuId: 40, pid: 30, title: '定时任务', href: '/schedule/jobs', type: 1, powerCode: 'schedule:job:list', sort: 50, enable: true }
+      { menuId: 40, pid: 30, title: '定时任务', href: '/schedule/jobs', type: 1, permissionCode: 'schedule:job:list', sort: 50, enable: true }
     ]
   }
 ]
@@ -65,7 +65,7 @@ describe('menuNavigation', () => {
       title: '用户管理',
       href: '/system/users',
       type: 1,
-      powerCode: 'sys:user:list',
+      permissionCode: 'sys:user:list',
       resourceKey: 'system.user.list',
       enable: true
     } as SystemMenu & { resourceKey: string }

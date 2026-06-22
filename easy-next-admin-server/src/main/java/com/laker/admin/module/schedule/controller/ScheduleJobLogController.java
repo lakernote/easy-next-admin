@@ -2,8 +2,8 @@ package com.laker.admin.module.schedule.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.schedule.dto.ScheduleJobLogView;
@@ -39,14 +39,14 @@ public class ScheduleJobLogController {
     public PageResponse<ScheduleJobLogView> pageAll(@RequestParam(required = false, defaultValue = "1") long page,
                                                     @RequestParam(required = false, defaultValue = "10") long limit,
                                                     String jobCode) {
-        Page<ScheduleJobLog> roadPage = new Page<>(page, limit);
         LambdaQueryWrapper<ScheduleJobLog> queryWrapper = new QueryWrapper<ScheduleJobLog>().lambda();
         if (StringUtils.hasText(jobCode)) {
             queryWrapper.eq(ScheduleJobLog::getJobCode, jobCode);
         }
         queryWrapper.orderByDesc(ScheduleJobLog::getStartTime);
-        Page<ScheduleJobLog> pageList = scheduleJobLogService.page(roadPage, queryWrapper);
-        return PageResponse.ok(ScheduleJobLogView.fromList(pageList.getRecords()), pageList.getTotal());
+        return EasyPageSupport.response(
+                scheduleJobLogService.page(EasyPageSupport.page(page, limit), queryWrapper),
+                ScheduleJobLogView::from);
     }
 
 }

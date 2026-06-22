@@ -1,5 +1,5 @@
 import type { PageQuery } from '@/api/types'
-import type { WorkflowInstanceScope } from './api'
+import type { WorkflowInstanceScope } from './instanceApi'
 import { DONE_TASK_STATUSES } from './taskFilters'
 import type { WorkflowCc, WorkflowInstance, WorkflowTask } from './types'
 import type { WorkflowTaskCenterTab } from './taskCenterTabs'

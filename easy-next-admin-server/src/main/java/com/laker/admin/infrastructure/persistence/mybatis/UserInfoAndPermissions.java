@@ -8,11 +8,16 @@ import lombok.NoArgsConstructor;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 当前用户的持久化层上下文快照。
+ *
+ * <p>这里只给 MyBatis 自动填充和数据权限读取基础身份信息，接口是否允许访问仍由 @EasyPermission 判断。</p>
+ */
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserInfoAndPowers {
+public class UserInfoAndPermissions {
     private Long userId;
     private String userName;
     private String nickName;

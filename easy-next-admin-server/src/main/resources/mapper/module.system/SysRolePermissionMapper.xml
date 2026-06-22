@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.laker.admin.module.system.mapper.SysRolePowerMapper">
+<mapper namespace="com.laker.admin.module.system.mapper.SysRolePermissionMapper">
 
     <!-- 通用查询映射结果 -->
-    <resultMap id="BaseResultMap" type="com.laker.admin.module.system.entity.SysRolePower">
+    <resultMap id="BaseResultMap" type="com.laker.admin.module.system.entity.SysRolePermission">
         <id column="id" property="id" />
         <result column="role_id" property="roleId" />
-        <result column="power_id" property="powerId" />
+        <result column="permission_resource_id" property="permissionResourceId" />
         <result column="remark" property="remark" />
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, role_id, power_id, remark
+        id, role_id, permission_resource_id, remark
     </sql>
 
 </mapper>

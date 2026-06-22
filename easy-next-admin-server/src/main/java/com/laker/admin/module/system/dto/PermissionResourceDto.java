@@ -2,7 +2,7 @@ package com.laker.admin.module.system.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import lombok.Builder;
 import lombok.Data;
 
@@ -27,32 +27,32 @@ public class PermissionResourceDto {
     private Boolean enable;
     private String remark;
     private Integer type;
-    private String powerCode;
+    private String permissionCode;
     private String componentPath;
     private Boolean visible;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createTime;
     private List<PermissionResourceDto> children;
 
-    public static PermissionResourceDto from(SysPower power) {
+    public static PermissionResourceDto from(SysMenuResource resource) {
         return PermissionResourceDto.builder()
-                .menuId(power.getMenuId())
-                .pid(power.getPid())
-                .title(power.getTitle())
-                .icon(power.getIcon())
-                .href(isPage(power) ? power.getHref() : null)
-                .sort(power.getSort())
-                .enable(power.getEnable())
-                .remark(power.getRemark())
-                .type(power.getType())
-                .powerCode(power.getPowerCode())
-                .componentPath(isPage(power) ? power.getComponentPath() : null)
-                .visible(power.getVisible())
-                .createTime(power.getCreateTime())
+                .menuId(resource.getMenuId())
+                .pid(resource.getPid())
+                .title(resource.getTitle())
+                .icon(resource.getIcon())
+                .href(isPage(resource) ? resource.getHref() : null)
+                .sort(resource.getSort())
+                .enable(resource.getEnable())
+                .remark(resource.getRemark())
+                .type(resource.getType())
+                .permissionCode(resource.getPermissionCode())
+                .componentPath(isPage(resource) ? resource.getComponentPath() : null)
+                .visible(resource.getVisible())
+                .createTime(resource.getCreateTime())
                 .build();
     }
 
-    private static boolean isPage(SysPower power) {
-        return power != null && power.getType() != null && power.getType() == RESOURCE_TYPE_PAGE;
+    private static boolean isPage(SysMenuResource resource) {
+        return resource != null && resource.getType() != null && resource.getType() == RESOURCE_TYPE_PAGE;
     }
 }

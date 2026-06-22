@@ -20,7 +20,7 @@ describe('enterprise table action consistency', () => {
     const sources = [
       viewSource('system/UserView.vue'),
       viewSource('system/RoleView.vue'),
-      viewSource('file/FileCenterView.vue'),
+      viewSource('system/FileCenterView.vue'),
       viewSource('message/MessageCenterView.vue'),
       viewSource('monitor/OnlineUserView.vue'),
       viewSource('audit/BehaviorAuditView.vue'),
@@ -59,7 +59,7 @@ describe('enterprise table action consistency', () => {
       viewSource('system/UserView.vue'),
       viewSource('system/RoleView.vue'),
       viewSource('system/DepartmentView.vue'),
-      viewSource('file/FileCenterView.vue'),
+      viewSource('system/FileCenterView.vue'),
       viewSource('message/MessageCenterView.vue'),
       viewSource('monitor/OnlineUserView.vue'),
       viewSource('monitor/CacheMonitorView.vue'),
@@ -103,7 +103,7 @@ describe('enterprise table action consistency', () => {
   })
 
   it('keeps file center primary download visible and destructive actions in a compact more menu', () => {
-    const source = viewSource('file/FileCenterView.vue')
+    const source = viewSource('system/FileCenterView.vue')
 
     expect(source).toContain('class="admin-table file-table"')
     expect(source).toContain('label="操作" width="168" fixed="right"')

@@ -7,77 +7,30 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
+import java.io.Serializable;
+import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
 /**
- * <p>
- * 系统权限表
- * </p>
+ * 角色和权限资源的授权关系。
  *
- * @author laker
- * @since 2021-08-04
+ * <p>permissionResourceId 指向 sys_menu.id，也就是目录、页面或按钮权限资源。</p>
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("sys_menu")
-public class SysPower implements Serializable {
+@TableName("sys_role_permission")
+public class SysRolePermission implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * ID
-     */
     @TableId(value = "id", type = IdType.ASSIGN_ID)
-    private Long menuId;
+    private Long id;
 
-    /**
-     * 父ID
-     */
-    private Long pid;
+    private Long roleId;
 
-    /**
-     * 名称
-     */
-    private String title;
-
-    /**
-     * 菜单图标
-     */
-    private String icon;
-
-    /**
-     * 页面路由。按钮权限不维护接口地址，接口鉴权由 @EasyPermission 负责。
-     */
-    private String href;
-
-    /**
-     * 菜单排序
-     */
-    private Integer sort;
-
-    /**
-     * 状态(0:禁用,1:启用)
-     */
-    private Boolean enable;
-
-    /**
-     * 备注信息
-     */
-    private String remark;
-
-    /**
-     * 资源类型：0目录，1菜单页面，2按钮权限。
-     */
-    private Integer type;
-    private String powerCode;
-
-    private String componentPath;
-
-    private Boolean visible;
+    @TableField("permission_resource_id")
+    private Long permissionResourceId;
 
     @TableField(fill = FieldFill.INSERT)
     private Long createBy;
@@ -85,9 +38,6 @@ public class SysPower implements Serializable {
     @TableField(fill = FieldFill.INSERT)
     private Long createDeptId;
 
-    /**
-     * 创建时间
-     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -104,5 +54,7 @@ public class SysPower implements Serializable {
     @Version
     @TableField(fill = FieldFill.INSERT)
     private Integer version;
+
+    private String remark;
 
 }

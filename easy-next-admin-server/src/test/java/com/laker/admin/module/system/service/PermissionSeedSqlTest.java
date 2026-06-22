@@ -55,7 +55,7 @@ class PermissionSeedSqlTest {
                         "@/views/system/RoleView.vue",
                         "@/views/system/MenuView.vue",
                         "@/views/system/DepartmentView.vue",
-                        "@/views/file/FileCenterView.vue",
+                        "@/views/system/FileCenterView.vue",
                         "@/views/report/EnterpriseReportView.vue",
                         "@/views/monitor/CacheListView.vue",
                         "@/views/workflow/WorkflowStartView.vue",
@@ -80,13 +80,13 @@ class PermissionSeedSqlTest {
         String h2Sql = Files.readString(H2_V1);
 
         assertThat(mysqlSql)
-                .contains("power_table.`power_code` IN")
-                .contains("child.`power_code` IN")
-                .doesNotContain("AND power_table.`id` IN (");
+                .contains("permission_resource.`permission_code` IN")
+                .contains("child.`permission_code` IN")
+                .doesNotContain("AND permission_resource.`id` IN (");
         assertThat(h2Sql)
-                .contains("power_table.power_code IN")
-                .contains("child.power_code IN")
-                .doesNotContain("AND power_table.id IN (");
+                .contains("permission_resource.permission_code IN")
+                .contains("child.permission_code IN")
+                .doesNotContain("AND permission_resource.id IN (");
 
         for (String roleCode : Set.of("dept_manager", "staff", "ops", "auditor")) {
             assertRoleBlockContains(mysqlSql, roleCode, "workflow:instance:start");

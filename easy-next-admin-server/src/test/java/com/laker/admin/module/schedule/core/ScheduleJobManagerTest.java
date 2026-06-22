@@ -2,7 +2,7 @@ package com.laker.admin.module.schedule.core;
 
 import com.laker.admin.infrastructure.lock.IEasyLocker;
 import com.laker.admin.infrastructure.lock.base.EasyLocker;
-import com.laker.admin.module.enums.JobStateEnum;
+import com.laker.admin.module.schedule.enums.JobStateEnum;
 import com.laker.admin.module.schedule.service.IScheduleJobService;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.Trigger;

@@ -27,7 +27,7 @@ import com.laker.admin.module.system.dto.auth.AuthLoginRequest;
 import com.laker.admin.module.system.dto.auth.AuthTokenResponse;
 import com.laker.admin.module.system.dto.auth.AuthUserProfile;
 import com.laker.admin.module.system.entity.SysDept;
-import com.laker.admin.module.system.entity.SysPower;
+import com.laker.admin.module.system.entity.SysMenuResource;
 import com.laker.admin.module.system.entity.SysRole;
 import com.laker.admin.module.system.entity.SysUser;
 import com.laker.admin.module.system.service.*;
@@ -123,7 +123,7 @@ public class EasyAuthService {
         AuthSession session = createSession(user, principal, httpRequest);
         updateLastLoginTime(user.getUserId());
         auditLogCollector.recordLogin(user.getUserId(), user.getUserName(), true, null, httpRequest);
-        return tokenResponse(session, principal, user, principalResult.powers());
+        return tokenResponse(session, principal, user, principalResult.permissionResources());
     }
 
     private void updateLastLoginTime(Long userId) {
@@ -293,9 +293,9 @@ public class EasyAuthService {
         List<String> roleCodes = roles.stream().map(SysRole::getRoleCode).filter(StringUtils::hasText).distinct().toList();
         List<String> roleNames = roles.stream().map(SysRole::getRoleName).filter(StringUtils::hasText).distinct().toList();
         boolean superAdmin = roleCodes.contains("admin");
-        List<SysPower> powers = resolvePowers(userId, superAdmin);
-        List<String> permissions = withProfileSelfServicePermissions(powers.stream()
-            .map(SysPower::getPowerCode)
+        List<SysMenuResource> permissionResources = resolvePermissionResources(userId, superAdmin);
+        List<String> permissions = withProfileSelfServicePermissions(permissionResources.stream()
+            .map(SysMenuResource::getPermissionCode)
             .filter(StringUtils::hasText)
             .distinct()
             .toList());
@@ -318,7 +318,7 @@ public class EasyAuthService {
             .permissions(permissions)
             .dataScopes(dataScopes)
             .build();
-        return new PrincipalBuildResult(principal, powers);
+        return new PrincipalBuildResult(principal, permissionResources);
     }
 
     private AuthSession createSession(SysUser user, AuthPrincipal principal, HttpServletRequest request) {
@@ -347,7 +347,7 @@ public class EasyAuthService {
         return session;
     }
 
-    private AuthTokenResponse tokenResponse(AuthSession session, AuthPrincipal principal, SysUser loginUser, List<SysPower> powers) {
+    private AuthTokenResponse tokenResponse(AuthSession session, AuthPrincipal principal, SysUser loginUser, List<SysMenuResource> permissionResources) {
         AuthUserProfile user = toAuthUserProfile(loginUser, principal);
         return AuthTokenResponse.builder()
             .accessToken(session.getAccessToken())
@@ -356,55 +356,55 @@ public class EasyAuthService {
             .roles(principal.getRoles())
             .roleNames(principal.getRoleNames())
             .permissions(principal.getPermissions())
-            .menus(toMenuTree(powers))
+            .menus(toMenuTree(permissionResources))
             .build();
     }
 
     private List<MenuVo> resolveMenus(Long userId, boolean superAdmin) {
-        return toMenuTree(resolvePowers(userId, superAdmin));
+        return toMenuTree(resolvePermissionResources(userId, superAdmin));
     }
 
-    private List<SysPower> resolvePowers(Long userId, boolean superAdmin) {
-        List<SysPower> powers;
+    private List<SysMenuResource> resolvePermissionResources(Long userId, boolean superAdmin) {
+        List<SysMenuResource> permissionResources;
         if (superAdmin) {
-            powers = sysMenuService.list(Wrappers.<SysPower>lambdaQuery()
-                .eq(SysPower::getEnable, true)
-                .orderByAsc(SysPower::getPid, SysPower::getSort, SysPower::getMenuId));
+            permissionResources = sysMenuService.list(Wrappers.<SysMenuResource>lambdaQuery()
+                .eq(SysMenuResource::getEnable, true)
+                .orderByAsc(SysMenuResource::getPid, SysMenuResource::getSort, SysMenuResource::getMenuId));
         } else {
-            powers = sysMenuService.listEnabledResourcesByUserId(userId);
+            permissionResources = sysMenuService.listEnabledResourcesByUserId(userId);
         }
-        return withProfileSelfServicePowers(powers);
+        return withProfileSelfServicePermissionResources(permissionResources);
     }
 
-    private List<SysPower> withProfileSelfServicePowers(List<SysPower> powers) {
-        Map<Long, SysPower> merged = new LinkedHashMap<>();
-        if (powers != null) {
-            powers.stream()
-                .filter(power -> power.getMenuId() != null)
-                .forEach(power -> merged.put(power.getMenuId(), power));
+    private List<SysMenuResource> withProfileSelfServicePermissionResources(List<SysMenuResource> permissionResources) {
+        Map<Long, SysMenuResource> merged = new LinkedHashMap<>();
+        if (permissionResources != null) {
+            permissionResources.stream()
+                .filter(resource -> resource.getMenuId() != null)
+                .forEach(resource -> merged.put(resource.getMenuId(), resource));
         }
         Set<String> existingCodes = merged.values().stream()
-            .map(SysPower::getPowerCode)
+            .map(SysMenuResource::getPermissionCode)
             .filter(StringUtils::hasText)
             .collect(Collectors.toSet());
         List<String> missingCodes = PROFILE_SELF_SERVICE_PERMISSIONS.stream()
             .filter(code -> !existingCodes.contains(code))
             .toList();
         if (!missingCodes.isEmpty()) {
-            sysMenuService.list(Wrappers.<SysPower>lambdaQuery()
-                    .eq(SysPower::getEnable, true)
-                    .in(SysPower::getPowerCode, missingCodes)
-                    .orderByAsc(SysPower::getPid, SysPower::getSort, SysPower::getMenuId))
+            sysMenuService.list(Wrappers.<SysMenuResource>lambdaQuery()
+                    .eq(SysMenuResource::getEnable, true)
+                .in(SysMenuResource::getPermissionCode, missingCodes)
+                .orderByAsc(SysMenuResource::getPid, SysMenuResource::getSort, SysMenuResource::getMenuId))
                 .stream()
-                .filter(power -> power.getMenuId() != null)
-                .forEach(power -> merged.putIfAbsent(power.getMenuId(), power));
+                .filter(resource -> resource.getMenuId() != null)
+                .forEach(resource -> merged.putIfAbsent(resource.getMenuId(), resource));
         }
         return new ArrayList<>(merged.values());
     }
 
-    private List<MenuVo> toMenuVos(List<SysPower> sysPowers) {
+    private List<MenuVo> toMenuVos(List<SysMenuResource> permissionResources) {
         List<MenuVo> menuInfo = new ArrayList<>();
-        for (SysPower e : sysPowers) {
+        for (SysMenuResource e : permissionResources) {
             MenuVo menuVO = new MenuVo();
             menuVO.setId(e.getMenuId());
             menuVO.setPid(e.getPid());
@@ -416,15 +416,15 @@ public class EasyAuthService {
             menuVO.setEnable(e.getEnable());
             menuVO.setVisible(e.getVisible());
             menuVO.setType(e.getType());
-            menuVO.setPowerCode(e.getPowerCode());
+            menuVO.setPermissionCode(e.getPermissionCode());
             menuVO.setComponentPath(page ? e.getComponentPath() : null);
             menuInfo.add(menuVO);
         }
         return menuInfo;
     }
 
-    private List<MenuVo> toMenuTree(List<SysPower> powers) {
-        return EasyTreeUtil.toTree(toMenuVos(powers == null ? List.of() : powers), 0L);
+    private List<MenuVo> toMenuTree(List<SysMenuResource> permissionResources) {
+        return EasyTreeUtil.toTree(toMenuVos(permissionResources == null ? List.of() : permissionResources), 0L);
     }
 
     private Set<Long> resolveDeptAndChildren(Long deptId) {
@@ -501,6 +501,6 @@ public class EasyAuthService {
             .build();
     }
 
-    private record PrincipalBuildResult(AuthPrincipal principal, List<SysPower> powers) {
+    private record PrincipalBuildResult(AuthPrincipal principal, List<SysMenuResource> permissionResources) {
     }
 }

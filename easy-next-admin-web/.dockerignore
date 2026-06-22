@@ -1,3 +1,4 @@
+# Docker 构建上下文只需要静态产物和 Nginx 配置，依赖与本地环境文件不进入镜像。
 node_modules
 .vite
 .env

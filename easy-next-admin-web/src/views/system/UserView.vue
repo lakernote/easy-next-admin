@@ -395,14 +395,13 @@ import {
   exportUsers,
   getUser,
   importUsers,
-  listAssignableRoles,
-  listUserAssignees,
   pageUsers,
   resetUserPassword,
   saveUser,
-  switchUserStatus,
-  treeDepartments
-} from '@/features/system/api'
+  switchUserStatus
+} from '@/features/system/userApi'
+import { treeDepartments } from '@/features/system/departmentApi'
+import { listAssignableRoles, listUserAssignees } from '@/features/system/userOptionsApi'
 import type { EntityId, SystemDepartment, SystemRole, SystemUser, SystemUserOption, SystemUserPageQuery, UserImportResult } from '@/features/system/types'
 import { useAuthStore } from '@/stores/auth'
 import { PermissionCodes } from '@/permissions/codes'

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import request from '@/api/request'
-import { downloadUserImportTemplate, exportUsers, importUsers, resolveDownloadFileName } from './api'
+import { resolveDownloadFileName } from '@/utils/download'
+import { downloadUserImportTemplate, exportUsers, importUsers } from './userApi'
 
 vi.mock('@/api/request', () => ({
   default: {

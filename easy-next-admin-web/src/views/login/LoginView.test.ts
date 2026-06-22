@@ -11,7 +11,7 @@ describe('login view enterprise scaffold surface', () => {
   it('keeps demo account shortcuts for public experience login', () => {
     expect(viewSource).toContain('login-demo-accounts')
     expect(viewSource).toContain('测试账号')
-    expect(viewSource).toContain('demoAccountsApi')
+    expect(viewSource).toContain('listDemoAccounts')
     expect(viewSource).toContain('function useDemoAccount(account: DemoAccount)')
     expect(viewSource).toContain('fillDemoPasswordFromCurrentUser')
     expect(viewSource).toContain('form.password = account.password')

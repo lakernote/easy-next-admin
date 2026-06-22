@@ -130,7 +130,7 @@ import { ElMessage, type FormInstance, type FormRules, type UploadFile, type Upl
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { PermissionCodes } from '@/permissions/codes'
-import { applyRepairRequest, uploadRepairAttachment } from '@/features/workflow/api'
+import { applyRepairRequest, uploadRepairAttachment } from '@/features/workflow/repairApi'
 import { repairImageAccept, validateRepairImageFile } from '@/features/workflow/repairAttachments'
 import { workflowTaskCenterPath } from '@/features/workflow/taskCenterTabs'
 import { useAuthStore } from '@/stores/auth'

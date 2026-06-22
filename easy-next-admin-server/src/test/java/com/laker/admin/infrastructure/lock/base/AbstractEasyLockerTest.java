@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AbstractSimpleIEasyLockerTest {
+class AbstractEasyLockerTest {
 
     @Test
     void lockLifecycleShouldNotCreateTraceId() {
@@ -36,7 +36,7 @@ class AbstractSimpleIEasyLockerTest {
         assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
     }
 
-    static class RecordingLocker extends AbstractSimpleIEasyLocker {
+    static class RecordingLocker extends AbstractEasyLocker {
         private final AtomicInteger refreshCount = new AtomicInteger();
         private final AtomicReference<String> refreshTraceId = new AtomicReference<>();
         private final AtomicReference<String> releaseTraceId = new AtomicReference<>();

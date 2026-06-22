@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditDataChangeLogView;
@@ -48,7 +49,6 @@ public class AuditDataChangeLogController {
                                                         @RequestParam(required = false, defaultValue = "10") long limit,
                                                         @RequestParam(required = false) String keyWord,
                                                         @RequestParam(required = false) String changeType) {
-        Page<AuditDataChangeLog> pageRequest = new Page<>(page, limit);
         LambdaQueryWrapper<AuditDataChangeLog> queryWrapper = Wrappers.<AuditDataChangeLog>lambdaQuery()
                 .eq(StringUtils.hasText(changeType), AuditDataChangeLog::getChangeType, changeType)
                 .and(StringUtils.hasText(keyWord), wrapper -> wrapper
@@ -67,14 +67,14 @@ public class AuditDataChangeLogController {
             }
         });
         queryWrapper.orderByDesc(AuditDataChangeLog::getCreatedAt);
-        Page<AuditDataChangeLog> pageResult = auditDataChangeLogService.page(pageRequest, queryWrapper);
+        Page<AuditDataChangeLog> pageResult = auditDataChangeLogService.page(EasyPageSupport.page(page, limit), queryWrapper);
         List<AuditDataChangeLog> records = pageResult.getRecords();
         Map<Long, SysUser> users = usersById(records);
         records.forEach(record -> {
             Long operatorId = record.getOperatorId();
             record.setOperator(operatorId == null ? null : users.get(operatorId));
         });
-        return PageResponse.ok(AuditDataChangeLogView.fromList(records), pageResult.getTotal());
+        return EasyPageSupport.response(pageResult, AuditDataChangeLogView::from);
     }
 
     private Map<Long, SysUser> usersById(List<AuditDataChangeLog> records) {

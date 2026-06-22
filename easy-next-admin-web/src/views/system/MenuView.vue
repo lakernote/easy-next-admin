@@ -438,7 +438,7 @@ import { Delete, EditPen, Plus, Search } from '@element-plus/icons-vue'
 import * as ElementPlusIcons from '@element-plus/icons-vue'
 import { PermissionCodes } from '@/permissions/codes'
 import EnableStatusSwitch from '@/components/table/EnableStatusSwitch.vue'
-import { deleteSystemMenuResource, listSystemMenus, saveSystemMenuResource } from '@/features/system/api'
+import { deleteSystemMenuResource, listSystemMenus, saveSystemMenuResource } from '@/features/system/menuApi'
 import {
   allResourceTypeOptions,
   menuIconOptions,
@@ -823,7 +823,7 @@ function toResourcePayload(row: ResourceFormState): SystemMenuResourcePayload {
     enable: row.enable,
     remark: row.remark.trim(),
     type: apiTypeMap[row.type],
-    powerCode: row.type === 'directory' ? '' : row.code.trim(),
+    permissionCode: row.type === 'directory' ? '' : row.code.trim(),
     componentPath: row.type === 'menu' ? row.componentPath.trim() : '',
     visible: isNavigation ? row.visible : false
   }
@@ -840,7 +840,7 @@ function toPayloadFromNode(row: NavigationNode): SystemMenuResourcePayload {
     enable: row.enable,
     remark: row.description || '',
     type: apiTypeMap[row.type],
-    powerCode: row.type === 'directory' ? '' : row.code,
+    permissionCode: row.type === 'directory' ? '' : row.code,
     componentPath: row.type === 'menu' ? row.componentPath || '' : '',
     visible: row.type === 'directory' || row.type === 'menu' ? row.visible ?? true : false
   }
