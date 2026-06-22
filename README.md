@@ -18,7 +18,7 @@ EasyNextAdmin 是一套面向中文企业后台二次开发的 Spring Boot 3 + V
 
 ## 项目状态
 
-当前版本：`0.1.0-alpha.0`。这是首个公开 alpha 版本，核心功能已具备本地启动、测试和构建验证；生产上线前仍应替换数据库、Redis、域名、HTTPS、默认账号密码和会话安全方案。
+当前处于公开 alpha 阶段，核心功能已具备本地启动、测试和构建验证；生产上线前仍应替换数据库、Redis、域名、HTTPS、默认账号密码和会话安全方案。
 
 | 适合 | 不适合 |
 | --- | --- |
@@ -192,7 +192,7 @@ npm run build
 
 - [贡献指南](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)
-- [更新日志](CHANGELOG.md)
+- [行为准则](CODE_OF_CONDUCT.md)
 
 默认启动不需要额外 `.env` 文件。Docker Compose 依赖端口和前端开发代理都带默认值，确需覆盖时可用命令行环境变量或本机不提交的 `.env` / `easy-next-admin-web/.env.local`。`.editorconfig` 用于统一 IDE/编辑器格式；默认账号和默认密码只用于本地开发，生产环境必须覆盖。
 

@@ -1,0 +1,53 @@
+name: Bug 报告
+description: 报告可复现的问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请不要在公开 Issue 中粘贴密码、密钥、真实用户数据或未脱敏日志。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简要说明发生了什么。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请提供最小可复现步骤。
+      placeholder: |
+        1. 启动后端...
+        2. 打开页面...
+        3. 点击...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      placeholder: |
+        JDK:
+        Maven:
+        Node.js:
+        npm:
+        Docker:
+        浏览器:
+    validations:
+      required: false
