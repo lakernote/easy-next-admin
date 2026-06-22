@@ -1,0 +1,287 @@
+# 公共基线配置：只放所有环境共享的默认行为。
+# 本地开发差异放 application-local.yaml，生产/内网/公网部署统一使用 application-prod.yaml 覆盖。
+server:
+  # 端口号
+  port: 8080
+  # 开启 HTTP 压缩可以减少网络传输的数据量，提高性能
+  compression:
+    enabled: true
+    min-response-size: 1KB
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+  # tomcat配置
+  tomcat:
+    # 嵌入式 Tomcat 服务器运行时各类文件的存储根目录。Tomcat 服务器在运行期间会产生一些临时文件、日志文件等，basedir 就为这些文件提供了存储位置。
+    basedir: ./
+    # 允许最大连接数,默认8192,当达到临界值时,系统会基于accept-count继续接受连接 参数是客户感知型参数。
+    max-connections: 8192
+    # 当所有线程都在使用时,建立连接的请求的等待队列长度,默认100 请求的backlog值 如果超过max-connections和accept-count总和，新的连接会被拒绝，即直接拒绝服务（直接返回connection refused）
+    accept-count: 100
+    # 连接器在关闭空闲连接之前等待的毫秒数，默认 20000 20s
+    connection-timeout: 20s
+    uri-encoding: UTF-8
+    threads:
+      # 线程池的最小工作线程数,默认10
+      min-spare: 10
+      # 线程池的最大线程数,默认200
+      max: 200
+      # 线程池的最大空闲时间,默认60s
+  servlet:
+    context-path: /
+spring:
+  application:
+    name: easy-next-admin
+  autoconfigure:
+    # Redis / Kafka 都走 easy.features.* 能力级开关，避免依赖在 classpath 中时被 Spring Boot 默认自动装配。
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  datasource:
+    # 公共配置不写真实账号密码；local/prod profile 负责提供环境值。
+    username: ${MYSQL_USERNAME:}
+    password: ${MYSQL_PASSWORD:}
+    url: '${MYSQL_URL:}'
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  task:
+    execution:
+      pool:
+        max-size: 10
+        queue-capacity: 1
+        allow-core-thread-timeout: true
+        core-size: 5
+        keep-alive: 60s
+      thread-name-prefix: easy-config-
+    scheduling:
+      pool:
+        size: 10
+      thread-name-prefix: easy-schedule-
+  freemarker:
+    suffix: .ftl
+  servlet:
+    multipart:
+      max-file-size: 20MB
+  flyway:
+    enabled: true
+    # 历史表
+    baselineOnMigrate: true
+    validateOnMigrate: true
+    # flyway的sql脚本路径
+    locations: classpath:db/migration
+  cloud:
+    openfeign:
+      micrometer: # 开启监控
+        enabled: true
+      client:
+        config:
+          default:
+            connect-timeout: 5000
+            read-timeout: 5000
+            dismiss404: false
+            # Feign使用默认的超时配置，在该类源码中可见，默认单次请求最大时长1秒，重试5次
+            retryer: feign.Retryer.Default
+      circuitbreaker:
+        enabled: true
+        group: # 使用 feign的注解的name找配置。默认是类名方法名 建议开启
+          enabled: true
+      httpclient:
+        hc5:
+          enabled: true
+          connection-request-timeout: 3
+          socket-timeout: 5
+        max-connections: 200
+        max-connections-per-route: 50
+    discovery:
+      enabled: false
+mybatis-plus:
+  # 配置日志 #仅控制台输出的日志
+  #  configuration:
+  #  log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    # 是否开启print logo
+    banner: false
+easy:
+  log-file-path: ${EASY_LOG_FILE_PATH:logs/easy-next-admin.log}
+  features:
+    # 能力级开关集中在这里，避免 Redis/Kafka/OSS 等可选依赖被误装配。
+    redis: ${EASY_FEATURE_REDIS:true}
+    scheduler: ${EASY_FEATURE_SCHEDULER:true}
+    outbox: ${EASY_FEATURE_OUTBOX:true}
+    kafka: ${EASY_FEATURE_KAFKA:false}
+    feign: ${EASY_FEATURE_FEIGN:true}
+    oss: ${EASY_FEATURE_OSS:false}
+    web-log: ${EASY_FEATURE_WEB_LOG:true}
+    monitor: ${EASY_FEATURE_MONITOR:true}
+  spring:
+    redis:
+      database: ${EASY_REDIS_DATABASE:0}
+      address: ${EASY_REDIS_ADDRESS:redis://localhost:6379}
+      password: '${EASY_REDIS_PASSWORD:}'
+      client-name: ${EASY_REDIS_CLIENT_NAME:easy-next-admin}
+      dns-monitoring-interval: ${EASY_REDIS_DNS_MONITORING_INTERVAL:-1}
+    kafka:
+      bootstrap-servers: ${EASY_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      topic: ${EASY_KAFKA_TOPIC:easynext}
+  auth:
+    session:
+      idle-timeout: ${EASY_AUTH_SESSION_IDLE_TIMEOUT:30m}
+      absolute-timeout: ${EASY_AUTH_SESSION_ABSOLUTE_TIMEOUT:8h}
+  # web防火墙配置
+  waf:
+    sql-enabled: false
+    xss-enabled: false
+    excludes: /flow/*
+  web:
+    cors:
+      # 生产环境替换为真实前端域名；如需泛域名，使用 allowed-origin-patterns。
+      allowed-origins:
+        - http://localhost:5174
+        - http://127.0.0.1:5174
+        - http://localhost:5173
+        - http://127.0.0.1:5173
+      allowed-origin-patterns: []
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      allowed-headers:
+        - '*'
+      exposed-headers:
+        - X-Trace-Id
+      allow-credentials: true
+      max-age-seconds: 3600
+    security-headers:
+      frame-options: SAMEORIGIN
+      # CSP/HSTS 默认不强开，避免影响本地 HTTP 和历史内联资源；生产可按部署域名收紧。
+      content-security-policy: ''
+      hsts-enabled: false
+      hsts: max-age=31536000; includeSubDomains
+      referrer-policy: strict-origin-when-cross-origin
+      permissions-policy: geolocation=(), microphone=(), camera=()
+  storage:
+    local:
+      enable: true
+      address: http://localhost:8080
+      storage-path: storage
+    aliyun:
+      enable: false
+  trace:
+    enabled: true
+    http-slow-threshold-ms: 3000
+    max-depth: 64
+    min-node-cost-ms: 1
+    schedule-slow-threshold-ms: 10000
+    kafka-consumer-slow-threshold-ms: 30000
+  thread-pool:
+    scheduler:
+      pool-size: ${EASY_JOB_POOL_SIZE:20}
+      thread-name-prefix: easy-job-
+      await-termination-seconds: 10
+    business:
+      core-size: ${EASY_BUSINESS_POOL_CORE_SIZE:20}
+      max-size: ${EASY_BUSINESS_POOL_MAX_SIZE:100}
+      queue-capacity: ${EASY_BUSINESS_POOL_QUEUE_CAPACITY:100}
+      thread-name-prefix: easy-executor-
+      await-termination-seconds: 60
+    business-mdc:
+      pool-size: ${EASY_BUSINESS_MDC_POOL_SIZE:20}
+      queue-size: ${EASY_BUSINESS_MDC_QUEUE_SIZE:100}
+      thread-name-prefix: business
+    lock:
+      pool-size: ${EASY_LOCK_POOL_SIZE:5}
+      thread-name-prefix: easy-lock-
+      await-termination-seconds: 60
+# actuator
+management:
+  endpoint:
+    info:
+      enabled: true
+    health:
+      # 生产默认不暴露健康检查细节，local 环境再打开。
+      show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: '*'
+  health:
+    redis:
+      enabled: ${easy.features.redis:false}
+    readinessstate:
+      enabled: true
+    livenessstate:
+      enabled: true
+  influx:
+    metrics:
+      export:
+        enabled: ${MANAGEMENT_INFLUX_METRICS_EXPORT_ENABLED:false}
+        user-name: '${MANAGEMENT_INFLUX_METRICS_EXPORT_USERNAME:}'
+        password: '${MANAGEMENT_INFLUX_METRICS_EXPORT_PASSWORD:}'
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  info:
+    build:
+      enabled: true
+    env:
+      enabled: true
+    java:
+      enabled: true
+    os:
+      enabled: true
+    git:
+      enabled: true
+      mode: simple
+info:
+  # 环境变量
+  java-vendor: ${java.specification.vendor}
+  app:
+    author: laker
+    # 项目版本
+    version: @project.version@
+    name: easy-next-admin
+# springdoc-openapi 项目配置。机器可读规范访问 /v3/api-docs，调试 UI 访问 /swagger-ui.html。
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    enabled: false
+  api-docs:
+    path: /v3/api-docs
+    enabled: false
+logging:
+  level:
+    org.springframework.web.client.RestTemplate: error
+
+# 配置 Resilience4j CircuitBreaker
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 100
+        permittedNumberOfCallsInHalfOpenState: 10
+        waitDurationInOpenState: 10000
+        failureRateThreshold: 60
+        eventConsumerBufferSize: 10
+        registerHealthIndicator: true
+        recordExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+        ignoreExceptions:
+          - java.lang.RuntimeException
+  # 配置 Resilience4j RateLimiter
+  timelimiter:
+    configs:
+      default:
+        cancelRunningFuture: false
+        timeoutDuration: 5s

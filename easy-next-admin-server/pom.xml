@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.laker.admin</groupId>
+        <artifactId>easy-next-admin</artifactId>
+        <version>0.1.0-alpha.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>easy-next-admin-server</artifactId>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- MyBatis-Plus 数据访问 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- MySQL 驱动 -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>${mysql-connector-j.version}</version>
+        </dependency>
+
+        <!-- AOP 支撑审计、权限等横切能力 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- OpenAPI 3 接口文档 -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- 参数校验 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- BCrypt 密码哈希，仅引入 crypto 包，不启用 Spring Security 过滤链 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- WebSocket 支撑在线日志等实时通道 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- 配置管理 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 单元测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Actuator 运行监控 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Kafka 可选消息通道 -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <!-- 缓存 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <!-- 用于数据库版本管理 -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+        <!-- Redis 客户端 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Redisson 客户端：分布式锁、缓存和队列能力。 -->
+        <!-- https://github.com/redisson/redisson/tree/master/redisson-spring-boot-starter -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>3.28.0</version>
+        </dependency>
+
+        <!-- Guava 工具集合 -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
+        </dependency>
+
+        <!-- OpenFeign 远程调用 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-hc5</artifactId>
+            <version>13.1</version>
+        </dependency>
+
+        <!-- https://spring.io/projects/spring-cloud-circuitbreaker -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+        </dependency>
+
+        <!-- feign-micrometer trace and metrics-->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-micrometer</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-influx</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- 使用 lombok 简化代码 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+            <version>${lombok.version}</version>
+        </dependency>
+
+        <!-- 使用 mapstruct 简化对象映射 -->
+        <!-- 安装mapstruct插件 https://mapstruct.org/documentation/stable/reference/html/#introduction -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${org.mapstruct.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>aliyun-java-sdk-core</artifactId>
+            <version>4.5.18</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>3.18.1</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>aliyun-java-sdk-core</artifactId>
+                    <groupId>com.aliyun</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <!-- 打包后的启动jar名称 -->
+        <finalName>easyNextAdmin</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <!-- actuator/info 中 开启 构建信息，mvn 构建后才会生成META-INF/build-info.properties 文件 -->
+                            <goal>build-info</goal>
+                        </goals>
+                        <configuration>
+                            <excludeInfoProperties>
+                                <!-- 排除 artifact 信息 -->
+                                <infoProperty>group</infoProperty>
+                            </excludeInfoProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <!-- mapstruct 代码生成器 -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${org.mapstruct.version}</version>
+                        </path>
+                        <!-- lombok 代码生成器 -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <!-- additional annotation processor required as of Lombok 1.18.16 -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- actuator/info 中 开启 构建期间 Git 提交的信息，mvn 构建后才会生成git.properties 文件 -->
+            <plugin>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+                <configuration>
+                    <excludeProperties>
+                        <!-- 排除 time 属性 -->
+                        <excludeProperty>time</excludeProperty>
+                    </excludeProperties>
+                    <!--                    <includeOnlyProperties>-->
+                    <!--                        &lt;!&ndash; 只包含 git.commit.id 属性 &ndash;&gt;-->
+                    <!--                        <property>git.commit.id</property>-->
+                    <!--                    </includeOnlyProperties>-->
+                </configuration>
+            </plugin>
+
+            <!-- [单元测试] 测试单个类、方法或功能的正确性。-->
+            <!-- mvn test -Dmaven.test.skip=true 跳过测试 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- 并行测试配置 -->
+                    <threadCount>4</threadCount><!-- 最大线程数 -->
+                    <parallel>methods</parallel><!-- 并行执行测试方法 -->
+
+                    <!-- 测试超时设置 -->
+                    <testFailureIgnore>false</testFailureIgnore> <!-- 确保测试失败时构建失败 -->
+                    <runOrder>alphabetical</runOrder> <!-- 按字母顺序运行测试，确保一致性 -->
+
+                    <!-- 测试结果输出目录 -->
+                    <!--                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>-->
+
+
+                    <reportFormat>plain</reportFormat>
+                    <!-- 控制台输出详细度 -->
+                    <printSummary>true</printSummary>
+                    <forkCount>1C</forkCount> <!-- 使用与 CPU 核心数相同的线程数 -->
+                    <reuseForks>true</reuseForks>
+
+                    <!-- 包含测试类的目录 -->
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                    </includes>
+                    <!-- 排除集成测试 -->
+                    <excludes>
+                        <exclude>**/IT.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- [单元测试] 代码覆盖率报告 帮助发现未覆盖的代码部分 -->
+            <!-- mvn clean verify 生成的覆盖率报告可以在 target/site/jacoco/index.html 文件中查看-->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <!-- 在测试运行之前准备 JaCoCo 代理，用于收集覆盖率数据。 -->
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <!-- 在 verify 阶段生成覆盖率报告。 -->
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <!-- 合并多模块覆盖率报告 -->
+                    <execution>
+                        <id>report-aggregate</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report-aggregate</goal>
+                        </goals>
+                    </execution>
+
+                    <!-- 在 verify 阶段检查覆盖率是否达到预期值。 -->
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <!-- 检查覆盖率的范围 BUNDLE 表示整个项目（或模块）。
+                                    其他可能的值包括 PACKAGE、CLASS 和 METHOD，分别表示包、类和方法级别的覆盖率检查-->
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <!-- INSTRUCTION 表示指令覆盖率，即代码中每个指令的覆盖情况。其他可能的值包括 LINE（行覆盖率）、BRANCH（分支覆盖率）、COMPLEXITY（复杂度覆盖率）等-->
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <!-- 覆盖率的最小值 指令覆盖率的最低阈值是 80%。如果实际覆盖率低于这个值，构建将失败。-->
+                                            <minimum>0.00010</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.00010</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <!-- 指定报告文件输出路径 -->
+                    <!--                    <outputDirectory>${project.build.directory}/jacoco-reports</outputDirectory>-->
+
+                    <!-- 排除不需要计算覆盖率的包或类，如生成代码、测试类等 -->
+                    <excludes>
+                        <exclude>**/generated/**</exclude> <!-- 生成的代码 -->
+                        <exclude>net/sf/jsqlparser/**</exclude> <!-- 第三方 SQL 解析器，部分类方法过大，不做覆盖率插桩 -->
+                        <exclude>**/Test*.*</exclude> <!-- 排除测试类 -->
+                        <exclude>**/Test.java</exclude> <!-- 排除测试类 -->
+                        <exclude>**/SomeSpecificClassToExclude.*</exclude> <!-- 具体排除某些类 -->
+                        <exclude>**/*MapperGenerated.*</exclude> <!-- MyBatis 自动生成的 Mapper 接口 -->
+                        <exclude>**/*Mapper.*</exclude> <!-- MyBatis Mapper 接口 -->
+                        <exclude>**/*Example.*</exclude> <!-- MyBatis Example 类 -->
+                        <exclude>**/*VO.*</exclude> <!-- VO 类 -->
+                        <exclude>**/*DTO.*</exclude> <!-- DTO 类 -->
+                        <exclude>**/*BO.*</exclude> <!-- BO 类 -->
+                        <exclude>**/*PO.*</exclude> <!-- PO 类 -->
+                        <exclude>**/*Entity.*</exclude> <!-- Entity 类 -->
+                        <exclude>**/*Repository.*</exclude> <!-- Repository 类 -->
+                        <exclude>**/*RepositoryImpl.*</exclude> <!-- RepositoryImpl 类 -->
+                    </excludes>
+
+                    <!-- 报告格式，生成 HTML 和 XML 格式报告 -->
+                    <formats>
+                        <format>HTML</format>
+                        <format>XML</format>
+                    </formats>
+
+                    <!-- 覆盖率数据文件路径 -->
+                    <dataFile>${project.build.directory}/jacoco.exec</dataFile>
+                    <outputDirectory>${project.build.directory}/jacoco-reports</outputDirectory>
+                </configuration>
+            </plugin>
+
+            <!-- [集成测试] 测试不同模块或服务之间的交互是否正确.使用JUnit或TestNG编写集成测试，通常命名为*IT.java -->
+            <!-- mvn clean verify 生成的集成测试报告可以在 target/site/failsafe-report.html 文件中查看-->
+            <!-- 用于运行那些需要启动完整应用或依赖外部服务（如数据库）的测试。-->
+            <!-- maven-failsafe-plugin 是 maven-surefire-plugin 的补充插件，专门用于集成测试（Integration Tests）。
+            与 Surefire 主要用于单元测试不同，Failsafe 用于确保集成测试能够在构建流程的后期正确运行，
+            并且可以在集成测试失败时，控制构建的后续步骤。-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <!--                <version>3.0.0-M9</version>-->
+                <executions>
+                    <!-- 在 integration-test 阶段运行集成测试 -->
+                    <execution>
+                        <id>integration-test</id>
+                        <goals>
+                            <goal>integration-test</goal>
+                        </goals>
+                        <phase>integration-test</phase> <!-- 在这个阶段运行测试 -->
+                    </execution>
+
+                    <!-- 在 verify 阶段运行测试结果验证，报告生成等 -->
+                    <execution>
+                        <id>verify</id>
+                        <goals>
+                            <goal>verify</goal>
+                        </goals>
+                        <phase>verify</phase> <!-- 在这个阶段检查和报告 -->
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <!-- 执行集成测试时的测试类命名规则 -->
+                    <includes>
+                        <include>**/IT*.java</include> <!-- 命名以 IT 开头的类 -->
+                        <include>**/*IT.java</include> <!-- 命名以 IT 结尾的类 -->
+                    </includes>
+
+                    <!-- 指定线程并发测试数，使用与 CPU 核心数相同的线程数 -->
+                    <parallel>methods</parallel>
+                    <threadCount>4</threadCount> <!-- 根据项目规模调整线程数 -->
+
+                    <!-- 失败重试机制：避免偶然失败 -->
+                    <systemPropertyVariables>
+                        <surefire.junit.retryCount>3</surefire.junit.retryCount> <!-- 测试失败后重试 3 次 -->
+                    </systemPropertyVariables>
+
+                    <!-- JVM 参数：控制内存分配 -->
+                    <argLine>-Xms512m -Xmx2048m</argLine>
+
+                    <!-- 测试报告输出目录 -->
+                    <!--                    <reportsDirectory>${project.build.directory}/failsafe-reports</reportsDirectory>-->
+
+                    <!-- 配置测试失败后的处理方式 -->
+                    <testFailureIgnore>false</testFailureIgnore> <!-- 测试失败时构建失败 -->
+
+                    <!-- 测试过滤和选择 -->
+                    <skip>false</skip> <!-- 不跳过集成测试 -->
+                </configuration>
+            </plugin>
+
+            <!--   静态代码分析（Static Code Analysis）PMD, Checkstyle, FindBugs -->
+            <!--原 FindBugs  分析字节码，找出潜在的 Bug 和安全漏洞。 -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.7.3.0</version>
+                <executions>
+                    <!-- 在 verify 阶段执行 SpotBugs 检查 -->
+                    <execution>
+                        <goals>
+                            <goal>spotbugs</goal>
+                        </goals>
+                        <phase>verify</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- 设置告警级别 -->
+                    <effort>Max</effort> <!-- Max 表示最大努力，执行更详细的检查 -->
+                    <threshold>Low</threshold> <!-- Low 表示所有级别的告警都报告，包括低级别 -->
+
+                    <!-- 启用 XML 和 HTML 格式的报告 -->
+                    <xmlOutput>true</xmlOutput>
+                    <!--                    <outputDirectory>${project.build.directory}/spotbugs-reports</outputDirectory>-->
+
+                    <!-- 构建失败策略 -->
+                    <failOnError>true</failOnError> <!-- 如果有错误报告，构建失败 -->
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

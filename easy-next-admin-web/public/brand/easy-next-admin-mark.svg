@@ -1,0 +1,43 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">EasyNextAdmin enterprise hub mark</title>
+  <desc id="desc">A blue enterprise shield with connected admin hub nodes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="42" y1="24" x2="222" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="0.52" stop-color="#1247B9"/>
+      <stop offset="1" stop-color="#0A1E4F"/>
+    </linearGradient>
+    <linearGradient id="crest" x1="78" y1="54" x2="184" y2="205" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="0.58" stop-color="#C7D2FE"/>
+      <stop offset="1" stop-color="#93C5FD"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="92" y1="74" x2="169" y2="184" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E40AF"/>
+      <stop offset="0.58" stop-color="#0F2F7B"/>
+      <stop offset="1" stop-color="#071D49"/>
+    </linearGradient>
+    <linearGradient id="node" x1="102" y1="91" x2="158" y2="153" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E0F2FE"/>
+      <stop offset="1" stop-color="#38BDF8"/>
+    </linearGradient>
+    <filter id="lift" x="12" y="10" width="232" height="238" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="14" flood-color="#06112F" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <g filter="url(#lift)">
+    <rect x="24" y="22" width="208" height="212" rx="48" fill="url(#bg)"/>
+    <path d="M58 177C98.5 153.5 143.5 148.8 193 162.9C205.3 166.4 214.6 169.8 221 173.3V190C221 207.1 207.1 221 190 221H68C50.9 221 37 207.1 37 190V177H58Z" fill="#071D49" opacity="0.35"/>
+    <path d="M65 44H181C200.3 44 216 59.7 216 79V140C184.1 128.2 152.8 123.1 122.1 124.7C91.8 126.3 67.8 134.3 46 144.8V79C46 59.7 61.7 44 81 44H65Z" fill="#60A5FA" opacity="0.22"/>
+  </g>
+  <path d="M128 50L190 75V121C190 163 165.5 194.8 128 211C90.5 194.8 66 163 66 121V75L128 50Z" fill="url(#crest)"/>
+  <path d="M128 72L168 88V122C168 150.5 153.2 172 128 185C102.8 172 88 150.5 88 122V88L128 72Z" fill="url(#inner)"/>
+  <path d="M128 92L155 108V140L128 156L101 140V108L128 92Z" fill="url(#node)"/>
+  <path d="M128 108L109 132M128 108L147 132M109 132H147" stroke="#EFF6FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="128" cy="108" r="10" fill="#F8FAFC"/>
+  <circle cx="109" cy="132" r="10" fill="#BAE6FD"/>
+  <circle cx="147" cy="132" r="10" fill="#BAE6FD"/>
+  <path d="M92 92L128 77L164 92" stroke="#E0F2FE" stroke-opacity="0.62" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M102 169C109.8 176.1 118.4 181.8 128 186C137.6 181.8 146.2 176.1 154 169" stroke="#93C5FD" stroke-opacity="0.78" stroke-width="5" stroke-linecap="round"/>
+  <path d="M45 202H211" stroke="#93C5FD" stroke-opacity="0.18" stroke-width="2" stroke-linecap="round"/>
+</svg>

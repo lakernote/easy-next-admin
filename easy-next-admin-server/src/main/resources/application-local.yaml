@@ -1,0 +1,71 @@
+# 本地开发 profile：保留便捷默认值、Swagger、详细健康检查和开发代理 CORS。
+server:
+  tomcat:
+    max-connections: 512
+    accept-count: 100
+    threads:
+      min-spare: 10
+      max: 100
+spring:
+  datasource:
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: '${MYSQL_URL:jdbc:mysql://localhost:3306/easy-next-admin?serverTimezone=GMT%2B8&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&useSSL=false&allowPublicKeyRetrieval=true}'
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            logger-level: full
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 10
+        queue-capacity: 100
+    scheduling:
+      pool:
+        size: 4
+easy:
+  spring:
+    redis:
+      database: ${EASY_REDIS_DATABASE:0}
+      address: ${EASY_REDIS_ADDRESS:redis://localhost:6379}
+      password: ${EASY_REDIS_PASSWORD:111222}
+      client-name: ${EASY_REDIS_CLIENT_NAME:easy-next-admin}
+  thread-pool:
+    scheduler:
+      pool-size: ${EASY_JOB_POOL_SIZE:8}
+    business:
+      core-size: ${EASY_BUSINESS_POOL_CORE_SIZE:4}
+      max-size: ${EASY_BUSINESS_POOL_MAX_SIZE:16}
+      queue-capacity: ${EASY_BUSINESS_POOL_QUEUE_CAPACITY:100}
+    business-mdc:
+      pool-size: ${EASY_BUSINESS_MDC_POOL_SIZE:4}
+      queue-size: ${EASY_BUSINESS_MDC_QUEUE_SIZE:100}
+    lock:
+      pool-size: ${EASY_LOCK_POOL_SIZE:2}
+springdoc:
+  swagger-ui:
+    enabled: true
+  api-docs:
+    enabled: true
+management:
+  endpoint:
+    health:
+      # 本地排障需要看到组件细节，生产不要开启。
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  health:
+    redis:
+      enabled: ${easy.features.redis:false}
+logging:
+  level:
+    # 本地调试具体业务 Feign 客户端时，可在这里按包名开启 DEBUG。
+    com.laker.admin.module: info

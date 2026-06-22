@@ -1,0 +1,86 @@
+# 生产 profile：公网和内网部署都从这里起步，再用环境变量或启动参数覆盖差异。
+server:
+  tomcat:
+    max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:8192}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:200}
+    threads:
+      min-spare: ${SERVER_TOMCAT_THREADS_MIN_SPARE:20}
+      max: ${SERVER_TOMCAT_THREADS_MAX:200}
+spring:
+  datasource:
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    url: ${MYSQL_URL}
+    hikari:
+      minimum-idle: ${MYSQL_POOL_MIN_IDLE:10}
+      maximum-pool-size: ${MYSQL_POOL_MAX_SIZE:50}
+  task:
+    execution:
+      pool:
+        core-size: ${SPRING_TASK_CORE_SIZE:10}
+        max-size: ${SPRING_TASK_MAX_SIZE:50}
+        queue-capacity: ${SPRING_TASK_QUEUE_CAPACITY:500}
+    scheduling:
+      pool:
+        size: ${SPRING_SCHEDULING_POOL_SIZE:10}
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+easy:
+  features:
+    redis: ${EASY_FEATURE_REDIS:true}
+    scheduler: ${EASY_FEATURE_SCHEDULER:true}
+    outbox: ${EASY_FEATURE_OUTBOX:true}
+    kafka: ${EASY_FEATURE_KAFKA:false}
+    feign: ${EASY_FEATURE_FEIGN:true}
+    oss: ${EASY_FEATURE_OSS:false}
+    web-log: ${EASY_FEATURE_WEB_LOG:true}
+    monitor: ${EASY_FEATURE_MONITOR:true}
+  spring:
+    redis:
+      database: ${EASY_REDIS_DATABASE:0}
+      address: ${EASY_REDIS_ADDRESS:redis://redis:6379}
+      password: '${EASY_REDIS_PASSWORD:}'
+      client-name: ${EASY_REDIS_CLIENT_NAME:easy-next-admin}
+      dns-monitoring-interval: ${EASY_REDIS_DNS_MONITORING_INTERVAL:-1}
+  thread-pool:
+    scheduler:
+      pool-size: ${EASY_JOB_POOL_SIZE:20}
+      await-termination-seconds: ${EASY_JOB_AWAIT_TERMINATION_SECONDS:10}
+    business:
+      core-size: ${EASY_BUSINESS_POOL_CORE_SIZE:20}
+      max-size: ${EASY_BUSINESS_POOL_MAX_SIZE:100}
+      queue-capacity: ${EASY_BUSINESS_POOL_QUEUE_CAPACITY:500}
+      await-termination-seconds: ${EASY_BUSINESS_AWAIT_TERMINATION_SECONDS:60}
+    business-mdc:
+      pool-size: ${EASY_BUSINESS_MDC_POOL_SIZE:20}
+      queue-size: ${EASY_BUSINESS_MDC_QUEUE_SIZE:500}
+    lock:
+      pool-size: ${EASY_LOCK_POOL_SIZE:5}
+      await-termination-seconds: ${EASY_LOCK_AWAIT_TERMINATION_SECONDS:60}
+  web:
+    cors:
+      # 公网部署优先同域网关反代。确需跨域时，通过启动参数显式配置真实域名：
+      # --easy.web.cors.allowed-origins[0]=https://admin.example.com
+      allowed-origins: []
+      allowed-origin-patterns: []
+    security-headers:
+      hsts-enabled: true
+      content-security-policy: "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+  waf:
+    # 生产默认保留安全响应头；参数改写类 WAF 规则建议放到网关统一治理。
+    xss-enabled: false
+    sql-enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info

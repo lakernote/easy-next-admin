@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.laker.admin.module.system.mapper.SysUserMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.laker.admin.module.system.entity.SysUser">
+        <id column="id" property="userId" />
+        <result column="user_name" property="userName" />
+        <result column="password_hash" property="password" />
+        <result column="nick_name" property="nickName" />
+        <result column="dept_id" property="deptId" />
+        <result column="manager_user_id" property="managerUserId" />
+        <result column="phone" property="phone" />
+        <result column="enable" property="enable" />
+        <result column="email" property="email" />
+        <result column="avatar" property="avatar" />
+        <result column="create_time" property="createTime" />
+        <result column="permission_version" property="permissionVersion" />
+        <result column="remark" property="remark" />
+        <result column="employee_no" property="employeeNo" />
+        <result column="real_name" property="realName" />
+        <result column="position_name" property="positionName" />
+        <result column="last_login_time" property="lastLoginTime" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, user_name, password_hash, nick_name, dept_id, manager_user_id, phone, enable, email, avatar, create_time,
+        permission_version, remark, employee_no, real_name, position_name, last_login_time
+    </sql>
+
+</mapper>
