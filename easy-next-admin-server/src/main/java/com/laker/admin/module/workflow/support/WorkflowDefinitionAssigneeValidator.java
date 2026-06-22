@@ -7,6 +7,7 @@ import com.laker.admin.module.system.entity.SysUser;
 import com.laker.admin.module.system.service.ISysRoleService;
 import com.laker.admin.module.system.service.ISysUserRoleService;
 import com.laker.admin.module.system.service.ISysUserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -15,21 +16,12 @@ import java.util.List;
 import java.util.Set;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowDefinitionAssigneeValidator {
     private final WorkflowGraphParser graphParser;
     private final ISysUserService userService;
     private final ISysRoleService roleService;
     private final ISysUserRoleService userRoleService;
-
-    public WorkflowDefinitionAssigneeValidator(WorkflowGraphParser graphParser,
-                                               ISysUserService userService,
-                                               ISysRoleService roleService,
-                                               ISysUserRoleService userRoleService) {
-        this.graphParser = graphParser;
-        this.userService = userService;
-        this.roleService = roleService;
-        this.userRoleService = userRoleService;
-    }
 
     public void validateForEnable(String graphJson) {
         WorkflowGraph graph = graphParser.parse(graphJson);

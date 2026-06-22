@@ -8,6 +8,7 @@ import com.laker.admin.module.workflow.entity.WfCc;
 import com.laker.admin.module.workflow.entity.WfEvent;
 import com.laker.admin.module.workflow.entity.WfProcessInstance;
 import com.laker.admin.module.workflow.entity.WfTask;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -18,12 +19,9 @@ import java.util.Map;
 import java.util.Objects;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowParticipantResolver {
     private final ISysUserService userService;
-
-    public WorkflowParticipantResolver(ISysUserService userService) {
-        this.userService = userService;
-    }
 
     public List<WfParticipantView> resolve(WfProcessInstance instance,
                                            List<WfTask> tasks,

@@ -2,6 +2,7 @@ package com.laker.admin.module.workflow.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.laker.admin.common.exception.BusinessException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -14,15 +15,10 @@ import java.util.Objects;
 import java.util.Set;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowGraphValidator {
     private final WorkflowGraphParser graphParser;
     private final WorkflowExpressionEvaluator expressionEvaluator;
-
-    public WorkflowGraphValidator(WorkflowGraphParser graphParser,
-                                  WorkflowExpressionEvaluator expressionEvaluator) {
-        this.graphParser = graphParser;
-        this.expressionEvaluator = expressionEvaluator;
-    }
 
     public void validateForEnable(String graphJson) {
         WorkflowGraph graph = graphParser.parse(graphJson);

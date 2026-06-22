@@ -3,17 +3,15 @@ package com.laker.admin.module.workflow.support;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.module.workflow.entity.WfProcessInstance;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowInstanceStateGuard {
     private final IWfProcessInstanceService instanceService;
-
-    public WorkflowInstanceStateGuard(IWfProcessInstanceService instanceService) {
-        this.instanceService = instanceService;
-    }
 
     public void updateOrThrow(WfProcessInstance instance) {
         if (!instanceService.updateById(instance)) {

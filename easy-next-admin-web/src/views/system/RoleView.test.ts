@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 const viewSource = readFileSync(resolve(__dirname, 'RoleView.vue'), 'utf-8')
 const toolbarSource = readFileSync(resolve(__dirname, '../../components/table/TableToolbar.vue'), 'utf-8')
 const dataScopeSource = readFileSync(resolve(__dirname, '../../features/system/dataScope.ts'), 'utf-8')
+const rolePresentationSource = readFileSync(resolve(__dirname, '../../features/system/rolePresentation.ts'), 'utf-8')
 
 describe('system role view table controls', () => {
   it('keeps role table controls compact without a repeated card heading', () => {
@@ -47,7 +48,8 @@ describe('system role view table controls', () => {
   it('keeps role level editable because it is a backend authorization boundary', () => {
     expect(viewSource).toContain('label="角色层级"')
     expect(viewSource).toContain('v-model="roleForm.roleLevel"')
-    expect(viewSource).toContain('roleLevel: role?.roleLevel')
+    expect(viewSource).toContain('buildRoleForm(role)')
+    expect(rolePresentationSource).toContain('roleLevel: role?.roleLevel')
     expect(viewSource).toContain('roleLevel: roleForm.roleLevel')
   })
 

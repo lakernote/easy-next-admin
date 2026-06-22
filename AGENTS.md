@@ -103,4 +103,6 @@ npm run build
 .codex/skills/easy-next-admin-vibecoding/SKILL.md
 ```
 
+这份技能是 code agent 的轻量任务路由入口，应覆盖触发描述、上下文读取顺序、前后端契约、`sys_menu` / 权限码同步、验证矩阵和 agent 入口自检。更新本文件中的仓库规则时，同步检查 skill frontmatter、正文和 `agents/openai.yaml`，避免 AGENTS 与 Codex Skill 口径漂移。
+
 需要让 Codex 自动发现时，可把该目录复制到当前机器的 `$CODEX_HOME/skills` 或 `~/.codex/skills`。技能内容应与本文件保持一致。

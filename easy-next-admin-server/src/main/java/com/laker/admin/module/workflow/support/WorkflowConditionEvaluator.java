@@ -1,17 +1,15 @@
 package com.laker.admin.module.workflow.support;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowConditionEvaluator {
     private final WorkflowExpressionEvaluator expressionEvaluator;
-
-    public WorkflowConditionEvaluator(WorkflowExpressionEvaluator expressionEvaluator) {
-        this.expressionEvaluator = expressionEvaluator;
-    }
 
     public boolean matches(WorkflowConditionType type, String expression, Map<String, Object> variables) {
         type = type == null ? WorkflowConditionType.ALWAYS : type;

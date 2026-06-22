@@ -3,6 +3,7 @@ package com.laker.admin.module.workflow.support;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -13,12 +14,9 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowGraphParser {
     private final EasyJsonCodec jsonCodec;
-
-    public WorkflowGraphParser(EasyJsonCodec jsonCodec) {
-        this.jsonCodec = jsonCodec;
-    }
 
     public WorkflowGraph parse(String graphJson) {
         if (!StringUtils.hasText(graphJson)) {

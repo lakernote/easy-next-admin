@@ -12,6 +12,7 @@ import com.laker.admin.module.system.service.ISysUserService;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
 import com.laker.admin.module.workflow.service.IWfTaskDelegationService;
 import com.laker.admin.module.workflow.service.IWfTaskService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowTaskDispatcher {
     private final IWfProcessInstanceService instanceService;
     private final IWfTaskService taskService;
@@ -29,20 +31,6 @@ public class WorkflowTaskDispatcher {
     private final WorkflowAssigneeResolver assigneeResolver;
     private final WorkflowArchiveService archiveService;
     private final ISysUserService userService;
-
-    public WorkflowTaskDispatcher(IWfProcessInstanceService instanceService,
-                                  IWfTaskService taskService,
-                                  IWfTaskDelegationService taskDelegationService,
-                                  WorkflowAssigneeResolver assigneeResolver,
-                                  WorkflowArchiveService archiveService,
-                                  ISysUserService userService) {
-        this.instanceService = instanceService;
-        this.taskService = taskService;
-        this.taskDelegationService = taskDelegationService;
-        this.assigneeResolver = assigneeResolver;
-        this.archiveService = archiveService;
-        this.userService = userService;
-    }
 
     public void createPendingTasksForNode(WfProcessInstance instance,
                                           WorkflowGraph.NodeInfo node,

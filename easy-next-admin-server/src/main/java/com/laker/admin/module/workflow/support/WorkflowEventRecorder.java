@@ -4,6 +4,7 @@ import com.laker.admin.module.workflow.entity.WfEvent;
 import com.laker.admin.module.workflow.entity.WfProcessInstance;
 import com.laker.admin.module.workflow.event.WfProcessInstanceStatusChangedEvent;
 import com.laker.admin.module.workflow.service.IWfEventService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -12,14 +13,10 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowEventRecorder {
     private final IWfEventService eventService;
     private final ApplicationEventPublisher eventPublisher;
-
-    public WorkflowEventRecorder(IWfEventService eventService, ApplicationEventPublisher eventPublisher) {
-        this.eventService = eventService;
-        this.eventPublisher = eventPublisher;
-    }
 
     public void record(Long instanceId,
                        Long taskId,

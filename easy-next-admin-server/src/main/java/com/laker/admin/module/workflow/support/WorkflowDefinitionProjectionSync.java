@@ -7,6 +7,7 @@ import com.laker.admin.module.workflow.entity.WfProcessNode;
 import com.laker.admin.module.workflow.entity.WfProcessTransition;
 import com.laker.admin.module.workflow.service.IWfProcessNodeService;
 import com.laker.admin.module.workflow.service.IWfProcessTransitionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowDefinitionProjectionSync {
     private static final String ALLOW_TRANSFER = "allowTransfer";
     private static final String ALLOW_DELEGATE = "allowDelegate";
@@ -27,16 +29,6 @@ public class WorkflowDefinitionProjectionSync {
     private final IWfProcessTransitionService transitionService;
     private final WorkflowGraphParser graphParser;
     private final EasyJsonCodec jsonCodec;
-
-    public WorkflowDefinitionProjectionSync(IWfProcessNodeService nodeService,
-                                            IWfProcessTransitionService transitionService,
-                                            WorkflowGraphParser graphParser,
-                                            EasyJsonCodec jsonCodec) {
-        this.nodeService = nodeService;
-        this.transitionService = transitionService;
-        this.graphParser = graphParser;
-        this.jsonCodec = jsonCodec;
-    }
 
     public void sync(WfProcessDefinitionVersion version, String graphJson) {
         if (version == null || version.getId() == null) {

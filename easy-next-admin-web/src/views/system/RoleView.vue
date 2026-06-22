@@ -443,6 +443,19 @@ import {
   roleDataScopeOptions,
   roleDataScopeRiskAlert as resolveRoleDataScopeRiskAlert
 } from '@/features/system/dataScope'
+import {
+  buildRoleAuthorizationSteps,
+  buildRoleForm,
+  buildRolePermissionTabs,
+  collectDepartmentMap,
+  filterRoleDepartmentNode,
+  normalizeRolePermissionCodes,
+  permissionGroupKey,
+  roleStatusDisabledReason as resolveRoleStatusDisabledReason,
+  sameRoleEntityId as sameId,
+  type RoleAuthorizationStep,
+  type RolePermissionPresentationMeta
+} from '@/features/system/rolePresentation'
 import { useAuthStore } from '@/stores/auth'
 import { PermissionCodes } from '@/permissions/codes'
 import TableToolbar from '@/components/table/TableToolbar.vue'
@@ -450,18 +463,7 @@ import EnableStatusSwitch from '@/components/table/EnableStatusSwitch.vue'
 import { createTableColumnState, visibleColumnMap } from '@/components/table/tableColumns'
 import { useFluidTableHeight } from '@/components/table/useFluidTableHeight'
 
-type AuthorizationStep = PermissionType | 'scope'
-
-interface PermissionMeta {
-  label: string
-  step: string
-  summary: string
-  hint: string
-  resourceLabel: string
-  countUnit: string
-  alertType: 'success' | 'warning' | 'info' | 'error'
-  tagType: 'success' | 'warning' | 'info' | 'primary' | 'danger'
-}
+type AuthorizationStep = RoleAuthorizationStep
 
 interface PermissionGroup {
   key: string
@@ -473,7 +475,7 @@ interface PermissionGroup {
   permissionCodes: string[]
 }
 
-const permissionTypeConfig: Record<AuthorizationStep, PermissionMeta> = {
+const permissionTypeConfig: Record<AuthorizationStep, RolePermissionPresentationMeta> = {
   menu: {
     label: '菜单权限',
     step: '1',
@@ -572,9 +574,7 @@ const authorizationBlockedReason = computed(() => {
 })
 const dataScopeRiskAlert = computed(() => resolveRoleDataScopeRiskAlert(authorizationForm.dataScope))
 const selectedDepartmentMap = computed(() => {
-  const departmentMap = new Map<string, SystemDepartment>()
-  collectDepartments(departmentTree.value, departmentMap)
-  return departmentMap
+  return collectDepartmentMap(departmentTree.value)
 })
 const selectedDepartments = computed(() => {
   return authorizationForm.deptIds
@@ -669,34 +669,16 @@ const activeEmptyDescription = computed(() => {
   return `当前没有可授权的${activePermissionMeta.value.resourceLabel}。`
 })
 const permissionTabs = computed(() => {
-  return permissionTabTypes.map((type) => {
-    if (type === 'scope') {
-      return {
-        type,
-        ...permissionTypeConfig[type],
-        total: 1,
-        checked: authorizationForm.dataScope ? 1 : 0
-      }
-    }
-    const codes = groupsForType(type).flatMap((group) => group.permissionCodes)
-    return {
-      type,
-      ...permissionTypeConfig[type],
-      total: codes.length,
-      checked: checkedCount(codes)
-    }
+  return buildRolePermissionTabs({
+    tabTypes: permissionTabTypes,
+    config: permissionTypeConfig,
+    groupsForType,
+    checkedCount,
+    dataScope: authorizationForm.dataScope
   })
 })
 const authorizationSteps = computed(() => {
-  const tabMap = new Map(permissionTabs.value.map((tab) => [tab.type, tab]))
-  return authorizationStepTypes.map((type) => {
-    return tabMap.get(type) || {
-      type,
-      ...permissionTypeConfig[type],
-      total: 0,
-      checked: 0
-    }
-  })
+  return buildRoleAuthorizationSteps(authorizationStepTypes, permissionTabs.value)
 })
 
 watch(selectedMenuGroupKeys, () => {
@@ -738,15 +720,7 @@ function handleSizeChange(limit: number) {
 }
 
 function openRoleDrawer(role?: SystemRole) {
-  Object.assign(roleForm, {
-    roleId: role?.roleId,
-    roleName: role?.roleName || '',
-    roleCode: role?.roleCode || '',
-    details: role?.details || '',
-    roleLevel: role?.roleLevel ?? 50,
-    enable: role?.enable ?? true,
-    userCount: role?.userCount || 0
-  })
+  Object.assign(roleForm, buildRoleForm(role))
   delete roleForm.dataScope
   roleDrawerVisible.value = true
 }
@@ -835,9 +809,7 @@ async function handleToggleRoleStatus(role: SystemRole) {
 }
 
 function roleStatusDisabledReason(role: SystemRole) {
-  if (!canEditRole.value) return '缺少角色维护权限'
-  if (role.roleCode === 'admin') return '超级管理员角色不可停用'
-  return ''
+  return resolveRoleStatusDisabledReason(canEditRole.value, role)
 }
 
 async function openAuthorizationDrawer(role: SystemRole) {
@@ -869,8 +841,7 @@ async function openAuthorizationDrawer(role: SystemRole) {
 }
 
 function normalizePermissionCodes(codes: string[] = []) {
-  const availableCodes = new Set(normalizedPermissions.value.map((permission) => permission.code))
-  return Array.from(new Set(codes.filter((code) => availableCodes.has(code))))
+  return normalizeRolePermissionCodes(codes, new Set(normalizedPermissions.value.map((permission) => permission.code)))
 }
 
 function checkedCount(codes: string[]) {
@@ -947,10 +918,6 @@ function pruneUnavailableScopedPermissions() {
   }
 }
 
-function permissionGroupKey(permission: NormalizedPermission) {
-  return `${permission.featureId}:${permission.group}`
-}
-
 async function loadSystemMenuTree() {
   if (systemMenuTree.value.length > 0) {
     return
@@ -1010,10 +977,6 @@ async function handleSaveAuthorization() {
   }
 }
 
-function sameId(left?: EntityId, right?: EntityId) {
-  return left !== undefined && right !== undefined && String(left) === String(right)
-}
-
 async function loadDepartmentTree() {
   if (departmentTree.value.length > 0) {
     return
@@ -1036,20 +999,7 @@ function syncCheckedDeptIds() {
 }
 
 function filterDepartmentNode(keyword: string, department: SystemDepartment) {
-  if (!keyword) return true
-  const normalizedKeyword = keyword.trim().toLowerCase()
-  return [department.deptName, department.fullName]
-    .filter(Boolean)
-    .some((text) => String(text).toLowerCase().includes(normalizedKeyword))
-}
-
-function collectDepartments(departments: SystemDepartment[], departmentMap: Map<string, SystemDepartment>) {
-  departments.forEach((department) => {
-    departmentMap.set(String(department.deptId), department)
-    if (department.children?.length) {
-      collectDepartments(department.children, departmentMap)
-    }
-  })
+  return filterRoleDepartmentNode(keyword, department)
 }
 
 function removeSelectedDepartment(deptId: EntityId) {

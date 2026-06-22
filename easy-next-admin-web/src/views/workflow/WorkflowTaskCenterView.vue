@@ -379,6 +379,35 @@ import {
 import { listWorkflowAssignees } from '@/features/workflow/definitionApi'
 import { getRepairRequestByWorkflowInstance } from '@/features/workflow/repairApi'
 import { loadWorkflowTaskCenterTab, type WorkflowTaskCenterApi } from '@/features/workflow/taskCenterLoader'
+import {
+  formatWorkflowTime as formatTime,
+  formatWorkflowTotal as formatTotal,
+  pendingTaskMatchesFilter,
+  workflowActionCommentPlaceholder,
+  workflowBusinessTypeText as businessTypeText,
+  workflowInstanceMeta as instanceMeta,
+  workflowInstanceStatusTagType as instanceStatusType,
+  workflowInstanceStatusText as instanceStatusText,
+  workflowInstanceTitle as instanceTitle,
+  workflowTaskActionButtonType,
+  workflowTaskActionHelperText,
+  workflowTaskActionSubmitText,
+  workflowTaskActionTitle,
+  workflowTaskApplicantAccount,
+  workflowTaskApplicantName,
+  workflowTaskBusinessSummary as taskBusinessSummary,
+  workflowTaskCenterApplicationEntries as applicationEntries,
+  workflowTaskCenterRowActionGroups as rowActionGroups,
+  workflowTaskDueHint as taskDueHint,
+  workflowTaskNodeFlowHint as nodeFlowHint,
+  workflowTaskStatusTagType as taskStatusType,
+  workflowTaskStatusText as taskStatusText,
+  workflowTaskUrgencyLevel as taskUrgencyLevel,
+  workflowTaskUrgencyTagType as taskUrgencyTagType,
+  workflowTaskUrgencyText as taskUrgencyText,
+  workflowTaskWaitingText as taskWaitingText,
+  type WorkflowPendingUrgencyFilter as PendingUrgencyFilter
+} from '@/features/workflow/taskCenterPresentation'
 import type {
   WorkflowAssigneeOption,
   WorkflowCc,
@@ -392,9 +421,6 @@ import type { EntityId } from '@/features/system/types'
 import { resolveWorkflowTaskCenterTab, type WorkflowTaskCenterTab } from '@/features/workflow/taskCenterTabs'
 import { workflowTaskAction, type TaskActionType, type WorkflowTaskActionMeta } from '@/features/workflow/taskActions'
 import WorkflowInstanceDetailDrawer from './components/WorkflowInstanceDetailDrawer.vue'
-
-type PendingUrgencyFilter = 'all' | 'today' | 'aging' | 'overdue'
-type PendingUrgencyLevel = 'normal' | 'today' | 'aging' | 'overdue'
 
 const router = useRouter()
 const route = useRoute()
@@ -448,12 +474,7 @@ const actionForm = reactive<{
 })
 
 const canStartWorkflow = computed(() => auth.hasAnyPermission([PermissionCodes.workflow.instanceStart]))
-const rowActionGroups: ReadonlyArray<{ label: string; actions: WorkflowTaskActionMeta[] }> = [
-  { label: '审批处理', actions: [requireTaskAction('reject')] },
-  { label: '协同处理', actions: [requireTaskAction('transfer'), requireTaskAction('delegate'), requireTaskAction('remind')] },
-  { label: '节点调整', actions: [requireTaskAction('return'), requireTaskAction('addSign'), requireTaskAction('removeSign')] }
-]
-const filteredPendingTasks = computed(() => pendingTasks.value.filter((task) => pendingMatchesFilter(task, pendingUrgencyFilter.value)))
+const filteredPendingTasks = computed(() => pendingTasks.value.filter((task) => pendingTaskMatchesFilter(task, pendingUrgencyFilter.value)))
 const pendingFilterOptions = computed(() => [
   { value: 'all' as const, label: '全部待办', count: pendingTasks.value.length, tone: 'default' },
   { value: 'today' as const, label: '今日到达', count: pendingTasks.value.filter((task) => taskUrgencyLevel(task) === 'today').length, tone: 'default' },
@@ -462,47 +483,19 @@ const pendingFilterOptions = computed(() => [
 ])
 const pendingFilterEmptyText = computed(() => pendingUrgencyFilter.value === 'all' ? '暂无待办任务' : '当前筛选没有待办任务')
 const activeActionMeta = computed(() => workflowTaskAction(actionForm.type))
-const actionTitle = computed(() => {
-  if (activeTask.value?.nodeKey === 'submit' && (actionForm.type === 'approve' || actionForm.type === 'approveWithComment')) {
-    return '重新提交'
-  }
-  return activeActionMeta.value?.title || '处理任务'
-})
+const actionTitle = computed(() => workflowTaskActionTitle(actionForm.type, activeTask.value))
 const requiresUserTarget = computed(() => Boolean(activeActionMeta.value?.requiresUserTarget))
-const actionHelperText = computed(() => {
-  const helpers: Record<TaskActionType, string> = {
-    approve: '同意后，流程会自动进入下一审批节点。',
-    approveWithComment: activeTask.value?.nodeKey === 'submit' ? '补充意见后，流程会重新提交到下一审批节点。' : '同意后，流程会自动进入下一审批节点。',
-    reject: '驳回会结束本次申请，请写清楚原因。',
-    transfer: '转办后，当前待办将交给新的处理人。',
-    delegate: '委派用于临时请他人协助处理，并保留委派记录。',
-    return: '可退回发起人补充，也可退回上一审批节点。',
-    addSign: '加签会在当前节点追加处理人，追加人员处理完后才继续流转。',
-    removeSign: '减签用于移除尚未处理的加签待办。',
-    remind: '催办只记录提醒，不改变流程状态。'
-  }
-  return helpers[actionForm.type]
-})
+const actionHelperText = computed(() => workflowTaskActionHelperText(actionForm.type, activeTask.value))
 const actionCommentRequired = computed(() => Boolean(activeActionMeta.value?.requiresComment))
-const actionCommentPlaceholder = computed(() => (actionCommentRequired.value ? '请填写原因或处理意见' : '可补充处理意见'))
-const actionSubmitButtonType = computed(() => activeActionMeta.value?.danger ? 'danger' : 'primary')
-const actionSubmitText = computed(() => {
-  if (activeTask.value?.nodeKey === 'submit' && (actionForm.type === 'approve' || actionForm.type === 'approveWithComment')) {
-    return '确认提交'
-  }
-  return activeActionMeta.value?.submitText || '确认处理'
-})
+const actionCommentPlaceholder = computed(() => workflowActionCommentPlaceholder(actionCommentRequired.value))
+const actionSubmitButtonType = computed(() => workflowTaskActionButtonType(activeActionMeta.value))
+const actionSubmitText = computed(() => workflowTaskActionSubmitText(actionForm.type, activeTask.value))
 
 const workflowTaskCenterApi: WorkflowTaskCenterApi = {
   pageWorkflowTasks,
   pageWorkflowInstances,
   pageWorkflowCc
 }
-const applicationEntries = [
-  { title: '请假申请', path: '/workflow/leave' },
-  { title: '采购申请', path: '/workflow/purchase' },
-  { title: '报修申请', path: '/workflow/repair' }
-]
 type DetailTaskActionPayload = { type: 'approve' | 'reject'; task: WorkflowTask; comment: string }
 
 onMounted(() => {
@@ -601,12 +594,6 @@ function goApplication(path: string) {
 
 function taskTableHeight(_count: number) {
   return taskTableHeightValue.value
-}
-
-function requireTaskAction(type: TaskActionType) {
-  const action = workflowTaskAction(type)
-  if (!action) throw new Error(`Unknown workflow task action: ${type}`)
-  return action
 }
 
 function openTaskAction(type: TaskActionType, task: WorkflowTask) {
@@ -784,170 +771,12 @@ async function ensureAssignees() {
   assigneesLoaded.value = true
 }
 
-function instanceTitle(row: Pick<WorkflowTask | WorkflowCc, 'instanceId' | 'instanceTitle'>) {
-  return row.instanceTitle || `流程 ${row.instanceId}`
-}
-
-function instanceMeta(row: Pick<WorkflowTask | WorkflowCc, 'businessType' | 'businessId'>) {
-  const segments = [row.businessType ? businessTypeText(row.businessType) : '', row.businessId].filter(Boolean)
-  return segments.length ? segments.join(' / ') : '流程'
-}
-
-function taskBusinessSummary(row: WorkflowTask) {
-  const typeText = businessTypeText(row.businessType || 'workflow')
-  return row.businessId ? `${typeText} / ${row.businessId}` : typeText
-}
-
-function applicantOption(userId?: EntityId) {
-  if (!userId) return undefined
-  return assignees.value.find((item) => String(item.value) === String(userId))
-}
-
-function applicantUserId(row: Pick<WorkflowTask, 'instanceInitiatorId' | 'createdBy'>) {
-  return row.instanceInitiatorId || row.createdBy
-}
-
 function applicantName(row: Pick<WorkflowTask, 'instanceInitiatorId' | 'createdBy'>) {
-  const applicantId = applicantUserId(row)
-  const applicant = applicantOption(applicantId)
-  if (applicant) return applicant.name
-  return applicantId ? `用户 ${applicantId}` : '未记录'
+  return workflowTaskApplicantName(row, assignees.value)
 }
 
 function applicantAccount(row: Pick<WorkflowTask, 'instanceInitiatorId' | 'createdBy'>) {
-  const applicant = applicantOption(applicantUserId(row))
-  return applicant?.userName ? `@${applicant.userName}` : ''
-}
-
-function nodeFlowHint(row: WorkflowTask) {
-  if (row.nodeKey === 'submit') return '等待补充后重新提交'
-  return '待你处理'
-}
-
-function pendingMatchesFilter(task: WorkflowTask, filter: PendingUrgencyFilter) {
-  if (filter === 'all') return true
-  return taskUrgencyLevel(task) === filter
-}
-
-function taskUrgencyLevel(row: Pick<WorkflowTask, 'startedAt'>): PendingUrgencyLevel {
-  const hours = hoursSince(row.startedAt)
-  if (hours === undefined) return 'normal'
-  if (hours >= 24) return 'overdue'
-  if (hours >= 8) return 'aging'
-  if (isToday(row.startedAt)) return 'today'
-  return 'normal'
-}
-
-function taskUrgencyText(row: Pick<WorkflowTask, 'startedAt'>) {
-  const level = taskUrgencyLevel(row)
-  if (level === 'overdue') return '已超时'
-  if (level === 'aging') return '需关注'
-  if (level === 'today') return '今日到达'
-  return '正常'
-}
-
-function taskUrgencyTagType(row: Pick<WorkflowTask, 'startedAt'>) {
-  const level = taskUrgencyLevel(row)
-  if (level === 'overdue') return 'danger'
-  if (level === 'aging') return 'warning'
-  if (level === 'today') return 'primary'
-  return 'info'
-}
-
-function taskDueHint(row: Pick<WorkflowTask, 'startedAt'>) {
-  const level = taskUrgencyLevel(row)
-  if (level === 'overdue') return '超过24小时'
-  if (level === 'aging') return '超过8小时'
-  if (level === 'today') return '今日到达'
-  return '正常流转'
-}
-
-function taskWaitingText(value?: string) {
-  const hours = hoursSince(value)
-  if (hours === undefined) return '-'
-  if (hours < 1) return '1小时内'
-  if (hours < 24) return `${Math.floor(hours)}小时`
-  const days = Math.floor(hours / 24)
-  const remainHours = Math.floor(hours % 24)
-  return remainHours > 0 ? `${days}天${remainHours}小时` : `${days}天`
-}
-
-function hoursSince(value?: string) {
-  const time = parseTime(value)
-  if (!time) return undefined
-  return Math.max(0, (Date.now() - time.getTime()) / 3_600_000)
-}
-
-function isToday(value?: string) {
-  const time = parseTime(value)
-  if (!time) return false
-  const now = new Date()
-  return time.getFullYear() === now.getFullYear() && time.getMonth() === now.getMonth() && time.getDate() === now.getDate()
-}
-
-function parseTime(value?: string) {
-  if (!value) return undefined
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
-  const time = new Date(normalized)
-  return Number.isNaN(time.getTime()) ? undefined : time
-}
-
-function businessTypeText(type: string) {
-  const textMap: Record<string, string> = {
-    LEAVE: '请假',
-    leave: '请假',
-    expense: '报销',
-    purchase: '采购',
-    repair: '报修',
-    workflow: '流程'
-  }
-  return textMap[type] || type
-}
-
-function formatTotal(total?: number) {
-  return total ?? 0
-}
-
-function formatTime(value?: string) {
-  if (!value) return '-'
-  return value.replace('T', ' ').slice(0, 19)
-}
-
-function taskStatusText(status: string) {
-  const textMap: Record<string, string> = {
-    PENDING: '待处理',
-    APPROVED: '已同意',
-    REJECTED: '已驳回',
-    TRANSFERRED: '已转办',
-    DELEGATED: '已委派',
-    CANCELED: '已取消'
-  }
-  return textMap[status] || status
-}
-
-function taskStatusType(status: string) {
-  if (status === 'PENDING') return 'warning'
-  if (status === 'APPROVED') return 'success'
-  if (status === 'REJECTED') return 'danger'
-  return 'info'
-}
-
-function instanceStatusText(status: string) {
-  const textMap: Record<string, string> = {
-    RUNNING: '审批中',
-    APPROVED: '已通过',
-    REJECTED: '已驳回',
-    REVOKED: '已撤回',
-    TERMINATED: '已终止'
-  }
-  return textMap[status] || status
-}
-
-function instanceStatusType(status: string) {
-  if (status === 'RUNNING') return 'warning'
-  if (status === 'APPROVED') return 'success'
-  if (status === 'REJECTED' || status === 'TERMINATED') return 'danger'
-  return 'info'
+  return workflowTaskApplicantAccount(row, assignees.value)
 }
 </script>
 

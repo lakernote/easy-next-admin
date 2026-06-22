@@ -7,22 +7,19 @@ import com.laker.admin.module.workflow.entity.WfCc;
 import com.laker.admin.module.workflow.entity.WfHistoricCc;
 import com.laker.admin.module.workflow.service.IWfCcService;
 import com.laker.admin.module.workflow.service.IWfHistoricCcService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowMessageSyncListener {
     private static final String WORKFLOW_CC_BIZ_TYPE = "WORKFLOW_CC";
 
     private final IWfCcService ccService;
     private final IWfHistoricCcService historicCcService;
-
-    public WorkflowMessageSyncListener(IWfCcService ccService, IWfHistoricCcService historicCcService) {
-        this.ccService = ccService;
-        this.historicCcService = historicCcService;
-    }
 
     @EventListener
     public void onMessageRead(UserMessageReadEvent event) {

@@ -13,6 +13,7 @@ import com.laker.admin.module.workflow.service.IWfHistoricProcessInstanceService
 import com.laker.admin.module.workflow.service.IWfHistoricTaskService;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
 import com.laker.admin.module.workflow.service.IWfTaskService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowArchiveService {
     private final IWfProcessInstanceService instanceService;
     private final IWfTaskService taskService;
@@ -31,20 +33,6 @@ public class WorkflowArchiveService {
     private final IWfHistoricProcessInstanceService historicInstanceService;
     private final IWfHistoricTaskService historicTaskService;
     private final IWfHistoricCcService historicCcService;
-
-    public WorkflowArchiveService(IWfProcessInstanceService instanceService,
-                                  IWfTaskService taskService,
-                                  IWfCcService ccService,
-                                  IWfHistoricProcessInstanceService historicInstanceService,
-                                  IWfHistoricTaskService historicTaskService,
-                                  IWfHistoricCcService historicCcService) {
-        this.instanceService = instanceService;
-        this.taskService = taskService;
-        this.ccService = ccService;
-        this.historicInstanceService = historicInstanceService;
-        this.historicTaskService = historicTaskService;
-        this.historicCcService = historicCcService;
-    }
 
     public void archiveTask(WfTask task) {
         if (!historicTaskService.saveOrUpdate(toHistoricTask(task))) {

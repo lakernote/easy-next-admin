@@ -7,6 +7,7 @@ import com.laker.admin.module.system.service.ISysDeptService;
 import com.laker.admin.module.system.service.ISysRoleService;
 import com.laker.admin.module.system.service.ISysUserRoleService;
 import com.laker.admin.module.system.service.ISysUserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -15,21 +16,12 @@ import java.util.List;
 import java.util.Set;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowAssigneeResolver {
     private final ISysUserService userService;
     private final ISysDeptService deptService;
     private final ISysRoleService roleService;
     private final ISysUserRoleService userRoleService;
-
-    public WorkflowAssigneeResolver(ISysUserService userService,
-                                    ISysDeptService deptService,
-                                    ISysRoleService roleService,
-                                    ISysUserRoleService userRoleService) {
-        this.userService = userService;
-        this.deptService = deptService;
-        this.roleService = roleService;
-        this.userRoleService = userRoleService;
-    }
 
     public List<Long> resolve(WorkflowAssigneeRule rule, Long initiatorId) {
         return resolveWithContext(rule, initiatorId).assigneeIds();

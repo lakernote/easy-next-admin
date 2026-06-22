@@ -402,6 +402,20 @@ import {
 } from '@/features/system/userApi'
 import { treeDepartments } from '@/features/system/departmentApi'
 import { listAssignableRoles, listUserAssignees } from '@/features/system/userOptionsApi'
+import {
+  buildSystemUserForm,
+  compactSystemPersonName as compactPersonName,
+  compactSystemUserMeta,
+  displaySystemUserRoleNames,
+  enrichSystemUserRelations,
+  ensureSystemUserAssigneeOption,
+  flattenSystemDepartments,
+  isBuiltinSystemUser as isBuiltinAdmin,
+  sameEntityId as sameId,
+  systemDepartmentOptions,
+  userManagerDisplayName,
+  userStatusDisabledReason as systemUserStatusDisabledReason
+} from '@/features/system/userPresentation'
 import type { EntityId, SystemDepartment, SystemRole, SystemUser, SystemUserOption, SystemUserPageQuery, UserImportResult } from '@/features/system/types'
 import { useAuthStore } from '@/stores/auth'
 import { PermissionCodes } from '@/permissions/codes'
@@ -476,15 +490,10 @@ const displayColumns = computed(() => {
 })
 const userDrawerTitle = computed(() => (userForm.userId ? '编辑用户' : '新增用户'))
 const deletableSelectedUsers = computed(() => selectedUsers.value.filter((user) => isUserSelectable(user)))
-const departmentOptions = computed(() =>
-  flattenDepartments(departmentTree.value).map((item) => ({
-    ...item,
-    label: item.pid ? `  ${item.deptName}` : item.deptName
-  }))
-)
+const departmentOptions = computed(() => systemDepartmentOptions(departmentTree.value))
 const roleNameById = computed(() => new Map(roleOptions.value.map((role) => [String(role.roleId), role.roleName])))
 const assigneeNameById = computed(() => new Map(assigneeOptions.value.map((user) => [String(user.value), user.name])))
-const deptNameById = computed(() => new Map(flattenDepartments(departmentTree.value).map((dept) => [String(dept.deptId), dept.deptName])))
+const deptNameById = computed(() => new Map(flattenSystemDepartments(departmentTree.value).map((dept) => [String(dept.deptId), dept.deptName])))
 const managerOptions = computed(() => assigneeOptions.value.filter((assignee) => !sameId(assignee.value, userForm.userId)))
 const departmentTreeProps = {
   label: 'deptName',
@@ -506,10 +515,6 @@ const userFormRules: FormRules = {
   email: [{ type: 'email', message: '请输入有效的邮箱', trigger: 'blur' }]
 }
 let compactUserTableQuery: MediaQueryList | undefined
-
-function flattenDepartments(items: SystemDepartment[]): SystemDepartment[] {
-  return items.flatMap((item) => [item, ...flattenDepartments(item.children || [])])
-}
 
 function handleCompactUserTableChange(event: MediaQueryListEvent) {
   isCompactUserTable.value = event.matches
@@ -556,26 +561,7 @@ function resetUserForm(user?: SystemUser) {
   Object.keys(userForm).forEach((key) => {
     delete userForm[key as keyof SystemUser]
   })
-  Object.assign(userForm, {
-    userId: user?.userId,
-    userName: user?.userName || '',
-    nickName: user?.nickName || '',
-    realName: user?.realName || user?.nickName || '',
-    employeeNo: user?.employeeNo || '',
-    positionName: user?.positionName || '',
-    deptId: user?.deptId,
-    deptName: user?.deptName,
-    managerUserId: user?.managerUserId,
-    managerName: user?.managerName,
-    departmentLeaderUserId: user?.departmentLeaderUserId,
-    departmentLeaderName: user?.departmentLeaderName,
-    upperDepartmentLeaderUserId: user?.upperDepartmentLeaderUserId,
-    upperDepartmentLeaderName: user?.upperDepartmentLeaderName,
-    roleIds: normalizeRoleIds(user?.roleIds),
-    phone: user?.phone || '',
-    email: user?.email || '',
-    enable: user?.enable ?? 1
-  })
+  Object.assign(userForm, buildSystemUserForm(user))
   ensureAssigneeOption(user?.managerUserId, user?.managerName)
   userFormRef.value?.clearValidate()
 }
@@ -873,86 +859,32 @@ function handleSizeChange(limit: number) {
   loadUsers()
 }
 
-function normalizeRoleIds(roleIds?: SystemUser['roleIds']) {
-  if (Array.isArray(roleIds)) return roleIds.map((roleId) => String(roleId)).filter(Boolean)
-  if (typeof roleIds === 'string') {
-    return roleIds
-      .split(',')
-      .map((roleId) => roleId.trim())
-      .filter(Boolean)
-  }
-  return []
-}
-
 function enrichUserRelations(user: SystemUser): SystemUser {
-  const roleIds = normalizeRoleIds(user.roleIds)
-  const backendRoleNames = Array.isArray(user.roleNames) ? user.roleNames.filter(Boolean) : []
-  const optionRoleNames = roleIds.map((roleId) => roleNameById.value.get(String(roleId))).filter(Boolean) as string[]
-  const roleNames = Array.from(new Set([...backendRoleNames, ...optionRoleNames]))
-  return {
-    ...user,
-    roleIds,
-    roleNames,
-    deptName: user.deptName || (user.deptId ? deptNameById.value.get(String(user.deptId)) : undefined),
-    managerName: user.managerName || userNameOf(user.managerUserId),
-    departmentLeaderName: user.departmentLeaderName || userNameOf(user.departmentLeaderUserId),
-    upperDepartmentLeaderName: user.upperDepartmentLeaderName || userNameOf(user.upperDepartmentLeaderUserId)
-  }
+  return enrichSystemUserRelations(user, {
+    roleNameById: roleNameById.value,
+    deptNameById: deptNameById.value,
+    assigneeNameById: assigneeNameById.value
+  })
 }
 
 function displayRoleNames(row: SystemUser) {
-  if (Array.isArray(row.roleNames) && row.roleNames.length > 0) {
-    return row.roleNames
-  }
-  return normalizeRoleIds(row.roleIds)
-    .map((roleId) => roleNameById.value.get(String(roleId)) || '')
-    .filter(Boolean)
+  return displaySystemUserRoleNames(row, roleNameById.value)
 }
 
 function compactUserMeta(row: SystemUser) {
-  const roleText = displayRoleNames(row).join(' / ')
-  const relationText = row.managerName ? `上级 ${compactPersonName(row.managerName)}` : ''
-  const parts = [row.deptName, row.positionName, roleText, relationText, row.phone].filter(Boolean)
-  return parts.length ? parts.join(' · ') : '未补充组织信息'
-}
-
-function userNameOf(userId?: EntityId) {
-  return userId ? assigneeNameById.value.get(String(userId)) : undefined
+  return compactSystemUserMeta(row, roleNameById.value)
 }
 
 function userManagerName(row: SystemUser) {
-  return row.managerName || userNameOf(row.managerUserId) || '未设置'
-}
-
-function compactPersonName(name?: string) {
-  return (name || '未设置').replace(/（[^）]+）/g, '').replace(/\([^)]*\)/g, '').trim() || '未设置'
+  return userManagerDisplayName(row, assigneeNameById.value)
 }
 
 function ensureAssigneeOption(userId?: EntityId, name?: string) {
-  if (!userId || !name || assigneeOptions.value.some((item) => sameId(item.value, userId))) {
-    return
-  }
-  assigneeOptions.value = [
-    ...assigneeOptions.value,
-    {
-      value: userId,
-      name
-    }
-  ]
-}
-
-function sameId(left?: EntityId, right?: EntityId) {
-  return left !== undefined && left !== null && right !== undefined && right !== null && String(left) === String(right)
-}
-
-function isBuiltinAdmin(row: SystemUser) {
-  return row.userName === 'admin' || row.roleNames?.includes('超级管理员')
+  assigneeOptions.value = ensureSystemUserAssigneeOption(assigneeOptions.value, userId, name)
 }
 
 function userStatusDisabledReason(row: SystemUser) {
-  if (!canEditUser.value) return '缺少用户编辑权限'
-  if (isBuiltinAdmin(row)) return '系统管理员不可停用'
-  return ''
+  return systemUserStatusDisabledReason(canEditUser.value, row)
 }
 
 onMounted(async () => {

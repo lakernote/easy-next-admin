@@ -692,10 +692,10 @@ easy-next-admin-web/src/features/system/userApi.ts
 
 ## 新增功能建议流程
 
-1. 在后端新增 `module/<domain>` 控制器、服务、实体和 Mapper。
-2. 给接口添加 `@EasyPermission`，权限码写入 `EasyPermissions`。
-3. 在前端 `src/features/<domain>` 新增 API、类型和数据处理函数。
-4. 在 `src/views/<domain>` 新增页面，页面只调用 feature API。
-5. 在 `sys_menu` 登记目录、页面和按钮资源；页面资源写 `component_path`，按钮权限码与后端 `EasyPermissions` 和前端 `PermissionCodes` 保持一致。
-6. 更新本文档中的功能表和权限说明。
-7. 运行后端 `verify` 或打包、前端 `npm run build`。
+新增后台页面时按 [新增系统页二开流程](development/adding-system-page.md) 执行，重点保持这些契约同步：
+
+1. 后端 `module/<domain>` 控制器、服务、实体、Mapper、DTO 和标准响应结构。
+2. `@EasyPermission`、`EasyPermissions`、前端 `PermissionCodes`、MySQL `sys_menu` 和 H2 seed。
+3. 前端 `src/features/<domain>` API/types、`src/views/<domain>` 页面和 `component_path`。
+4. 本文档中的功能表、权限说明和示例索引。
+5. 后端 `verify` 或打包、前端 `npm run build`，按影响范围补充单元测试。

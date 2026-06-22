@@ -1,6 +1,7 @@
 package com.laker.admin.module.workflow.support;
 
 import com.laker.admin.common.exception.BusinessException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -13,12 +14,9 @@ import java.util.Optional;
 import java.util.Set;
 
 @Component
+@RequiredArgsConstructor
 public class WorkflowGraphNavigator {
     private final WorkflowConditionEvaluator conditionEvaluator;
-
-    public WorkflowGraphNavigator(WorkflowConditionEvaluator conditionEvaluator) {
-        this.conditionEvaluator = conditionEvaluator;
-    }
 
     public WorkflowGraph.NextStep resolveNextStep(WorkflowGraph graph, String fromNodeKey, Map<String, Object> variables) {
         if (graph.nodes().isEmpty()) {

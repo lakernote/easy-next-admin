@@ -1,6 +1,6 @@
 interface:
   display_name: "EasyNextAdmin Vibe Coding"
-  short_description: "EasyNextAdmin 项目约束、权限和二开工作流"
-  default_prompt: "Use $easy-next-admin-vibecoding to implement this EasyNextAdmin change following project conventions."
+  short_description: "EasyNextAdmin 代码、权限、菜单、文档和 agent 入口约束"
+  default_prompt: "Use $easy-next-admin-vibecoding to inspect or implement this EasyNextAdmin change while preserving backend, frontend, permission, menu, documentation, and verification contracts."
 policy:
   allow_implicit_invocation: true
