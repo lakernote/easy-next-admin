@@ -105,17 +105,15 @@ npm run dev
 
 ## 内置能力
 
-| 能力 | 页面入口 | 说明 |
-| --- | --- | --- |
-| 工作台 | `/dashboard` | 聚合个人待办、常用申请、系统能力和关键统计 |
-| 系统管理 | `/system/users`、`/system/roles`、`/system/menus`、`/system/departments`、`/system/files` | 用户、直属上级、用户导入导出、角色、菜单权限、部门负责人、组织架构和文件中心 |
-| 报表中心 | `/reports/enterprise` | 组织人员台账和采购流程复核的 A4 纸质报表预览与打印 |
-| 运行监控 | `/monitor/server`、`/monitor/online`、`/monitor/cache`、`/monitor/cache-list`、`/monitor/weblog` | 应用运行状态、在线用户、缓存指标、缓存键值和在线请求日志 |
-| 审计中心 | `/audit/behavior` | 登录、操作、数据变更、错误和接口访问审计 |
-| 任务调度 | `/schedule/jobs` | 动态任务定义、启停和执行日志 |
-| 流程中心 | `/workflow/start`、`/workflow/tasks`、`/workflow/instances`、`/workflow/console` | 统一发起请假、采购、报修流程，处理我的流程，按直属上级、部门负责人、职能角色等规则派单，管理员监控流程实例和维护流程配置 |
-| 消息中心 | `/messages` | 个人消息、流程通知、审计提醒和任务消息 |
-| 个人中心 | `/profile/security` | 个人资料、改密、登录历史和会话管理 |
+- **工作台**：聚合个人待办、常用申请、系统能力和关键统计。入口：`/dashboard`
+- **系统管理**：用户、直属上级、用户导入导出、角色、菜单权限、部门负责人、组织架构和文件中心。入口：`/system/users`、`/system/roles`、`/system/menus`、`/system/departments`、`/system/files`
+- **报表中心**：组织人员台账和采购流程复核的 A4 纸质报表预览与打印。入口：`/reports/enterprise`
+- **运行监控**：应用运行状态、在线用户、缓存指标、缓存键值和在线请求日志。入口：`/monitor/server`、`/monitor/online`、`/monitor/cache`、`/monitor/cache-list`、`/monitor/weblog`
+- **审计中心**：登录、操作、数据变更、错误和接口访问审计。入口：`/audit/behavior`
+- **任务调度**：动态任务定义、启停和执行日志。入口：`/schedule/jobs`
+- **流程中心**：统一发起请假、采购、报修流程，处理我的流程；按直属上级、部门负责人、职能角色等规则派单，管理员可监控流程实例和维护流程配置。入口：`/workflow/start`、`/workflow/tasks`、`/workflow/instances`、`/workflow/console`
+- **消息中心**：个人消息、流程通知、审计提醒和任务消息。入口：`/messages`
+- **个人中心**：个人资料、改密、登录历史和会话管理。入口：`/profile/security`
 
 功能说明、组件用法和实现原理见 [功能与组件](docs/features-and-components.md)。
 
