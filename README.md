@@ -7,6 +7,8 @@
 
 EasyNextAdmin 是一套面向中文企业后台二次开发的 Spring Boot 3 + Vue 3 开源脚手架。它不是只展示页面的空壳模板，而是把企业后台常见的用户组织、角色权限、菜单路由、数据范围、审计、监控、文件、消息、定时任务和轻量流程串成一套可运行的工程基线。
 
+源码仓库：[Gitee](https://gitee.com/lakernote/easy-next-admin) / [lakernote/easy-next-admin](https://github.com/lakernote/easy-next-admin)
+
 如果你要做 OA、运营后台、审批流、权限审计、运维管理、内部工具或企业信息化系统，EasyNextAdmin 的目标是让团队拉下代码后少搭基础设施，直接进入业务开发。
 
 ## 为什么选择 EasyNextAdmin
