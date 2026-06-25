@@ -2,9 +2,11 @@ package com.laker.admin.module.schedule.core.impl;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
+import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;
 import com.laker.admin.module.schedule.service.IScheduleJobLogService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -28,7 +30,7 @@ class ScheduleJobLogCallbackTest {
         when(logService.save(any(ScheduleJobLog.class))).thenReturn(true);
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         config.getTrace().setEnabled(false);
-        ScheduleJobLogCallback callback = new ScheduleJobLogCallback(logService, config);
+        ScheduleJobLogCallback callback = new ScheduleJobLogCallback(logService, config, businessMetrics());
 
         callback.start(jobDefinition());
 
@@ -41,7 +43,7 @@ class ScheduleJobLogCallbackTest {
         when(logService.save(any(ScheduleJobLog.class))).thenReturn(true);
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         config.getTrace().setEnabled(false);
-        ScheduleJobLogCallback callback = new ScheduleJobLogCallback(logService, config);
+        ScheduleJobLogCallback callback = new ScheduleJobLogCallback(logService, config, businessMetrics());
 
         callback.start(jobDefinition());
 
@@ -53,5 +55,9 @@ class ScheduleJobLogCallbackTest {
                 .jobCode("sample_job")
                 .jobName("测试任务")
                 .build();
+    }
+
+    private EasyBusinessMetrics businessMetrics() {
+        return new EasyBusinessMetrics(new SimpleMeterRegistry());
     }
 }

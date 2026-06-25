@@ -5,6 +5,7 @@ import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
 import { setupPermissionDirective } from './directives/permission'
+import { installFrontendObservability } from './features/observability/events'
 import './styles/index.css'
 
 const app = createApp(App)
@@ -13,5 +14,6 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(ElementPlus)
 app.use(router)
+installFrontendObservability(app, router)
 setupPermissionDirective(app)
 app.mount('#app')

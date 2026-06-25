@@ -2,7 +2,7 @@ package com.laker.admin.module.monitor.controller;
 
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.monitor.dto.MonitorStatisticsOverview;
@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/monitor/statistics")
 @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
-@EasyMetrics
+@EasyApiAccessLog
 public class MonitorStatisticsController {
     private final MonitorStatisticsService monitorStatisticsService;
 

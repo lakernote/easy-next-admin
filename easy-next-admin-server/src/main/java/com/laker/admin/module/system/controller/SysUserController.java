@@ -6,7 +6,7 @@ import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
 import com.laker.admin.infrastructure.idempotency.duplicate.EasyDuplicateRequestLimiter;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.annotation.EasyPermissionMode;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -45,7 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequestMapping("/api/system/users")
-@EasyMetrics
+@EasyApiAccessLog
 public class SysUserController {
 
     private final ISysUserService sysUserService;

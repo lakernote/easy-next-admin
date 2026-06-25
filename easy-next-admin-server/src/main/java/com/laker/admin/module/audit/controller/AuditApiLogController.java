@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 @Tag(name = "行为审计日志")
 @RestController
 @RequestMapping("/api/audit/api-logs")
-@EasyMetrics
+@EasyApiAccessLog
 public class AuditApiLogController {
     final IAuditApiLogService auditApiLogService;
 

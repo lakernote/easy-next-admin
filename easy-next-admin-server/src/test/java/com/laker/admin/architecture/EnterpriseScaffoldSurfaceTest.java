@@ -208,6 +208,34 @@ class EnterpriseScaffoldSurfaceTest {
     }
 
     @Test
+    void observabilityNamesSeparateApiAccessLogsFromMetrics() throws IOException {
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyMetrics.java"))
+                .doesNotExist();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyMetricsAspect.java"))
+                .doesNotExist();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLog.java"))
+                .exists();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"))
+                .exists();
+
+        String moduleControllers = readSourceTree(Path.of("src/main/java/com/laker/admin/module"));
+        String apiAccessLogAspect = Files.readString(
+                Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"));
+        String businessMetrics = Files.readString(
+                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyBusinessMetrics.java"));
+
+        assertThat(moduleControllers)
+                .contains("@EasyApiAccessLog")
+                .doesNotContain("@EasyMetrics", "import com.laker.admin.infrastructure.observability.metrics.EasyMetrics");
+        assertThat(apiAccessLogAspect)
+                .contains("audit_api_log", "EasyApiAccessLog")
+                .doesNotContain("class EasyMetricsAspect");
+        assertThat(businessMetrics)
+                .contains("API_ACCESS_TIMER", "REMOTE_CALL_TIMER")
+                .doesNotContain("audit_api_log");
+    }
+
+    @Test
     void productionBaselineDoesNotAutoExposeExampleOrExplosiveRuntimeBeans() throws IOException {
         String localMessageTemplate = Files.readString(
                 Path.of("src/main/java/com/laker/admin/infrastructure/message/local/EasyLocalMessageTemplate.java"));
@@ -420,6 +448,16 @@ class EnterpriseScaffoldSurfaceTest {
         try (Stream<Path> paths = Files.list(directory)) {
             return paths.map(path -> path.getFileName().toString()).toList();
         }
+    }
+
+    private String readSourceTree(Path root) throws IOException {
+        StringBuilder source = new StringBuilder();
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path path : paths.filter(item -> item.getFileName().toString().endsWith(".java")).toList()) {
+                source.append(Files.readString(path)).append('\n');
+            }
+        }
+        return source.toString();
     }
 
     private int findNextMethodSignature(List<String> lines, int from) {

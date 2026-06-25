@@ -244,6 +244,15 @@ easy:
 `EasyHttpSlowRequestInterceptor`、`ScheduleJobLogCallback` 和 `EasyKafkaConsumerSlowAspect` 负责创建入口 root span；`@EasyTrace` 负责标记需要进入调用树的 Service / Mapper 等业务节点；`TraceCodeBlock` 用于局部代码块，例如用户详情查询中的部门查询。`EasyMybatisTraceInterceptor` 继承 MyBatis-Plus 插件链，数据权限、乐观锁和分页仍按 `InnerInterceptor` 配置顺序执行；它只在 Executor 查询和更新外层增加 `Mapper` span，tag 只保留 `SqlCommandType`，不记录 SQL 文本、statement id 和参数。span 支持 `tag`，适合区分同一个方法下的不同业务对象、路由、任务编码或消息 topic；连续重复的叶子节点会在渲染时聚合为 `count/total/min/max`，非连续重复节点保持原顺序。慢入口超过阈值时用 WARN 打印 Trace Tree；入口抛出异常时不看慢阈值，直接用 ERROR 打印 Trace Tree 和异常堆栈。`max-depth` 限制树深度，root 深度为 1；`min-node-cost-ms` 会在子节点结束时丢弃过小节点，只保留有排查价值的分支。入口慢阈值小于等于 0 表示关闭对应入口的慢日志和 Trace Tree 采集。
 `easy.trace.enabled=false` 会关闭轻量 Trace Tree 的采集和打印，但不影响 `X-Trace-Id` 响应头、MDC 和审计表中的链路号。
 
+## API 访问日志和标准指标
+
+API 访问日志与指标分开维护：
+
+- `@EasyApiAccessLog` / `EasyApiAccessLogAspect` 只负责写入 `audit_api_log`，用于按单次请求排查“谁、何时、从哪里、请求了什么、耗时多少、是否失败”。该表属于审计和排障数据，不作为标准指标后端。
+- `EasyBusinessMetrics` 是业务指标统一入口，基于 Micrometer 记录 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用 `controller/action/result`、`target/method/result`、`job/result`、`operation/status` 这类低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
+- `RemoteCallMetricsAspect` 负责 Feign、client 和 remote 包装类的远程调用指标，同时保留远程调用日志表用于近端排查。
+- InfluxDB 是当前可选指标导出后端。应用侧仍通过 Micrometer 建模，避免指标代码绑定到某个存储；后续需要 Prometheus 或 OTLP 时，只新增 registry/exporter，不改业务埋点。
+
 脱敏分层：
 
 - DTO 字段输出使用 `@EasyMask`，适合响应对象、导出对象和审计快照对象。
@@ -280,6 +289,10 @@ String uri = masker.maskUri(currentUri);
 - 实时日志读取 logback 当前文件日志的尾部快照，并支持按关键词、级别和行数过滤。
 
 实时日志是开发和内网排障工具，不应替代集中日志平台。生产环境需要按权限控制入口；日志级别调整使用独立权限 `monitor:weblog:level` 和操作审计，且只允许白名单 logger 前缀或 Spring Boot logger group。
+
+日志输出建议分成两条链路：本地文件继续使用人可读文本，服务 WebLog 和现场排障；采集到 OpenSearch / Elasticsearch / SLS / Loki 的日志使用结构化 JSON 或采集器解析后的结构化字段，至少包含 `timestamp`、`level`、`service`、`env`、`trace_id`、`user_id`、`event_type`、`outcome`、`error.type`。本地文本和集中检索不要互相绑死，避免为了平台检索牺牲现场可读性，或为了本地可读性导致集中日志只能全文搜索。
+
+前端观测事件由 `src/features/observability/events.ts` 维护，当前采集 Vue 全局错误、未处理 Promise、路由错误和 Axios 失败，并只做本地有界缓冲。事件保留最后一个后端 `X-Trace-Id`，URL 只保留 path 和 hash，不保留 query 参数；后续若接入事件上报接口，应继续沿用这个脱敏事件模型。
 
 ## 动态定时任务
 

@@ -2,6 +2,7 @@ package com.laker.admin.module.schedule.core.impl;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
+import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
 import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.SpanType;
 import com.laker.admin.infrastructure.observability.trace.TraceContext;
@@ -9,6 +10,7 @@ import com.laker.admin.module.schedule.core.ScheduleJobCallback;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;
 import com.laker.admin.module.schedule.service.IScheduleJobLogService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,17 +22,13 @@ import java.time.LocalDateTime;
 @Component
 @ConditionalOnProperty(prefix = "easy.features", name = "scheduler", havingValue = "true", matchIfMissing = true)
 @Slf4j
+@RequiredArgsConstructor
 public class ScheduleJobLogCallback implements ScheduleJobCallback {
     private final ThreadLocal<ScheduleJobLog> threadLocal = new ThreadLocal<>();
     private final ThreadLocal<Exception> exceptionThreadLocal = new ThreadLocal<>();
     private final IScheduleJobLogService scheduleJobLogService;
     private final EasyNextAdminConfig easyNextAdminConfig;
-
-    public ScheduleJobLogCallback(IScheduleJobLogService scheduleJobLogService,
-                                  EasyNextAdminConfig easyNextAdminConfig) {
-        this.scheduleJobLogService = scheduleJobLogService;
-        this.easyNextAdminConfig = easyNextAdminConfig;
-    }
+    private final EasyBusinessMetrics businessMetrics;
 
     @Override
     public void start(ScheduleJobDefinition jobDefinition) {
@@ -80,6 +78,7 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
             jobLog.setEndTime(LocalDateTime.now());
             jobLog.setCost((int) Duration.between(jobLog.getStartTime(), jobLog.getEndTime()).toMillis());
             scheduleJobLogService.updateById(jobLog);
+            businessMetrics.recordScheduleJob(jobDefinition.getJobCode(), exceptionThreadLocal.get() == null, jobLog.getCost());
             log.debug("Schedule job ended, code={}, name={}, cost={}ms",
                     jobDefinition.getJobCode(), jobDefinition.getJobName(), jobLog.getCost());
         } finally {

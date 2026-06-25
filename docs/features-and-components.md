@@ -35,7 +35,7 @@
 | 系统管理 | 通过用户、角色、菜单、部门页面维护组织和授权；用户管理页支持下载 CSV 模板、导入用户和按筛选条件导出用户。 | 菜单权限、按钮权限和后端权限码同源；用户详情、编辑、启停、删除、重置密码和部门维护都走数据权限边界。用户页维护直属上级并预览审批关系，部门页维护部门负责人，供工作流运行时派单。用户批量导入由 `SysUserImportExportService` 校验 CSV 类型、2MB 大小、1000 行上限、部门名称、角色编码和重复用户名；导出 CSV 会防 Excel 公式注入。 |
 | 文件中心 | 在 `/system/files` 上传、预览、下载和清理文件；图片、PDF 和文本类文件可直接预览。 | 业务模块通过文件 API 保存文件元数据，预览和下载复用鉴权下载接口，不在页面拼接裸地址。上传会校验大小、扩展名、MIME 和常见文件头签名，拒绝把可执行文件伪装成图片、PDF 或压缩包；病毒扫描和敏感内容检测应在企业网关或对象存储侧继续补齐。 |
 | 报表中心 | 在 `/reports/enterprise` 查看组织人员台账和采购流程复核两张 A4 纸质报表，并可使用浏览器打印。 | 报表接口只读，走 `report:view` 权限和当前账号数据范围；页面用固定版式表格、签核栏和报表编号呈现，不做 BI 配置器或大屏图表。 |
-| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户和实时日志。 | 面向内网运维排障，默认展示实时状态和 logback 当前文件日志；缓存列表只展示脱敏后的 key/value 预览并支持精确清理单个 key；实时日志级别调整使用独立权限和审计，不做外部 APM 替代。 |
+| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户和实时日志。 | 面向内网运维排障，默认展示实时状态和 logback 当前文件日志；缓存列表只展示脱敏后的 key/value 预览并支持精确清理单个 key；实时日志级别调整使用独立权限和审计。监控页是应用内排障入口，不替代 InfluxDB、OpenSearch、Grafana 或云厂商观测平台。 |
 | 审计中心 | 在 `/audit/behavior` 查询登录、操作、异常、接口访问和敏感数据变更记录。 | 关键接口用 `@EasyAudit` 或审计采集器记录；审计查询通过 `AuditVisibilitySupport` 按当前账号数据范围过滤操作者或登录用户，只有全部数据范围可看全局统计；敏感字段在入库前统一交给 `EasySensitiveDataMasker` 脱敏。 |
 | 任务调度 | 在 `/schedule/jobs` 查看和维护动态任务。 | 任务通过 `@EasyJob` 声明，数据库维护 Cron、启停状态和执行日志；页面默认展示全宽任务列表，行操作进入单任务日志抽屉，右上角可查看全部日志。 |
 | 工作流 | 在 `/workflow/start` 直接填写业务申请，在 `/workflow/tasks` 处理待办和查看我发起的流程，具备流程实例管理权限的管理员在 `/workflow/instances` 监控全部流程实例，在定义页维护轻量审批图。 | 流程定义保存图 JSON，并同步生成节点和连线结构化投影；启用、发布和发起前都会校验图结构；实例详情优先使用发起时快照，避免定义变更影响历史实例。流程实例页用纸张式申请单展示业务详情、申请人、单号和审批记录，并保留流程图和处理动态。审批节点支持任一人、全部、顺序三种审批方式，处理人规则支持指定成员、职能角色、发起人直属上级、发起人部门负责人、发起人上级部门负责人和发起人自选；节点配置里的转办、委派、加签、减签、退回开关会在运行时校验。抄送已读只能由接收人本人或超级管理员操作。参与人统一读取 `/api/system/users/assignees`，历史任务和历史抄送也参与可见性判断。 |
@@ -81,7 +81,9 @@
 | 审计 | 退出登录、清理缓存、角色授权 | `@EasyAudit`、`AuditLogCollector`、`SensitiveAuditService` | 操作审计走注解，敏感数据变更走显式服务。 |
 | 脱敏 | 审计参数、接口访问日志、实时日志 | `EasySensitiveDataMasker`、`@EasyMask` | DTO 输出用注解，Map/请求参数/日志文本用组件。 |
 | Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | `EasyTraceIdFilter`、`EasyTraceIdContext`、`EasyMdcContext`、`EasyNextAdminMdcThreadPoolExecutor`、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建，跨线程、Kafka 生产消费和远程调用透传，日志打印 `traceId` 和认证后的 `userId`。 |
-| 指标采集 | 用户管理、审计、监控 Controller | `@EasyMetrics`、`EasyMetricsAspect` | 给接口层采集耗时、结果和异常计数。 |
+| API 访问日志 | 用户管理、审计、监控 Controller | `@EasyApiAccessLog`、`EasyApiAccessLogAspect` | 写入 `audit_api_log`，保存 traceId、请求摘要、响应摘要、状态和耗时；它是访问日志，不承担标准指标命名职责。 |
+| 标准业务指标 | API 访问、远程调用、限流、调度任务、Outbox | `EasyBusinessMetrics`、`RemoteCallMetricsAspect`、Micrometer、`micrometer-registry-influx` | 使用低基数标签输出 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`；当前指标后端可接 InfluxDB，应用侧保持 Micrometer 标准门面，后续可扩展 OTLP 或 Prometheus。 |
+| 前端观测事件 | Vue 全局错误、路由错误、Axios 失败 | `src/features/observability/events.ts`、`src/api/request.ts`、`src/main.ts` | 记录白屏类错误、未处理 Promise、路由加载失败和 API 失败；本地有界缓冲，保留 traceId，不保留完整 query 参数，后续再接事件上报通道。 |
 | 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | `TraceContext`、`@EasyTrace`、`TraceCodeBlock`、`EasyHttpSlowRequestInterceptor`、`EasyMybatisTraceInterceptor` | 不依赖外部 tracing；入口超出阈值或异常时打印本地调用树，MyBatis 层 tag 只保留 `SqlCommandType`，连续重复叶子节点聚合为 `count/total/min/max`。 |
 | 定时任务 | 本地消息重试 | `@EasyJob`、`ScheduleJobManager` | 任务实现 `EasyJobHandler`，最终启停和 Cron 以数据库为准。 |
 | 本地消息 | 失败消息重试 | `EasyLocalMessageTemplate`、`LocalMessageRetryJob` | 本地事务先落消息，远程/耗时操作失败后由任务重试。 |

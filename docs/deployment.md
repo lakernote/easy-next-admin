@@ -81,7 +81,7 @@ java \
 - 使用外部 MySQL 和 Redis，避免把生产状态放在应用容器内。
 - Redis 使用能力级开关 `easy.features.redis=true`。开启后缓存、会话、验证码、重复请求、幂等、限流和分布式锁会自动切到 Redis/Redisson 实现。
 - Kafka 使用能力级开关 `easy.features.kafka=true`。未开启时不会创建 Kafka Producer、Consumer、Topic Admin 和健康检查，避免单机开发误连 `localhost:9092`。
-- Feign、调度、监控、WebLog、OSS 和本地消息也都通过 `easy.features.*` 控制。生产只开启实际需要的能力；Influx 指标导出默认关闭，需要接入外部指标库时再显式配置。
+- Feign、调度、监控、WebLog、OSS 和本地消息也都通过 `easy.features.*` 控制。生产只开启实际需要的能力；Influx 指标导出默认关闭，需要接入外部指标库时再显式配置。InfluxDB 作为当前指标后端没有问题，应用侧通过 Micrometer 输出 `easy.api.requests`、`easy.remote.calls` 等低基数指标，后续要换 Prometheus 或 OTLP 时应新增 exporter，而不是改业务埋点。
 - 通过环境变量、启动参数或配置中心覆盖数据库密码、Redis 密码、对象存储配置。
 - 按企业安全策略配置会话超时：`EASY_AUTH_SESSION_IDLE_TIMEOUT` 默认 `30m`，`EASY_AUTH_SESSION_ABSOLUTE_TIMEOUT` 默认 `8h`。普通企业后台绝对超时通常为 8-12 小时，公网或高权限后台建议 4-8 小时。
 - 按真实前端域名覆盖 `easy.web.cors.allowed-origins` 或 `easy.web.cors.allowed-origin-patterns`，不要在生产环境继续使用本地开发 Origin，也不要开放 `*` 且携带凭证。
@@ -91,6 +91,8 @@ java \
 - 对公开生产环境，生产安全路线固定为服务端会话 + `HttpOnly; Secure; SameSite` Cookie，并为写接口配置 CSRF 防护；当前 Bearer token 方案只适合作为本地开发和前后端分离调试路线，不作为生产验收方案。
 - 用户导入保持 CSV、小文件和行数限制；当前默认单文件不超过 2MB、单次不超过 1000 行，避免后台导入拖垮服务。
 - 实时日志的日志级别调整是独立权限 `monitor:weblog:level`，只授予可信运维角色。
+- 本地 logback 文件日志用于 WebLog 和现场排障；采集到 OpenSearch / Elasticsearch / SLS / Loki 的日志应通过采集器解析或 JSON appender 形成结构化字段。不要把 WebLog 当集中日志平台使用，也不要在本地文件里长期打开 DEBUG。
+- 审计和 API 访问日志要配置保留策略：`audit_api_log` 这类高增长表建议 30-90 天热数据，登录、权限、角色、菜单和敏感变更按企业合规保留更久；清理或归档任务必须记录范围、行数和执行结果。
 
 ## 依赖版本与兼容性
 

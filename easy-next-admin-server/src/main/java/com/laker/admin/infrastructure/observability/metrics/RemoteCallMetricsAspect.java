@@ -3,8 +3,7 @@ package com.laker.admin.infrastructure.observability.metrics;
 import com.laker.admin.infrastructure.observability.remote.entity.RemoteCallLog;
 import com.laker.admin.infrastructure.observability.remote.service.RemoteCallLogService;
 import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -28,17 +27,10 @@ import java.util.concurrent.TimeUnit;
 @Component
 @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
 @Slf4j
+@RequiredArgsConstructor
 public class RemoteCallMetricsAspect {
-    private static final String METER_NAME = "easy.remote.calls";
-
-    private final MeterRegistry meterRegistry;
+    private final EasyBusinessMetrics businessMetrics;
     private final ObjectProvider<RemoteCallLogService> remoteCallLogServiceProvider;
-
-    public RemoteCallMetricsAspect(MeterRegistry meterRegistry,
-                                   ObjectProvider<RemoteCallLogService> remoteCallLogServiceProvider) {
-        this.meterRegistry = meterRegistry;
-        this.remoteCallLogServiceProvider = remoteCallLogServiceProvider;
-    }
 
     @Pointcut("@within(org.springframework.cloud.openfeign.FeignClient) " +
             "|| execution(public * com.laker.admin.module..client..*.*(..)) " +
@@ -65,13 +57,7 @@ public class RemoteCallMetricsAspect {
         String target = signature.getDeclaringType().getSimpleName();
         String method = signature.getMethod().getName();
         long durationNanos = System.nanoTime() - startNanos;
-        Timer.builder(METER_NAME)
-                .description("EasyNextAdmin 远程调用耗时")
-                .tag("target", target)
-                .tag("method", method)
-                .tag("result", success ? "success" : "failure")
-                .register(meterRegistry)
-                .record(durationNanos, TimeUnit.NANOSECONDS);
+        businessMetrics.recordRemoteCall(target, method, success, durationNanos);
         persist(target, method, success, durationNanos, error);
     }
 

@@ -3,7 +3,7 @@ package com.laker.admin.module.audit.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.laker.admin.common.model.PageResponse;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "操作审计日志")
 @RestController
 @RequestMapping("/api/audit/operation-logs")
-@EasyMetrics
+@EasyApiAccessLog
 public class AuditOperationLogController {
     private final IAuditOperationLogService auditOperationLogService;
     private final AuditVisibilitySupport auditVisibilitySupport;

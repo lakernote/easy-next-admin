@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.persistence.mybatis.EasyPageSupport;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 @Tag(name = "异常审计日志")
 @RestController
 @RequestMapping("/api/audit/error-logs")
-@EasyMetrics
+@EasyApiAccessLog
 public class AuditErrorLogController {
     private final IAuditErrorLogService auditErrorLogService;
     private final ISysUserService sysUserService;

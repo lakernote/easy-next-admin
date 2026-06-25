@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
+import { recordFrontendEvent } from '@/features/observability/events'
 import { useAuthStore } from '@/stores/auth'
 import type { ApiResponse } from './types'
 import { TRACE_ID_HEADER, createTraceHeaders } from './trace'
@@ -45,6 +46,7 @@ request.interceptors.response.use(
     }
     if (Number(body?.code) === 0) return response
     const message = body?.message || '请求处理失败'
+    recordApiFailure(response.config.url, response.status, message)
     ElMessage.error(message)
     return Promise.reject(new Error(message))
   },
@@ -61,7 +63,9 @@ request.interceptors.response.use(
       showForbiddenMessage(responseMessage(error.response?.data, '没有权限访问该资源'))
       return Promise.reject(error)
     }
-    ElMessage.error(error.response?.data?.message || error.message || '网络请求失败')
+    const message = error.response?.data?.message || error.message || '网络请求失败'
+    recordApiFailure(error.config?.url, error.response?.status, message)
+    ElMessage.error(message)
     return Promise.reject(error)
   }
 )
@@ -150,6 +154,17 @@ function redirectToLogin() {
 
 function showForbiddenMessage(message: string) {
   ElMessage.error(message)
+}
+
+function recordApiFailure(url: string | undefined, status: number | undefined, message: string) {
+  recordFrontendEvent({
+    type: 'frontend.api_failure',
+    level: 'error',
+    message,
+    path: url,
+    status,
+    traceId: getLastTraceId()
+  })
 }
 
 export default request

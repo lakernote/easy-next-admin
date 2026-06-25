@@ -4,6 +4,8 @@ import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.json.EasyJsonException;
 import com.laker.admin.infrastructure.message.local.entity.LocalMessage;
 import com.laker.admin.infrastructure.message.local.mapper.LocalMessageMapper;
+import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
+import lombok.RequiredArgsConstructor;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -22,18 +24,12 @@ import java.util.Map;
  */
 @Component
 @ConditionalOnProperty(prefix = "easy.features", name = "outbox", havingValue = "true", matchIfMissing = true)
+@RequiredArgsConstructor
 public class EasyLocalMessageTemplate {
     private final LocalMessageMapper localMessageMapper;
     private final EasyJsonCodec jsonCodec;
     private final PlatformTransactionManager transactionManager;
-
-    public EasyLocalMessageTemplate(LocalMessageMapper localMessageMapper,
-                                    EasyJsonCodec jsonCodec,
-                                    PlatformTransactionManager transactionManager) {
-        this.localMessageMapper = localMessageMapper;
-        this.jsonCodec = jsonCodec;
-        this.transactionManager = transactionManager;
-    }
+    private final EasyBusinessMetrics businessMetrics;
 
     /**
      * 本地事务成功后再执行远程操作；远程失败只标记消息失败，由重试任务接管。
@@ -97,6 +93,7 @@ public class EasyLocalMessageTemplate {
         localMessage.setStatus("SENT");
         localMessage.setUpdateTime(new Date());
         localMessageMapper.updateById(localMessage);
+        businessMetrics.recordOutboxMessage(localMessage.getName(), localMessage.getStatus());
     }
 
     private void updateMessageStatusOnFailure(LocalMessage localMessage) {
@@ -104,6 +101,7 @@ public class EasyLocalMessageTemplate {
         localMessage.setRetryCount(localMessage.getRetryCount() + 1);
         localMessage.setUpdateTime(new Date());
         localMessageMapper.updateById(localMessage);
+        businessMetrics.recordOutboxMessage(localMessage.getName(), localMessage.getStatus());
     }
 
     private String toJson(Map<String, Object> params) {

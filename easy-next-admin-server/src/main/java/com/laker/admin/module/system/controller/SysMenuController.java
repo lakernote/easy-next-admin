@@ -4,7 +4,7 @@ import com.laker.admin.common.model.Response;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
 import com.laker.admin.infrastructure.audit.EasyAudit;
-import com.laker.admin.infrastructure.observability.metrics.EasyMetrics;
+import com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.system.dto.MenuVo;
@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/system/menus")
-@EasyMetrics
+@EasyApiAccessLog
 public class SysMenuController {
 
     private final ISysMenuService sysMenuService;

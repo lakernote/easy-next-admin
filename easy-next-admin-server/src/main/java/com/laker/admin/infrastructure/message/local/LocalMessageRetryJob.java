@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.message.local.entity.LocalMessage;
 import com.laker.admin.infrastructure.message.local.mapper.LocalMessageMapper;
+import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
 import com.laker.admin.module.schedule.core.EasyJob;
 import com.laker.admin.module.schedule.core.EasyJobHandler;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,19 +22,13 @@ import java.util.Map;
 @EasyJob(jobCode = "infra_local_message_retry", jobName = "本地消息失败重试", cron = "0 0/1 * * * ?")
 @ConditionalOnProperty(prefix = "easy.features", name = "outbox", havingValue = "true", matchIfMissing = true)
 @Slf4j
+@RequiredArgsConstructor
 public class LocalMessageRetryJob implements EasyJobHandler {
     private final LocalMessageMapper localMessageMapper;
     private final ApplicationContext applicationContext;
     private final EasyJsonCodec jsonCodec;
+    private final EasyBusinessMetrics businessMetrics;
     private final Map<String, ILocalMessageOperation> beansWithName = new java.util.HashMap<>();
-
-    public LocalMessageRetryJob(LocalMessageMapper localMessageMapper,
-                                ApplicationContext applicationContext,
-                                EasyJsonCodec jsonCodec) {
-        this.localMessageMapper = localMessageMapper;
-        this.applicationContext = applicationContext;
-        this.jsonCodec = jsonCodec;
-    }
 
     @PostConstruct
     public void init() {
@@ -91,11 +87,13 @@ public class LocalMessageRetryJob implements EasyJobHandler {
                     }
                     localMessage.setUpdateTime(new Date());
                     localMessageMapper.updateById(localMessage);
+                    businessMetrics.recordOutboxMessage(localMessage.getName(), localMessage.getStatus());
                     log.info("Message sent successfully: {}", localMessage.getName());
                 } catch (Exception e) {
                     localMessage.setRetryCount(localMessage.getRetryCount() + 1);
                     localMessage.setUpdateTime(new Date());
                     localMessageMapper.updateById(localMessage);
+                    businessMetrics.recordOutboxMessage(localMessage.getName(), localMessage.getStatus());
                     log.error("Failed to send message: {}. Retry count: {}", localMessage.getName(), localMessage.getRetryCount(), e);
                 }
             } else {
@@ -103,6 +101,7 @@ public class LocalMessageRetryJob implements EasyJobHandler {
                 localMessage.setStatus("ERROR");
                 localMessage.setUpdateTime(new Date());
                 localMessageMapper.updateById(localMessage);
+                businessMetrics.recordOutboxMessage(localMessage.getName(), localMessage.getStatus());
                 // 记录日志或发送通知
                 // 人工处理
                 log.error("Message failed after max retries: {}", localMessage.getName());
