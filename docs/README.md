@@ -38,6 +38,7 @@
 | --- | --- | --- |
 | [可观测性体系蓝图](development/observability-baseline.md) | 架构、运维、后端、二开负责人 | 从开放标准、RFC 和厂商实践沉淀日志、指标、链路、事件、审计和中小企业落地路线 |
 | [稳定性体系蓝图](development/stability-baseline.md) | 架构、运维、后端、二开负责人 | 从 SRE、RFC 和云厂商可靠性实践沉淀 SLO、韧性模式、发布恢复和中小企业落地路线 |
+| [企业级组件能力矩阵](development/enterprise-components-baseline.md) | 架构、后端、运维、二开负责人 | 梳理企业级应用组件、分布式组件、平台支撑组件、交付分层和研发治理，以及 EasyNextAdmin 已具备和缺少的能力 |
 
 ## 设计稿
 

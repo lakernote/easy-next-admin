@@ -1,6 +1,17 @@
 # 编译与部署
 
-EasyNextAdmin 支持传统 JAR + Nginx 部署，也支持构建后端 Docker 镜像。当前仓库的 `docker-compose.yml` 只用于本地 MySQL、Redis 依赖。
+EasyNextAdmin 建议维护三套企业内部交付主线：裸机/VM 传统部署、单机 Docker Compose 部署、K8s 云原生部署。Docker Swarm 只作为已有 Swarm 团队的兼容说明，不作为主推交付路线。当前仓库的 `docker-compose.yml` 只用于本地 MySQL、Redis 依赖，不作为生产编排方案。
+
+## 交付形态选择
+
+| 形态 | 适合团队 | 推荐方式 |
+| --- | --- | --- |
+| 裸机/VM 传统包 | 没有 Docker/K8s 平台，只有 Linux 服务器、Nginx、MySQL、Redis | 后端 JAR + systemd，前端 `dist` + Nginx，配置用环境变量或外部配置文件 |
+| 单机 Docker Compose 包 | 有 Docker，但没有集群编排；适合小企业、演示和私有化单机交付 | 后端镜像 + 前端镜像 + Compose 文件，生产依赖优先使用外部 MySQL/Redis |
+| Docker Swarm 兼容说明 | 客户已有 Swarm 集群和运维经验，但暂不上 K8s | 复用 Compose 镜像和配置，补 `docker stack`、Secret、滚动更新和回滚说明 |
+| K8s 云原生包 | 已有镜像仓库、Kubernetes、Ingress、Secret/ConfigMap 和运维平台 | 后端镜像 + 前端镜像，K8s Deployment/Service/Ingress，配置和密钥由平台注入 |
+
+所有生产形态都使用 `prod` profile，都要求外部 MySQL 和可选 Redis；区别在于进程托管、发布回滚、配置密钥和流量摘除方式。裸机/VM、Compose、K8s 是三套主线，Swarm 只做兼容路线。
 
 ## 后端构建
 
