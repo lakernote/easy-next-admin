@@ -15,7 +15,7 @@ import com.laker.admin.module.workflow.leave.dto.LeaveRequestView;
 import com.laker.admin.module.workflow.leave.entity.BizLeaveRequest;
 import com.laker.admin.module.workflow.leave.mapper.BizLeaveRequestMapper;
 import com.laker.admin.module.workflow.leave.service.ILeaveRequestService;
-import com.laker.admin.module.workflow.sequence.service.BusinessRequestNoService;
+import com.laker.admin.module.business.number.service.BusinessNumberService;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
 import com.laker.admin.module.workflow.service.IWfWorkflowRuntimeService;
 import com.laker.admin.module.workflow.support.WorkflowInstanceStatus;
@@ -32,21 +32,21 @@ public class LeaveRequestServiceImpl extends ServiceImpl<BizLeaveRequestMapper, 
         implements ILeaveRequestService {
     private static final String PROCESS_KEY = "leave_approval";
     private static final String BUSINESS_TYPE = "leave";
-    private static final String REQUEST_NO_PREFIX = "LV";
+    private static final String NUMBER_RULE_CODE = "LEAVE_REQUEST";
 
     private final IWfWorkflowRuntimeService workflowRuntimeService;
     private final IWfProcessInstanceService processInstanceService;
     private final ISysUserService userService;
-    private final BusinessRequestNoService requestNoService;
+    private final BusinessNumberService businessNumberService;
 
     public LeaveRequestServiceImpl(IWfWorkflowRuntimeService workflowRuntimeService,
                                    IWfProcessInstanceService processInstanceService,
                                    ISysUserService userService,
-                                   BusinessRequestNoService requestNoService) {
+                                   BusinessNumberService businessNumberService) {
         this.workflowRuntimeService = workflowRuntimeService;
         this.processInstanceService = processInstanceService;
         this.userService = userService;
-        this.requestNoService = requestNoService;
+        this.businessNumberService = businessNumberService;
     }
 
     @Override
@@ -58,7 +58,7 @@ public class LeaveRequestServiceImpl extends ServiceImpl<BizLeaveRequestMapper, 
 
         BizLeaveRequest leaveRequest = new BizLeaveRequest();
         leaveRequest.setApplicantId(principal.getUserId());
-        leaveRequest.setRequestNo(requestNoService.nextRequestNo(REQUEST_NO_PREFIX));
+        leaveRequest.setRequestNo(businessNumberService.nextNumber(NUMBER_RULE_CODE));
         leaveRequest.setApplicantDeptId(principal.getDeptId());
         leaveRequest.setLeaveType(request.getLeaveType());
         leaveRequest.setStartTime(request.getStartTime());

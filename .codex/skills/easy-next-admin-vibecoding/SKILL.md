@@ -78,6 +78,27 @@ cd easy-next-admin-web
 npm run build
 ```
 
+## Frontend Resource Page Layout
+
+Before adding or changing an admin list/table page, inspect nearby pages such as `UserView.vue`, `FileCenterView.vue`, `MessageCenterView.vue`, `BehaviorAuditView.vue`, or the closest same-domain page. Preserve the established resource-page shell unless the page has a clearly different interaction model.
+
+Use this standard structure for main resource list pages:
+
+- Page shell: `<section class="resource-page ...">` with `.resource-hero` for title and page actions.
+- Metrics: use `.resource-metrics` / `.resource-metric` for summary numbers; do not create one-off summary strip CSS when the shared metric style works.
+- Table panel: use `<section ref="tablePanelRef" class="surface resource-panel is-fluid-table">`.
+- Table controls: use `<div class="table-control-row">` containing an inline `<el-form class="filter-bar ...">` and `<TableToolbar class="table-toolbar-inline" />`.
+- Table: use `row-key`, `:height="tableHeight"`, and `class="admin-table ..."` for list tables that use fluid height.
+- Footer: use `.table-footer` or `.table-footer.is-split` with the project pagination layout.
+
+Avoid these regressions:
+
+- Do not split the main table filters into a separate `surface` card when the page is a normal resource list.
+- Do not put `TableToolbar` inside `filter-bar`; keep it as the sibling inside `table-control-row`.
+- Do not add page-specific flex/padding/background rules that duplicate `.resource-panel`, `.table-control-row`, `.filter-bar`, `.admin-table`, or `.table-footer`.
+- Keep scoped CSS to page-specific widths, table cell display, responsive exceptions, and domain-specific visual details. Use scoped `:deep(...)` only where Element Plus internals require it.
+- Use `useFluidTableHeight(tablePanelRef)` for full-height table pages and keep the panel ref on the `resource-panel`.
+
 ## Backend Rules
 
 - Use Java 17, Spring Boot 3, MyBatis-Plus, Flyway.

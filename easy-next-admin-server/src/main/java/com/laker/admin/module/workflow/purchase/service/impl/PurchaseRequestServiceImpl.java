@@ -15,7 +15,7 @@ import com.laker.admin.module.workflow.purchase.dto.PurchaseRequestView;
 import com.laker.admin.module.workflow.purchase.entity.BizPurchaseRequest;
 import com.laker.admin.module.workflow.purchase.mapper.BizPurchaseRequestMapper;
 import com.laker.admin.module.workflow.purchase.service.IPurchaseRequestService;
-import com.laker.admin.module.workflow.sequence.service.BusinessRequestNoService;
+import com.laker.admin.module.business.number.service.BusinessNumberService;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
 import com.laker.admin.module.workflow.service.IWfWorkflowRuntimeService;
 import com.laker.admin.module.workflow.support.WorkflowInstanceStatus;
@@ -33,21 +33,21 @@ public class PurchaseRequestServiceImpl extends ServiceImpl<BizPurchaseRequestMa
         implements IPurchaseRequestService {
     private static final String PROCESS_KEY = "purchase_approval";
     private static final String BUSINESS_TYPE = "purchase";
-    private static final String REQUEST_NO_PREFIX = "PR";
+    private static final String NUMBER_RULE_CODE = "PURCHASE_REQUEST";
 
     private final IWfWorkflowRuntimeService workflowRuntimeService;
     private final IWfProcessInstanceService processInstanceService;
     private final ISysUserService userService;
-    private final BusinessRequestNoService requestNoService;
+    private final BusinessNumberService businessNumberService;
 
     public PurchaseRequestServiceImpl(IWfWorkflowRuntimeService workflowRuntimeService,
                                       IWfProcessInstanceService processInstanceService,
                                       ISysUserService userService,
-                                      BusinessRequestNoService requestNoService) {
+                                      BusinessNumberService businessNumberService) {
         this.workflowRuntimeService = workflowRuntimeService;
         this.processInstanceService = processInstanceService;
         this.userService = userService;
-        this.requestNoService = requestNoService;
+        this.businessNumberService = businessNumberService;
     }
 
     @Override
@@ -59,7 +59,7 @@ public class PurchaseRequestServiceImpl extends ServiceImpl<BizPurchaseRequestMa
         BizPurchaseRequest purchaseRequest = new BizPurchaseRequest();
         purchaseRequest.setApplicantId(principal.getUserId());
         purchaseRequest.setApplicantDeptId(principal.getDeptId());
-        purchaseRequest.setRequestNo(requestNoService.nextRequestNo(REQUEST_NO_PREFIX));
+        purchaseRequest.setRequestNo(businessNumberService.nextNumber(NUMBER_RULE_CODE));
         purchaseRequest.setItemName(request.getItemName());
         purchaseRequest.setCategory(request.getCategory());
         purchaseRequest.setQuantity(request.getQuantity());

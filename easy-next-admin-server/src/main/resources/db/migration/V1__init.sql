@@ -720,12 +720,112 @@ CREATE TABLE `wf_task_delegation` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `biz_request_sequence` (
-  `sequence_key` varchar(64) NOT NULL COMMENT '序列键，格式：业务前缀:日期',
+CREATE TABLE `biz_number_rule` (
+  `id` bigint unsigned NOT NULL COMMENT '业务编号规则ID',
+  `rule_code` varchar(64) NOT NULL COMMENT '规则编码，业务代码按此取号',
+  `rule_name` varchar(100) NOT NULL COMMENT '规则名称',
+  `prefix` varchar(16) NOT NULL COMMENT '编号前缀',
+  `date_pattern` varchar(16) NOT NULL DEFAULT 'yyyyMMdd' COMMENT '日期段规则：yyyyMMdd/yyyyMM/yyyy/NONE',
+  `number_separator` varchar(4) NOT NULL DEFAULT '-' COMMENT '编号分隔符',
+  `sequence_width` int NOT NULL DEFAULT '6' COMMENT '流水位数',
+  `sequence_step` int NOT NULL DEFAULT '1' COMMENT '递增步长',
+  `initial_value` bigint unsigned NOT NULL DEFAULT '0' COMMENT '新周期初始当前值',
+  `enable` tinyint unsigned NOT NULL DEFAULT '1' COMMENT '是否启用',
+  `create_by` bigint DEFAULT NULL COMMENT '创建人ID',
+  `create_dept_id` bigint DEFAULT NULL COMMENT '创建部门ID',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` bigint DEFAULT NULL COMMENT '更新人ID',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除：0正常，1删除',
+  `version` int NOT NULL DEFAULT '0' COMMENT '乐观锁版本',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_biz_number_rule_code_deleted` (`rule_code`,`deleted`),
+  KEY `idx_biz_number_rule_enable_deleted` (`enable`,`deleted`),
+  KEY `idx_biz_number_rule_create_dept` (`create_dept_id`),
+  CONSTRAINT `chk_biz_number_rule_date_pattern` CHECK (`date_pattern` IN ('yyyyMMdd','yyyyMM','yyyy','NONE')),
+  CONSTRAINT `chk_biz_number_rule_width` CHECK (`sequence_width` BETWEEN 1 AND 12),
+  CONSTRAINT `chk_biz_number_rule_step` CHECK (`sequence_step` BETWEEN 1 AND 1000)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='业务编号规则';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `biz_number_sequence` (
+  `sequence_key` varchar(128) NOT NULL COMMENT '计数器键，格式：规则编码:日期段',
+  `rule_code` varchar(64) NOT NULL COMMENT '规则编码',
+  `segment` varchar(32) NOT NULL COMMENT '日期段或 NONE',
   `current_value` bigint unsigned NOT NULL DEFAULT '0' COMMENT '当前流水值',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`sequence_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='业务申请单号序列';
+  PRIMARY KEY (`sequence_key`),
+  KEY `idx_biz_number_sequence_rule_segment` (`rule_code`,`segment`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='业务编号计数器';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `batch_task` (
+  `id` bigint unsigned NOT NULL COMMENT '批处理任务ID',
+  `task_type` varchar(64) NOT NULL COMMENT '任务类型，例如 USER_IMPORT、REPORT_GENERATE',
+  `task_name` varchar(120) NOT NULL COMMENT '任务名称',
+  `business_key` varchar(128) DEFAULT NULL COMMENT '业务幂等键，同一类型下唯一',
+  `trigger_type` varchar(32) NOT NULL DEFAULT 'MANUAL' COMMENT '触发类型：MANUAL/API/JOB/MESSAGE/SYSTEM',
+  `trigger_ref_id` varchar(128) DEFAULT NULL COMMENT '触发来源ID，例如 job_log_id、上传文件ID',
+  `status` varchar(32) NOT NULL DEFAULT 'PENDING' COMMENT '任务状态',
+  `total_count` int NOT NULL DEFAULT '0' COMMENT '总数',
+  `success_count` int NOT NULL DEFAULT '0' COMMENT '成功数',
+  `failed_count` int NOT NULL DEFAULT '0' COMMENT '失败数',
+  `skipped_count` int NOT NULL DEFAULT '0' COMMENT '跳过数',
+  `progress_percent` int NOT NULL DEFAULT '0' COMMENT '进度百分比 0-100',
+  `cancel_requested` tinyint unsigned NOT NULL DEFAULT '0' COMMENT '是否请求取消',
+  `started_at` datetime DEFAULT NULL COMMENT '开始时间',
+  `finished_at` datetime DEFAULT NULL COMMENT '结束时间',
+  `trace_id` varchar(128) DEFAULT NULL COMMENT '关联 traceId',
+  `error_message` varchar(1000) DEFAULT NULL COMMENT '错误或取消原因',
+  `result_message` varchar(1000) DEFAULT NULL COMMENT '结果说明',
+  `create_by` bigint DEFAULT NULL COMMENT '创建人ID',
+  `create_dept_id` bigint DEFAULT NULL COMMENT '创建部门ID',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` bigint DEFAULT NULL COMMENT '更新人ID',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除：0正常，1删除',
+  `version` int NOT NULL DEFAULT '0' COMMENT '乐观锁版本',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_batch_task_type_business_deleted` (`task_type`,`business_key`,`deleted`),
+  KEY `idx_batch_task_status_time` (`status`,`create_time`),
+  KEY `idx_batch_task_trigger` (`trigger_type`,`trigger_ref_id`),
+  KEY `idx_batch_task_create_dept` (`create_dept_id`),
+  CONSTRAINT `chk_batch_task_status` CHECK (`status` IN ('PENDING','RUNNING','SUCCESS','PARTIAL_SUCCESS','FAILED','CANCELING','CANCELED')),
+  CONSTRAINT `chk_batch_task_progress` CHECK (`progress_percent` BETWEEN 0 AND 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='批处理任务';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `batch_task_item` (
+  `id` bigint unsigned NOT NULL COMMENT '批处理明细ID',
+  `task_id` bigint unsigned NOT NULL COMMENT '批处理任务ID',
+  `item_key` varchar(128) NOT NULL COMMENT '明细业务键，同一任务内唯一',
+  `item_name` varchar(200) DEFAULT NULL COMMENT '明细名称',
+  `status` varchar(32) NOT NULL DEFAULT 'PENDING' COMMENT '明细状态',
+  `retry_count` int NOT NULL DEFAULT '0' COMMENT '重试次数',
+  `payload` text DEFAULT NULL COMMENT '明细输入快照',
+  `error_message` varchar(1000) DEFAULT NULL COMMENT '失败原因',
+  `result_message` varchar(1000) DEFAULT NULL COMMENT '结果说明',
+  `started_at` datetime DEFAULT NULL COMMENT '开始时间',
+  `finished_at` datetime DEFAULT NULL COMMENT '结束时间',
+  `create_by` bigint DEFAULT NULL COMMENT '创建人ID',
+  `create_dept_id` bigint DEFAULT NULL COMMENT '创建部门ID',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` bigint DEFAULT NULL COMMENT '更新人ID',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除：0正常，1删除',
+  `version` int NOT NULL DEFAULT '0' COMMENT '乐观锁版本',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_batch_task_item_key_deleted` (`task_id`,`item_key`,`deleted`),
+  KEY `idx_batch_task_item_status` (`task_id`,`status`),
+  KEY `idx_batch_task_item_create_dept` (`create_dept_id`),
+  CONSTRAINT `chk_batch_task_item_status` CHECK (`status` IN ('PENDING','RUNNING','SUCCESS','FAILED','SKIPPED','RETRYING'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='批处理任务明细';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -844,6 +944,13 @@ INSERT INTO `user_message` (`id`, `receiver_id`, `sender_id`, `title`, `content`
     (202605080127000001, 202604280101000025, 0, '新的流程待办', '林员工提交了请假申请，请及时处理。', 'WORKFLOW', 'INFO', 'WORKFLOW_TASK', '202604280108020001', '/workflow/tasks?tab=pending', 0, NULL, NOW()),
     (202605080127000002, 202604280101000017, 0, '流程抄送提醒', '林员工的报修流程已抄送给你备案。', 'WORKFLOW_CC', 'INFO', 'WORKFLOW_CC', '202604280108050001', '/workflow/tasks?tab=cc&ccId=202604280108050001&instanceId=202604280108030004', 0, NULL, NOW());
 
+INSERT INTO `biz_number_rule`
+(`id`, `rule_code`, `rule_name`, `prefix`, `date_pattern`, `number_separator`, `sequence_width`, `sequence_step`, `initial_value`, `enable`, `create_by`, `create_dept_id`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `remark`)
+VALUES
+    (202606250112000001, 'LEAVE_REQUEST', '请假申请单号', 'LV', 'yyyyMMdd', '-', 6, 1, 0, 1, 202604280101000001, 202604280103000001, NOW(), 202604280101000001, NOW(), 0, 0, '流程请假申请使用的业务编号规则。'),
+    (202606250112000002, 'PURCHASE_REQUEST', '采购申请单号', 'PR', 'yyyyMMdd', '-', 6, 1, 0, 1, 202604280101000001, 202604280103000001, NOW(), 202604280101000001, NOW(), 0, 0, '流程采购申请使用的业务编号规则。'),
+    (202606250112000003, 'REPAIR_REQUEST', '报修申请单号', 'RP', 'yyyyMMdd', '-', 6, 1, 0, 1, 202604280101000001, 202604280103000001, NOW(), 202604280101000001, NOW(), 0, 0, '流程报修申请使用的业务编号规则。');
+
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000001, 0, '工作台', 'DataBoard', '/dashboard', 10, 1, '进入企业工作台并查看系统概览。', '2026-04-28 22:57:43', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 1, 'dashboard:view', '@/views/dashboard/WorkspaceView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000100, 0, '系统管理', 'Setting', '', 20, 1, '系统基础能力分组。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000101, 202604280104000100, '用户管理', 'User', '/system/users', 10, 1, '维护企业账号、部门、状态和角色绑定。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 1, 'sys:user:list', '@/views/system/UserView.vue', 1, 202604280101000001, 202604280103000001);
@@ -862,6 +969,9 @@ INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, 
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000151, 202604280104000100, '文件中心', 'Document', '/system/files', 50, 1, '进入文件中心，查看文件元数据并通过鉴权接口下载。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 1, 'sys:file:list', '@/views/system/FileCenterView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000152, 202604280104000151, '上传文件', '', '', 11, 1, '允许上传白名单范围内的企业附件。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 2, 'sys:file:upload', NULL, 0, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000153, 202604280104000151, '删除文件', '', '', 12, 1, '允许删除文件元数据和存储对象。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 2, 'sys:file:delete', NULL, 0, 202604280101000001, 202604280103000001);
+INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202606250104000001, 202604280104000100, '编号规则', 'Tickets', '/system/business-numbers', 60, 1, '维护业务单号、工单号、申请单号等可读编号规则。', NOW(), 202604280101000001, NOW(), 0, 0, 1, 'business:number:list', '@/views/system/BusinessNumberRuleView.vue', 1, 202604280101000001, 202604280103000001);
+INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202606250104000002, 202606250104000001, '维护编号规则', '', '', 11, 1, '允许新增、编辑、停用和删除业务编号规则。', NOW(), 202604280101000001, NOW(), 0, 0, 2, 'business:number:edit', NULL, 0, 202604280101000001, 202604280103000001);
+INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202606250104000003, 202606250104000001, '人工生成编号', '', '', 12, 1, '允许运维或管理员在编号规则页人工生成测试编号。', NOW(), 202604280101000001, NOW(), 0, 0, 2, 'business:number:generate', NULL, 0, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202605260104000001, 0, '报表中心', 'DataAnalysis', '/reports/enterprise', 28, 1, '查看组织人员台账和采购流程复核纸质报表。', '2026-05-26 21:45:00', 202604280101000001, '2026-05-26 21:45:00', 0, 0, 1, 'report:view', '@/views/report/EnterpriseReportView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000200, 0, '运行监控', 'Monitor', '', 30, 1, '服务监控、在线用户、缓存监控、缓存列表、实时日志和任务调度分组。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000201, 202604280104000200, '服务监控', 'Monitor', '/monitor/server', 10, 1, '查看服务健康、JVM、CPU、内存、线程、磁盘和 GC 水位。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 1, 'monitor:server:view', '@/views/monitor/MonitorView.vue', 1, 202604280101000001, 202604280103000001);
@@ -883,6 +993,8 @@ INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, 
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202605110104000001, 0, '接口文档', 'DocumentChecked', '/developer/api-docs', 45, 1, '查看 OpenAPI Swagger UI 接口文档。', '2026-05-11 10:00:00', 202604280101000001, '2026-05-11 10:00:00', 0, 0, 1, 'developer:api-docs:view', '@/views/developer/ApiDocsView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000300, 202604280104000200, '定时任务', 'Timer', '/schedule/jobs', 50, 1, '查看任务定义、运行状态和最近执行结果。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 1, 'schedule:job:list', '@/views/schedule/JobView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000301, 202604280104000300, '维护定时任务', '', '', 11, 1, '允许新增、暂停、恢复、立即执行和编辑任务。', '2026-04-28 22:57:43', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 2, 'schedule:job:edit', NULL, 0, 202604280101000001, 202604280103000001);
+INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202606250104010001, 202604280104000200, '批处理任务', 'Operation', '/batch/tasks', 55, 1, '查看批量导入、同步和报表生成等长任务的进度、失败明细和治理动作。', NOW(), 202604280101000001, NOW(), 0, 0, 1, 'batch:task:list', '@/views/batch/BatchTaskView.vue', 1, 202604280101000001, 202604280103000001);
+INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202606250104010002, 202606250104010001, '治理批处理任务', '', '', 11, 1, '允许取消批处理任务和重置失败项等待业务 worker 补跑。', NOW(), 202604280101000001, NOW(), 0, 0, 2, 'batch:task:manage', NULL, 0, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000400, 0, '流程中心', 'Connection', '', 50, 1, '面向业务用户的申请、待办和面向管理员的流程配置分组。', '2026-04-29 07:57:24', 202604280101000001, '2026-04-29 09:33:24', 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000419, 202604280104000400, '发起流程', 'Promotion', '/workflow/start', 10, 1, '统一展示请假、采购和报修等可发起流程入口。', '2026-05-12 10:00:00', 202604280101000001, '2026-05-12 10:00:00', 0, 0, 1, 'workflow:instance:start', '@/views/workflow/WorkflowStartView.vue', 1, 202604280101000001, 202604280103000001);
 INSERT INTO `sys_menu` (`id`, `pid`, `title`, `icon`, `href`, `sort`, `enable`, `remark`, `create_time`, `update_by`, `update_time`, `deleted`, `version`, `type`, `permission_code`, `component_path`, `visible`, `create_by`, `create_dept_id`) VALUES (202604280104000412, 202604280104000400, '请假申请', 'Document', '/workflow/leave', 11, 1, '填写请假单并发起请假审批流程。', '2026-04-29 07:57:24', 202604280101000001, '2026-05-12 10:00:00', 0, 0, 1, 'workflow:instance:start', '@/views/workflow/LeaveRequestView.vue', 0, 202604280101000001, 202604280103000001);
@@ -1151,6 +1263,8 @@ JOIN `sys_menu` permission_resource ON permission_resource.`deleted` = 0
                                  'monitor:weblog:level',
                                  'schedule:job:list',
                                  'schedule:job:edit',
+                                 'batch:task:list',
+                                 'batch:task:manage',
                                  'workflow:instance:start',
                                  'workflow:view',
                                  'workflow:task:approve',
@@ -1182,6 +1296,8 @@ JOIN `sys_menu` permission_resource ON permission_resource.`deleted` = 0
                                        'monitor:weblog:level',
                                        'schedule:job:list',
                                        'schedule:job:edit',
+                                       'batch:task:list',
+                                       'batch:task:manage',
                                        'workflow:instance:start',
                                        'workflow:view',
                                        'workflow:task:approve',

@@ -13,6 +13,7 @@
 | 菜单配置 | `/system/menus` | `src/views/system/MenuView.vue` | `module.system` | `sys:menu:list/edit` |
 | 组织架构 | `/system/departments` | `src/views/system/DepartmentView.vue` | `module.system` | `sys:dept:list/edit` |
 | 文件中心 | `/system/files` | `src/views/system/FileCenterView.vue` | `module.system` | `sys:file:list/upload/delete` |
+| 编号规则 | `/system/business-numbers` | `src/views/system/BusinessNumberRuleView.vue`、`src/features/business-number` | `module.business.number` | `business:number:list/edit/generate` |
 | 报表中心 | `/reports/enterprise` | `src/views/report/EnterpriseReportView.vue`、`src/features/report` | `module.report` | `report:view` |
 | 运行监控 | `/monitor/server` | `src/views/monitor/MonitorView.vue` | `module.monitor` | `monitor:server:view` |
 | 在线用户 | `/monitor/online` | `src/views/monitor/OnlineUserView.vue` | `infrastructure.security` | `monitor:online:view`、`auth:session:revoke` |
@@ -21,6 +22,7 @@
 | 实时日志 | `/monitor/weblog` | `src/views/monitor/WebLogView.vue` | `module.system`、`infrastructure.observability` | `monitor:weblog:view/level` |
 | 审计中心 | `/audit/behavior` | `src/views/audit/BehaviorAuditView.vue` | `module.audit`、`infrastructure.audit` | `audit:behavior:view` |
 | 任务调度 | `/schedule/jobs` | `src/views/schedule/JobView.vue` | `module.schedule` | `schedule:job:list/edit` |
+| 批处理任务 | `/batch/tasks` | `src/views/batch/BatchTaskView.vue`、`src/features/batch` | `module.batch` | `batch:task:list/manage` |
 | 流程中心 | `/workflow/*` | `src/views/workflow`、`src/features/workflow` | `module.workflow` | `workflow:*` |
 | 消息中心 | `/messages` | `src/views/message/MessageCenterView.vue` | `module.message` | `message:view/read` |
 | 接口文档 | `/developer/api-docs` | `src/views/developer/ApiDocsView.vue` | `config.api`、springdoc-openapi | `developer:api-docs:view` |
@@ -34,10 +36,12 @@
 | 认证授权 | 登录页调用 `/api/auth/login`，请求拦截器携带当前会话凭证，后端过滤器恢复当前用户，接口注解完成授权。 | 当前代码使用 Bearer token 和服务端会话快照，适合本地开发和前后端分离调试；权限版本让角色、菜单和用户授权变化能立即让旧会话失效。`/api/auth/demo-accounts` 只在 `local` profile 返回演示账号。生产安全路线固定为 HttpOnly Cookie 会话 + CSRF 防护，不把浏览器可读 token 作为生产验收方案。 |
 | 系统管理 | 通过用户、角色、菜单、部门页面维护组织和授权；用户管理页支持下载 CSV 模板、导入用户和按筛选条件导出用户。 | 菜单权限、按钮权限和后端权限码同源；用户详情、编辑、启停、删除、重置密码和部门维护都走数据权限边界。用户页维护直属上级并预览审批关系，部门页维护部门负责人，供工作流运行时派单。用户批量导入由 `SysUserImportExportService` 校验 CSV 类型、2MB 大小、1000 行上限、部门名称、角色编码和重复用户名；导出 CSV 会防 Excel 公式注入。 |
 | 文件中心 | 在 `/system/files` 上传、预览、下载和清理文件；图片、PDF 和文本类文件可直接预览。 | 业务模块通过文件 API 保存文件元数据，预览和下载复用鉴权下载接口，不在页面拼接裸地址。上传会校验大小、扩展名、MIME 和常见文件头签名，拒绝把可执行文件伪装成图片、PDF 或压缩包；病毒扫描和敏感内容检测应在企业网关或对象存储侧继续补齐。 |
+| 编号规则 | 在 `/system/business-numbers` 维护申请单号、工单号、采购单号等业务可读编号规则；业务代码通过 `BusinessNumberService#nextNumber(ruleCode)` 取号。 | 业务编号是应用内组件，不替代表主键或分布式 ID。规则表维护前缀、日期周期、分隔符、流水位数、递增步长和启停状态；计数器表按规则和日期段独立计数，通过数据库行锁保证多实例并发取号不重复。 |
 | 报表中心 | 在 `/reports/enterprise` 查看组织人员台账和采购流程复核两张 A4 纸质报表，并可使用浏览器打印。 | 报表接口只读，走 `report:view` 权限和当前账号数据范围；页面用固定版式表格、签核栏和报表编号呈现，不做 BI 配置器或大屏图表。 |
 | 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户和实时日志。 | 面向内网运维排障，默认展示实时状态和 logback 当前文件日志；缓存列表只展示脱敏后的 key/value 预览并支持精确清理单个 key；实时日志级别调整使用独立权限和审计。监控页是应用内排障入口，不替代 InfluxDB、OpenSearch、Grafana 或云厂商观测平台。 |
 | 审计中心 | 在 `/audit/behavior` 查询登录、操作、异常、接口访问和敏感数据变更记录。 | 关键接口用 `@EasyAudit` 或审计采集器记录；审计查询通过 `AuditVisibilitySupport` 按当前账号数据范围过滤操作者或登录用户，只有全部数据范围可看全局统计；敏感字段在入库前统一交给 `EasySensitiveDataMasker` 脱敏。 |
 | 任务调度 | 在 `/schedule/jobs` 查看和维护动态任务。 | 任务通过 `@EasyJob` 声明，数据库维护 Cron、启停状态和执行日志；页面默认展示全宽任务列表，行操作进入单任务日志抽屉，右上角可查看全部日志。 |
+| 批处理任务 | 在 `/batch/tasks` 查看长任务进度、失败明细，并对运行中任务请求取消或重置失败项。 | 批处理不替代定时任务：Job 负责触发，`BatchTaskService` 负责提交任务、写入明细、更新成功/失败计数、处理取消请求和失败项重试状态；业务 worker 需要在分片检查点调用 `shouldStop` 并按 item 上报结果。 |
 | 工作流 | 在 `/workflow/start` 直接填写业务申请，在 `/workflow/tasks` 处理待办和查看我发起的流程，具备流程实例管理权限的管理员在 `/workflow/instances` 监控全部流程实例，在定义页维护轻量审批图。 | 流程定义保存图 JSON，并同步生成节点和连线结构化投影；启用、发布和发起前都会校验图结构；实例详情优先使用发起时快照，避免定义变更影响历史实例。流程实例页用纸张式申请单展示业务详情、申请人、单号和审批记录，并保留流程图和处理动态。审批节点支持任一人、全部、顺序三种审批方式，处理人规则支持指定成员、职能角色、发起人直属上级、发起人部门负责人、发起人上级部门负责人和发起人自选；节点配置里的转办、委派、加签、减签、退回开关会在运行时校验。抄送已读只能由接收人本人或超级管理员操作。参与人统一读取 `/api/system/users/assignees`，历史任务和历史抄送也参与可见性判断。 |
 | 消息中心 | 顶部铃铛显示未读数，`/messages` 处理流程、审计和任务消息。 | 消息接口集中在 `src/features/message/api.ts`，顶部铃铛使用 `headerMessages.ts`，避免布局组件直接写请求细节；流程催办消息带业务关联和任务中心跳转链接。消息中心只保留查看和已读处理。 |
 | 接口文档 | 在 `/developer/api-docs` 内嵌查看 Swagger UI，也可新窗口打开 `/swagger-ui.html`。 | OpenAPI 入口默认只在 `local` profile 开启；前端开发代理同时转发 `/swagger-ui.html`、`/swagger-ui/*` 和 `/v3/api-docs`。 |
@@ -58,12 +62,14 @@
 | 菜单配置 | `/api/system/menus` | `SysMenuController`、`SysMenuServiceImpl`、`MenuView.vue` | 菜单树、按钮权限、前后端权限码同源维护。 |
 | 组织架构 | `/api/system/departments` | `SysDeptController`、`SysDeptServiceImpl`、`DepartmentView.vue` | 树形组织、数据权限部门边界。 |
 | 文件中心 | `/api/system/files` | `SysFileController`、`EasyStorageFacade`、`FileCenterView.vue` | 上传、鉴权下载、图片/PDF/文本预览和下载审计。 |
+| 编号规则 | `/api/business-numbers/rules` | `BusinessNumberRuleController`、`BusinessNumberService`、`BusinessNumberRuleView.vue` | 业务可读编号规则维护、按规则编码取号、按日期段独立流水和并发安全计数器。 |
 | 报表中心 | `/api/reports/enterprise-paper` | `EnterpriseReportController`、`EnterpriseReportService`、`EnterpriseReportView.vue` | 组织人员台账和采购流程复核的纸质报表数据，按当前账号数据范围生成。 |
 | 运行监控 | `/api/monitor/system`、`/api/monitor/statistics` | `SystemStatusController`、`MonitorStatisticsController`、`MonitorView.vue` | JVM、CPU、内存、磁盘、健康状态、接口、在线用户、远程调用和任务统计展示。 |
 | 缓存监控 | `/api/monitor/cache` | `CacheMonitorController`、`CacheMonitorService`、`CacheMonitorView.vue`、`CacheListView.vue` | 查看缓存 provider、命中率、大小、key/value 预览和精确清理缓存项。 |
 | 在线用户 | `/api/monitor/statistics/online-users` | `MonitorStatisticsController`、`AuthSessionStore`、`OnlineUserView.vue` | 在线会话查询、当前会话标记和踢人下线。 |
 | 审计中心 | `/api/audit/*` | `module.audit`、`AuditLogCollector`、`BehaviorAuditView.vue` | 登录、操作、异常、接口访问和敏感变更查询。 |
 | 定时任务 | `/api/schedule/jobs` | `ScheduleJobController`、`ScheduleJobManager`、`JobView.vue` | 动态 Cron、启停任务和执行日志。 |
+| 批处理任务 | `/api/batch/tasks` | `BatchTaskController`、`BatchTaskService`、`BatchTaskView.vue` | 提交批处理任务、查看任务进度和明细、请求取消、重置失败项等待业务 worker 补跑。 |
 | 工作流 | `/api/workflow/*` | `module.workflow`、`WorkflowTaskCenterView.vue`、`WorkflowInstanceMonitorView.vue` | 流程定义、流程实例监控、待办、审批、转办、加签、催办和消息联动。 |
 | 消息中心 | `/api/messages` | `UserMessageController`、`UserMessageService`、`MessageCenterView.vue` | 未读数、流程消息、审计提醒、任务消息、前往业务详情。 |
 | 接口文档 | `/swagger-ui.html`、`/v3/api-docs` | `OpenApiConfig`、`ApiDocsView.vue` | 按模块查看 OpenAPI 分组，开发调试时复制 Bearer token 后可在 Swagger UI 调用接口。 |
@@ -75,6 +81,7 @@
 | --- | --- | --- | --- |
 | 统一响应和异常码 | 所有 JSON Controller | `Response`、`PageResponse`、`GlobalExceptionHandler` | Controller 返回标准响应，业务异常使用 `ErrorCode`，不要裸数字错误码。 |
 | 接口权限 | 用户、角色、菜单、工作流接口 | `@EasyPermission`、`EasyPermissionInterceptor`、`EasyPermissions` | 页面按钮隐藏只是体验，后端注解才是真实边界。 |
+| 业务编号 | 请假、采购、报修申请单号 | `BusinessNumberService`、`BusinessNumberRule`、`BusinessNumberSequence` | 业务代码只按规则编码取号；用户可见编号与数据库主键、Snowflake ID 分离。 |
 | 认证会话 | 登录、退出、在线用户 | `EasyAuthService`、`EasyAuthFilter`、`AuthSessionStore` | token 只保存摘要，服务端会话保存权限快照和权限版本。 |
 | 数据权限 | 用户、部门、任务查询 | `@DataScope`、`EasyDataScopeInnerInterceptor`、`EasyDataScopeContext` | Mapper 声明范围列，特殊系统查询用 `ignore` 明确绕过。 |
 | 缓存 | `/api/monitor/cache`、业务命名缓存 | `EasyCacheConfig`、`CacheMonitorService` | 命名缓存统一 TTL，监控页展示命中率、容量和脱敏 value 预览；敏感或强数据权限详情不做共享缓存。 |
@@ -86,6 +93,7 @@
 | 前端观测事件 | Vue 全局错误、路由错误、Axios 失败 | `src/features/observability/events.ts`、`src/api/request.ts`、`src/main.ts` | 记录白屏类错误、未处理 Promise、路由加载失败和 API 失败；本地有界缓冲，保留 traceId，不保留完整 query 参数，后续再接事件上报通道。 |
 | 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | `TraceContext`、`@EasyTrace`、`TraceCodeBlock`、`EasyHttpSlowRequestInterceptor`、`EasyMybatisTraceInterceptor` | 不依赖外部 tracing；入口超出阈值或异常时打印本地调用树，MyBatis 层 tag 只保留 `SqlCommandType`，连续重复叶子节点聚合为 `count/total/min/max`。 |
 | 定时任务 | 本地消息重试 | `@EasyJob`、`ScheduleJobManager` | 任务实现 `EasyJobHandler`，最终启停和 Cron 以数据库为准。 |
+| 批处理治理 | 用户导入、批量同步、报表生成等长任务 | `BatchTaskService`、`batch_task`、`batch_task_item` | 业务代码提交任务和明细，worker 分片处理时上报 item 成功/失败；管理页查看进度、失败原因、请求取消和重置失败项。 |
 | 本地消息 | 失败消息重试 | `EasyLocalMessageTemplate`、`LocalMessageRetryJob` | 本地事务先落消息，远程/耗时操作失败后由任务重试。 |
 | 幂等 | 重复提交保护 | `@Idempotent`、`IdempotentAspect` | 用业务 key 防止重试或重复提交造成重复写入。 |
 | 重复请求限制 | 用户保存 `POST /api/system/users` | `@EasyDuplicateRequestLimiter`、`ConcurrentHashMapDuplicateRequestLimiter` | 适合表单短时间重复点击，不替代长期幂等。 |

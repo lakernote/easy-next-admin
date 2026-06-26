@@ -13,6 +13,15 @@ export const PermissionCodes = {
     view: 'message:view',
     read: 'message:read'
   },
+  businessNumber: {
+    list: 'business:number:list',
+    edit: 'business:number:edit',
+    generate: 'business:number:generate'
+  },
+  batch: {
+    taskList: 'batch:task:list',
+    taskManage: 'batch:task:manage'
+  },
   auth: {
     sessionRevoke: 'auth:session:revoke'
   },

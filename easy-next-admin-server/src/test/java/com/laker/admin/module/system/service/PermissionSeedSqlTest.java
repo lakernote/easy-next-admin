@@ -17,8 +17,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PermissionSeedSqlTest {
     private static final Path MYSQL_MIGRATION_DIR = Path.of("src/main/resources/db/migration");
     private static final Path H2_MIGRATION_DIR = Path.of("src/test/resources/db/migration-h2");
-    private static final Path MYSQL_V1 = Path.of("src/main/resources/db/migration/V1__init.sql");
-    private static final Path H2_V1 = Path.of("src/test/resources/db/migration-h2/V1__init_h2.sql");
     private static final Path WEB_ROOT = Path.of("../easy-next-admin-web");
     private static final Path FRONTEND_PERMISSION_CODES = WEB_ROOT.resolve("src/permissions/codes.ts");
     private static final Pattern COMPONENT_PATH_PATTERN = Pattern.compile("'(@/views/[^']+\\.vue)'");
@@ -44,8 +42,8 @@ class PermissionSeedSqlTest {
 
     @Test
     void menuComponentPathsShouldBeDatabaseDrivenAndResolvableByFrontendRouter() throws Exception {
-        String mysqlSql = Files.readString(MYSQL_V1);
-        String h2Sql = Files.readString(H2_V1);
+        String mysqlSql = migrationSql(MYSQL_MIGRATION_DIR);
+        String h2Sql = migrationSql(H2_MIGRATION_DIR);
         Set<String> componentPaths = componentPaths(mysqlSql);
 
         assertThat(componentPaths)
@@ -56,7 +54,9 @@ class PermissionSeedSqlTest {
                         "@/views/system/MenuView.vue",
                         "@/views/system/DepartmentView.vue",
                         "@/views/system/FileCenterView.vue",
+                        "@/views/system/BusinessNumberRuleView.vue",
                         "@/views/report/EnterpriseReportView.vue",
+                        "@/views/batch/BatchTaskView.vue",
                         "@/views/monitor/CacheListView.vue",
                         "@/views/workflow/WorkflowStartView.vue",
                         "@/views/workflow/WorkflowTaskCenterView.vue"
@@ -76,8 +76,8 @@ class PermissionSeedSqlTest {
 
     @Test
     void roleSeedPermissionsShouldUsePermissionCodesInsteadOfMenuIdLists() throws Exception {
-        String mysqlSql = Files.readString(MYSQL_V1);
-        String h2Sql = Files.readString(H2_V1);
+        String mysqlSql = migrationSql(MYSQL_MIGRATION_DIR);
+        String h2Sql = migrationSql(H2_MIGRATION_DIR);
 
         assertThat(mysqlSql)
                 .contains("permission_resource.`permission_code` IN")

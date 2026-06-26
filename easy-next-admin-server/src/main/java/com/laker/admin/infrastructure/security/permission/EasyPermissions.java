@@ -91,6 +91,23 @@ public final class EasyPermissions {
         }
     }
 
+    public static final class BusinessNumber {
+        public static final String LIST = "business:number:list";
+        public static final String EDIT = "business:number:edit";
+        public static final String GENERATE = "business:number:generate";
+
+        private BusinessNumber() {
+        }
+    }
+
+    public static final class Batch {
+        public static final String TASK_LIST = "batch:task:list";
+        public static final String TASK_MANAGE = "batch:task:manage";
+
+        private Batch() {
+        }
+    }
+
     public static final class Developer {
         public static final String API_DOCS_VIEW = "developer:api-docs:view";
 

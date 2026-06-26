@@ -19,7 +19,7 @@ import com.laker.admin.module.workflow.entity.WfProcessInstance;
 import com.laker.admin.module.workflow.event.WfProcessInstanceStatusChangedEvent;
 import com.laker.admin.module.workflow.repair.dto.RepairAttachmentResource;
 import com.laker.admin.module.workflow.repair.dto.RepairAttachmentView;
-import com.laker.admin.module.workflow.sequence.service.BusinessRequestNoService;
+import com.laker.admin.module.business.number.service.BusinessNumberService;
 import com.laker.admin.module.workflow.service.IWfProcessInstanceService;
 import com.laker.admin.module.workflow.service.IWfWorkflowRuntimeService;
 import com.laker.admin.module.workflow.support.WorkflowInstanceStatus;
@@ -46,7 +46,7 @@ public class RepairRequestServiceImpl extends ServiceImpl<BizRepairRequestMapper
         implements IRepairRequestService {
     private static final String PROCESS_KEY = "repair_approval";
     private static final String BUSINESS_TYPE = "repair";
-    private static final String REQUEST_NO_PREFIX = "RP";
+    private static final String NUMBER_RULE_CODE = "REPAIR_REQUEST";
     private static final int MAX_ATTACHMENT_COUNT = 3;
     private static final long MAX_ATTACHMENT_SIZE = 5L * 1024L * 1024L;
     private static final Set<String> REPAIR_IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
@@ -59,7 +59,7 @@ public class RepairRequestServiceImpl extends ServiceImpl<BizRepairRequestMapper
     private final ISysFileService sysFileService;
     private final EasyStorageFacade storageFacade;
     private final EasyJsonCodec jsonCodec;
-    private final BusinessRequestNoService requestNoService;
+    private final BusinessNumberService businessNumberService;
 
     public RepairRequestServiceImpl(IWfWorkflowRuntimeService workflowRuntimeService,
                                       IWfProcessInstanceService processInstanceService,
@@ -67,14 +67,14 @@ public class RepairRequestServiceImpl extends ServiceImpl<BizRepairRequestMapper
                                       ISysFileService sysFileService,
                                       EasyStorageFacade storageFacade,
                                       EasyJsonCodec jsonCodec,
-                                      BusinessRequestNoService requestNoService) {
+                                      BusinessNumberService businessNumberService) {
         this.workflowRuntimeService = workflowRuntimeService;
         this.processInstanceService = processInstanceService;
         this.userService = userService;
         this.sysFileService = sysFileService;
         this.storageFacade = storageFacade;
         this.jsonCodec = jsonCodec;
-        this.requestNoService = requestNoService;
+        this.businessNumberService = businessNumberService;
     }
 
     @Override
@@ -115,7 +115,7 @@ public class RepairRequestServiceImpl extends ServiceImpl<BizRepairRequestMapper
         BizRepairRequest repairRequest = new BizRepairRequest();
         repairRequest.setApplicantId(principal.getUserId());
         repairRequest.setApplicantDeptId(principal.getDeptId());
-        repairRequest.setRequestNo(requestNoService.nextRequestNo(REQUEST_NO_PREFIX));
+        repairRequest.setRequestNo(businessNumberService.nextNumber(NUMBER_RULE_CODE));
         repairRequest.setRepairType(request.getRepairType());
         repairRequest.setAssetName(request.getAssetName());
         repairRequest.setUrgency(request.getUrgency());

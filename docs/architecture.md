@@ -205,6 +205,17 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 
 登录后 `/api/auth/me` 返回当前账号可见 `menus` 和 `permissions`。前端 `src/router/dynamicRoutes.ts` 只从 Vite 已知的本地页面集合中解析 `component_path`，不会执行后端传入的任意脚本路径。角色授权页读取 `/api/system/roles/permission-resources`，展示的资源树与真实菜单表一致。按钮使用 `v-permission` 和 `src/permissions/codes.ts` 中的常量，后端接口仍由 `@EasyPermission` 做最终保护。
 
+## 业务编号
+
+业务编号是用户可见的申请单号、工单号、采购单号等业务语义编号，不等同于数据库主键或分布式 ID。表主键继续使用 MyBatis-Plus `ASSIGN_ID`，业务模块需要可读编号时只依赖 `BusinessNumberService#nextNumber(ruleCode)`。
+
+当前实现分两张表：
+
+- `biz_number_rule`：维护规则编码、名称、前缀、日期周期、分隔符、流水位数、递增步长、初始当前值和启停状态。
+- `biz_number_sequence`：按 `规则编码:日期段` 保存当前流水值。取号时先保证当前周期计数器存在，再用数据库 `FOR UPDATE` 行锁递增，保证单体多实例部署下不重复。
+
+后台 `/system/business-numbers` 只维护规则和人工生成测试号。请假、采购和报修流程已内置 `LEAVE_REQUEST`、`PURCHASE_REQUEST`、`REPAIR_REQUEST` 三条规则，业务代码不再直接拼接前缀和日期。
+
 ## 审计实现
 
 审计分为采集和查询两部分：
@@ -307,6 +318,24 @@ String uri = masker.maskUri(currentUri);
 - 本地消息失败重试。
 任务类应保持幂等，避免重试或重复调度造成重复写入。
 
+## 批处理任务
+
+批处理任务是长任务治理模型，不替代动态定时任务。推荐关系是：
+
+- `ScheduleJob` 负责“什么时候触发”。
+- `BatchTask` 负责“一次批量执行如何治理”。
+- `BatchTaskItem` 负责“每条业务数据是否成功、失败原因和重试次数”。
+
+`BatchTaskService` 是业务代码接入入口。业务模块提交任务时写入任务类型、任务名称、业务幂等键、触发类型和明细；worker 开始处理前调用 `startTask`，每个分片或每条业务数据处理后调用 `markItemSuccess` / `markItemFailed`，任务结束时调用 `completeTask`。管理页的取消动作只设置 `cancelRequested` 和 `CANCELING` 状态，worker 需要在分片检查点调用 `shouldStop(taskId)` 后优雅退出，避免强杀线程导致事务和外部副作用不一致。
+
+状态边界：
+
+- 任务状态：`PENDING`、`RUNNING`、`SUCCESS`、`PARTIAL_SUCCESS`、`FAILED`、`CANCELING`、`CANCELED`。
+- 明细状态：`PENDING`、`RUNNING`、`SUCCESS`、`FAILED`、`SKIPPED`、`RETRYING`。
+- 失败项重试会把失败明细重置为 `PENDING` 并递增 `retry_count`，已成功明细保持不变。
+
+触发来源用 `trigger_type` 和 `trigger_ref_id` 表达，例如定时任务触发时可写 `JOB` 和 `job_log_id`。这让调度日志可以跳到批处理详情，批处理详情也能反查来源。当前实现是轻量治理底座，不引入 Spring Batch；如果后续 ETL、chunk checkpoint、restart 和 reader/processor/writer 复杂度上升，可以把 Spring Batch 作为执行内核接在 `BatchTaskService` 之后。
+
 ## 轻量工作流
 
 EasyNextAdmin 工作流不是 Flowable/Camunda 替代品，而是内置轻量审批能力。
@@ -328,9 +357,11 @@ EasyNextAdmin 工作流不是 Flowable/Camunda 替代品，而是内置轻量审
 
 流程实例详情优先展示发起时保存的 `definition_snapshot_json`，历史实例不会被后续定义调整影响。运行中实例和历史实例在列表查询中按范围分开分页，避免跨运行表和历史表做内存合并分页；管理员实例监控和个人“我发起的”列表都按运行中、历史流程分开查询，详情页可以按实例 ID 兼容运行态和归档态。催办动作由工作流运行服务统一处理：先写 `REMIND` 事件，再给当前待办处理人写入 `WORKFLOW` 站内消息，消息带流程实例业务关联和任务中心跳转链接。
 
-## 批量数据
+## 批量数据与导入导出
 
-批量导入导出由具体业务模块自己实现，避免新脚手架保留空泛的通用任务中心。当前用户管理页提供 CSV 模板下载、用户导入、按筛选条件导出；后端在 `module.system` 内完成解析、校验和结果返回，单次导入限制为 CSV、2MB 和 1000 行，导出 CSV 会处理 Excel 公式注入风险。其他业务模块需要批量能力时，按本模块的 API、权限码、页面和文档结构各自接入。
+批量导入导出仍由具体业务模块实现，避免脚手架暴露空泛的通用导入中心。当前用户管理页提供 CSV 模板下载、用户导入、按筛选条件导出；后端在 `module.system` 内完成解析、校验和结果返回，单次导入限制为 CSV、2MB 和 1000 行，导出 CSV 会处理 Excel 公式注入风险。
+
+长耗时、大数据量或需要失败明细的场景应接入 `module.batch`。当前轻量模型已提供任务中心页面、取消请求和失败项重置，结果文件归档、断点游标和真实 worker 接入由具体业务场景继续补齐。
 
 ## 扩展边界
 

@@ -128,10 +128,20 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi batchApi() {
+        return GroupedOpenApi.builder()
+                .group("6.batch")
+                .displayName("6.批处理任务")
+                .pathsToMatch("/api/batch/**")
+                .packagesToScan("com.laker.admin.module.batch")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi workflowApi() {
         return GroupedOpenApi.builder()
-                .group("6.workflow")
-                .displayName("6.工作流")
+                .group("7.workflow")
+                .displayName("7.工作流")
                 .pathsToMatch("/api/workflow/**")
                 .packagesToScan("com.laker.admin.module.workflow")
                 .build();

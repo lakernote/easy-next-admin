@@ -525,11 +525,97 @@ CREATE TABLE wf_task_delegation (
   created_at TIMESTAMP
 );
 
-CREATE TABLE biz_request_sequence (
-  sequence_key VARCHAR(64) PRIMARY KEY,
+CREATE TABLE biz_number_rule (
+  id BIGINT PRIMARY KEY,
+  rule_code VARCHAR(64) NOT NULL,
+  rule_name VARCHAR(100) NOT NULL,
+  prefix VARCHAR(16) NOT NULL,
+  date_pattern VARCHAR(16) NOT NULL DEFAULT 'yyyyMMdd',
+  number_separator VARCHAR(4) NOT NULL DEFAULT '-',
+  sequence_width INT NOT NULL DEFAULT 6,
+  sequence_step INT NOT NULL DEFAULT 1,
+  initial_value BIGINT NOT NULL DEFAULT 0,
+  enable BOOLEAN NOT NULL DEFAULT TRUE,
+  create_by BIGINT,
+  create_dept_id BIGINT,
+  create_time TIMESTAMP,
+  update_by BIGINT,
+  update_time TIMESTAMP,
+  deleted INT DEFAULT 0,
+  version INT DEFAULT 0,
+  remark VARCHAR(500)
+);
+
+CREATE UNIQUE INDEX uk_biz_number_rule_code_deleted ON biz_number_rule(rule_code, deleted);
+CREATE INDEX idx_biz_number_rule_enable_deleted ON biz_number_rule(enable, deleted);
+
+CREATE TABLE biz_number_sequence (
+  sequence_key VARCHAR(128) PRIMARY KEY,
+  rule_code VARCHAR(64) NOT NULL,
+  segment VARCHAR(32) NOT NULL,
   current_value BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP
 );
+
+CREATE INDEX idx_biz_number_sequence_rule_segment ON biz_number_sequence(rule_code, segment);
+
+CREATE TABLE batch_task (
+  id BIGINT PRIMARY KEY,
+  task_type VARCHAR(64) NOT NULL,
+  task_name VARCHAR(120) NOT NULL,
+  business_key VARCHAR(128),
+  trigger_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
+  trigger_ref_id VARCHAR(128),
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  total_count INT NOT NULL DEFAULT 0,
+  success_count INT NOT NULL DEFAULT 0,
+  failed_count INT NOT NULL DEFAULT 0,
+  skipped_count INT NOT NULL DEFAULT 0,
+  progress_percent INT NOT NULL DEFAULT 0,
+  cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP,
+  trace_id VARCHAR(128),
+  error_message VARCHAR(1000),
+  result_message VARCHAR(1000),
+  create_by BIGINT,
+  create_dept_id BIGINT,
+  create_time TIMESTAMP,
+  update_by BIGINT,
+  update_time TIMESTAMP,
+  deleted INT DEFAULT 0,
+  version INT DEFAULT 0,
+  remark VARCHAR(500)
+);
+
+CREATE UNIQUE INDEX uk_batch_task_type_business_deleted ON batch_task(task_type, business_key, deleted);
+CREATE INDEX idx_batch_task_status_time ON batch_task(status, create_time);
+CREATE INDEX idx_batch_task_trigger ON batch_task(trigger_type, trigger_ref_id);
+
+CREATE TABLE batch_task_item (
+  id BIGINT PRIMARY KEY,
+  task_id BIGINT NOT NULL,
+  item_key VARCHAR(128) NOT NULL,
+  item_name VARCHAR(200),
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  retry_count INT NOT NULL DEFAULT 0,
+  payload CLOB,
+  error_message VARCHAR(1000),
+  result_message VARCHAR(1000),
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP,
+  create_by BIGINT,
+  create_dept_id BIGINT,
+  create_time TIMESTAMP,
+  update_by BIGINT,
+  update_time TIMESTAMP,
+  deleted INT DEFAULT 0,
+  version INT DEFAULT 0,
+  remark VARCHAR(500)
+);
+
+CREATE UNIQUE INDEX uk_batch_task_item_key_deleted ON batch_task_item(task_id, item_key, deleted);
+CREATE INDEX idx_batch_task_item_status ON batch_task_item(task_id, status);
 
 CREATE TABLE biz_leave_request (
   id BIGINT PRIMARY KEY,
@@ -622,6 +708,13 @@ INSERT INTO schedule_job (job_id, job_code, job_name, job_class_name, cron_expre
 VALUES
   (202604280107000001, 'infra_local_message_retry', '本地消息失败重试', 'com.laker.admin.infrastructure.message.local.LocalMessageRetryJob', '0 0/1 * * * ?', CURRENT_TIMESTAMP, 1, 1, 202604280101000001, 202604280103000001, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, '平台内置任务，用于重试失败的本地消息。');
 
+INSERT INTO biz_number_rule
+(id, rule_code, rule_name, prefix, date_pattern, number_separator, sequence_width, sequence_step, initial_value, enable, create_by, create_dept_id, create_time, update_by, update_time, deleted, version, remark)
+VALUES
+  (202606250112000001, 'LEAVE_REQUEST', '请假申请单号', 'LV', 'yyyyMMdd', '-', 6, 1, 0, TRUE, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, '流程请假申请使用的业务编号规则。'),
+  (202606250112000002, 'PURCHASE_REQUEST', '采购申请单号', 'PR', 'yyyyMMdd', '-', 6, 1, 0, TRUE, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, '流程采购申请使用的业务编号规则。'),
+  (202606250112000003, 'REPAIR_REQUEST', '报修申请单号', 'RP', 'yyyyMMdd', '-', 6, 1, 0, TRUE, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, '流程报修申请使用的业务编号规则。');
+
 INSERT INTO sys_user_role (id, user_id, role_id, create_by, create_dept_id, create_time, update_by, update_time, deleted, version)
 VALUES
   (202604280105001001, 202604280101000001, 202604280102000005, 202604280101000001, 202604280103000001, CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0),
@@ -652,6 +745,9 @@ VALUES
   (202604280104000151, 202604280104000100, '文件中心', 'Document', '/system/files', 50, 1, '进入文件中心，查看文件元数据并通过鉴权接口下载。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'sys:file:list', '@/views/system/FileCenterView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000152, 202604280104000151, '上传文件', '', '', 11, 1, '允许上传白名单范围内的企业附件。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:file:upload', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000153, 202604280104000151, '删除文件', '', '', 12, 1, '允许删除文件元数据和存储对象。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'sys:file:delete', NULL, 0, 202604280101000001, 202604280103000001),
+  (202606250104000001, 202604280104000100, '编号规则', 'Tickets', '/system/business-numbers', 60, 1, '维护业务单号、工单号、申请单号等可读编号规则。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'business:number:list', '@/views/system/BusinessNumberRuleView.vue', 1, 202604280101000001, 202604280103000001),
+  (202606250104000002, 202606250104000001, '维护编号规则', '', '', 11, 1, '允许新增、编辑、停用和删除业务编号规则。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'business:number:edit', NULL, 0, 202604280101000001, 202604280103000001),
+  (202606250104000003, 202606250104000001, '人工生成编号', '', '', 12, 1, '允许运维或管理员在编号规则页人工生成测试编号。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'business:number:generate', NULL, 0, 202604280101000001, 202604280103000001),
   (202605260104000001, 0, '报表中心', 'DataAnalysis', '/reports/enterprise', 28, 1, '查看组织人员台账和采购流程复核纸质报表。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'report:view', '@/views/report/EnterpriseReportView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000200, 0, '运行监控', 'Monitor', '', 30, 1, '服务监控、在线用户、缓存监控、缓存列表、实时日志和任务调度分组。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001),
   (202604280104000201, 202604280104000200, '服务监控', 'Monitor', '/monitor/server', 10, 1, '查看服务健康、JVM、CPU、内存、线程、磁盘和 GC 水位。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'monitor:server:view', '@/views/monitor/MonitorView.vue', 1, 202604280101000001, 202604280103000001),
@@ -673,6 +769,8 @@ VALUES
   (202605110104000001, 0, '接口文档', 'DocumentChecked', '/developer/api-docs', 45, 1, '查看 OpenAPI Swagger UI 接口文档。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'developer:api-docs:view', '@/views/developer/ApiDocsView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000300, 202604280104000200, '定时任务', 'Timer', '/schedule/jobs', 50, 1, '查看任务定义、运行状态和最近执行结果。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'schedule:job:list', '@/views/schedule/JobView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000301, 202604280104000300, '维护定时任务', '', '', 11, 1, '允许新增、暂停、恢复、立即执行和编辑任务。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'schedule:job:edit', NULL, 0, 202604280101000001, 202604280103000001),
+  (202606250104010001, 202604280104000200, '批处理任务', 'Operation', '/batch/tasks', 55, 1, '查看批量导入、同步和报表生成等长任务的进度、失败明细和治理动作。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'batch:task:list', '@/views/batch/BatchTaskView.vue', 1, 202604280101000001, 202604280103000001),
+  (202606250104010002, 202606250104010001, '治理批处理任务', '', '', 11, 1, '允许取消批处理任务和重置失败项等待业务 worker 补跑。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 2, 'batch:task:manage', NULL, 0, 202604280101000001, 202604280103000001),
   (202604280104000400, 0, '流程中心', 'Connection', '', 50, 1, '面向业务用户的申请、待办和面向管理员的流程配置分组。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 0, NULL, NULL, 1, 202604280101000001, 202604280103000001),
   (202604280104000419, 202604280104000400, '发起流程', 'Promotion', '/workflow/start', 10, 1, '统一展示请假、采购和报修等可发起流程入口。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'workflow:instance:start', '@/views/workflow/WorkflowStartView.vue', 1, 202604280101000001, 202604280103000001),
   (202604280104000412, 202604280104000400, '请假申请', 'Document', '/workflow/leave', 11, 1, '填写请假单并发起请假审批流程。', CURRENT_TIMESTAMP, 202604280101000001, CURRENT_TIMESTAMP, 0, 0, 1, 'workflow:instance:start', '@/views/workflow/LeaveRequestView.vue', 0, 202604280101000001, 202604280103000001),
@@ -867,6 +965,8 @@ JOIN sys_menu permission_resource ON permission_resource.deleted = 0
                                  'monitor:weblog:level',
                                  'schedule:job:list',
                                  'schedule:job:edit',
+                                 'batch:task:list',
+                                 'batch:task:manage',
                                  'workflow:instance:start',
                                  'workflow:view',
                                  'workflow:task:approve',
@@ -898,6 +998,8 @@ JOIN sys_menu permission_resource ON permission_resource.deleted = 0
                                        'monitor:weblog:level',
                                        'schedule:job:list',
                                        'schedule:job:edit',
+                                       'batch:task:list',
+                                       'batch:task:manage',
                                        'workflow:instance:start',
                                        'workflow:view',
                                        'workflow:task:approve',

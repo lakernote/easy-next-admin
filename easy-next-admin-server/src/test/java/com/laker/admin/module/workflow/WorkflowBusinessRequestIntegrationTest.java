@@ -2,6 +2,7 @@ package com.laker.admin.module.workflow;
 
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
+import com.laker.admin.module.business.number.service.BusinessNumberService;
 import com.laker.admin.module.system.entity.SysFile;
 import com.laker.admin.module.system.service.ISysFileService;
 import com.laker.admin.module.workflow.dto.WfTaskActionRequest;
@@ -11,7 +12,6 @@ import com.laker.admin.module.workflow.purchase.dto.PurchaseApplyRequest;
 import com.laker.admin.module.workflow.purchase.dto.PurchaseRequestView;
 import com.laker.admin.module.workflow.purchase.service.IPurchaseRequestService;
 import com.laker.admin.module.workflow.repair.dto.RepairAttachmentView;
-import com.laker.admin.module.workflow.sequence.service.BusinessRequestNoService;
 import com.laker.admin.module.workflow.service.IWfHistoricCcService;
 import com.laker.admin.module.workflow.service.IWfTaskService;
 import com.laker.admin.module.workflow.service.IWfWorkflowRuntimeService;
@@ -47,7 +47,7 @@ class WorkflowBusinessRequestIntegrationTest {
     @Autowired
     private ISysFileService sysFileService;
     @Autowired
-    private BusinessRequestNoService requestNoService;
+    private BusinessNumberService businessNumberService;
     @Autowired
     private IWfTaskService taskService;
     @Autowired
@@ -85,10 +85,10 @@ class WorkflowBusinessRequestIntegrationTest {
 
     @Test
     void requestNoShouldUseIndependentDailyDatabaseSequences() {
-        String firstPurchaseNo = requestNoService.nextRequestNo("PR");
-        String secondPurchaseNo = requestNoService.nextRequestNo("PR");
-        String firstRepairNo = requestNoService.nextRequestNo("RP");
-        String secondRepairNo = requestNoService.nextRequestNo("RP");
+        String firstPurchaseNo = businessNumberService.nextNumber("PURCHASE_REQUEST");
+        String secondPurchaseNo = businessNumberService.nextNumber("PURCHASE_REQUEST");
+        String firstRepairNo = businessNumberService.nextNumber("REPAIR_REQUEST");
+        String secondRepairNo = businessNumberService.nextNumber("REPAIR_REQUEST");
 
         assertThat(firstPurchaseNo).matches("PR-\\d{8}-\\d{6}");
         assertThat(secondPurchaseNo).matches("PR-\\d{8}-\\d{6}");
