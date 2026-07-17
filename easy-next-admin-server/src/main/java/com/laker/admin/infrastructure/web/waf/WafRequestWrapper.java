@@ -1,0 +1,181 @@
+
+package com.laker.admin.infrastructure.web.waf;
+
+import com.laker.admin.infrastructure.web.waf.attack.HTMLFilter;
+import com.laker.admin.infrastructure.web.waf.attack.SqlFilter;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import org.springframework.util.StreamUtils;
+import org.springframework.util.StringUtils;
+
+/**
+ * Request请求过滤包装
+ */
+@Slf4j
+public class WafRequestWrapper extends HttpServletRequestWrapper {
+
+    private final boolean filterXSS;
+
+    private final boolean filterSQL;
+
+
+    public WafRequestWrapper(HttpServletRequest request, boolean filterXSS, boolean filterSQL) {
+        super(request);
+        this.filterXSS = filterXSS;
+        this.filterSQL = filterSQL;
+    }
+
+
+    /**
+     * @param parameter 过滤参数
+     * @since 数组参数过滤
+     */
+    @Override
+    public String[] getParameterValues(String parameter) {
+        String[] values = super.getParameterValues(parameter);
+        if (values == null) {
+            return new String[0];
+        }
+
+        int count = values.length;
+        String[] encodedValues = new String[count];
+        for (int i = 0; i < count; i++) {
+            encodedValues[i] = filterParamString(values[i]);
+        }
+
+        return encodedValues;
+    }
+
+    @Override
+    public Map<String, String[]> getParameterMap() {
+        Map<String, String[]> primary = super.getParameterMap();
+        Map<String, String[]> result = new HashMap<>(primary.size());
+        for (Map.Entry<String, String[]> entry : primary.entrySet()) {
+            result.put(entry.getKey(), filterEntryString(entry.getValue()));
+        }
+        return result;
+
+    }
+
+
+    /**
+     * @param parameter 过滤参数
+     * @since 参数过滤
+     */
+    @Override
+    public String getParameter(String parameter) {
+        return filterParamString(super.getParameter(parameter));
+    }
+
+    @Override
+    public ServletInputStream getInputStream() throws IOException {
+        // 非json类型，直接返回
+        if (!isJsonRequest()) {
+            return super.getInputStream();
+        }
+
+        // 为空，直接返回
+        String json = StreamUtils.copyToString(super.getInputStream(), StandardCharsets.UTF_8);
+        if (!StringUtils.hasText(json)) {
+            return super.getInputStream();
+        }
+
+        // xss过滤
+        json = filterParamString(json).trim();
+        log.info("web防火墙处理后的结果如下：{}", json);
+        final ByteArrayInputStream bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+        return new ServletInputStream() {
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+
+            @Override
+            public void setReadListener(ReadListener readListener) {
+                //  document why this method is empty
+            }
+
+            @Override
+            public int read() {
+                return bis.read();
+            }
+        };
+    }
+
+    /**
+     * 是否是Json请求
+     */
+    private boolean isJsonRequest() {
+        String header = super.getHeader(HttpHeaders.CONTENT_TYPE);
+        return StringUtils.hasText(header)
+                && header.toLowerCase(Locale.ROOT).startsWith(MediaType.APPLICATION_JSON_VALUE);
+    }
+
+    /**
+     * @param name 过滤内容
+     * @since 请求头过滤
+     */
+    @Override
+    public String getHeader(String name) {
+        return filterParamString(super.getHeader(name));
+    }
+
+
+    /**
+     * @since Cookie内容过滤
+     */
+    @Override
+    public Cookie[] getCookies() {
+        Cookie[] existingCookies = super.getCookies();
+        if (existingCookies != null) {
+            for (Cookie cookie : existingCookies) {
+                cookie.setValue(filterParamString(cookie.getValue()));
+            }
+        }
+        return existingCookies;
+    }
+
+
+    protected String[] filterEntryString(String[] rawValue) {
+        for (int i = 0; i < rawValue.length; i++) {
+            rawValue[i] = filterParamString(rawValue[i]);
+        }
+        return rawValue;
+    }
+
+    /**
+     * @param rawValue 待处理内容
+     * @since 过滤字符串内容
+     */
+    protected String filterParamString(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        String tmpStr = rawValue;
+        if (this.filterXSS) {
+            tmpStr = HTMLFilter.htmlSpecialChars(tmpStr);
+        }
+        if (this.filterSQL) {
+            tmpStr = SqlFilter.strip(rawValue);
+        }
+        return tmpStr;
+    }
+}

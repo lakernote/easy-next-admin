@@ -1,0 +1,18 @@
+package com.laker.admin.module.workflow.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.laker.admin.module.workflow.dto.WorkflowCcSummary;
+import com.laker.admin.module.workflow.entity.WfHistoricCc;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+public interface WfHistoricCcMapper extends BaseMapper<WfHistoricCc> {
+
+    @Select("""
+            select count(*) as total,
+                   coalesce(sum(case when read_status = 0 then 1 else 0 end), 0) as unread_total
+              from wf_hi_cc
+             where receiver_id = #{receiverId}
+            """)
+    WorkflowCcSummary selectSummaryByReceiverId(@Param("receiverId") Long receiverId);
+}

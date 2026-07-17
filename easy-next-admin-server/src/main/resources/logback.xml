@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logback 主配置：同时输出控制台和滚动文件，MDC 中保留用户 ID 与 traceId 便于排查问题。 -->
+<configuration scan="true" scanPeriod="60 seconds" debug="false">
+  <!-- 默认写入项目 logs 目录；生产环境可通过挂载目录或 EASY_LOG_FILE_PATH 配合应用配置调整。 -->
+  <property name="LOG_HOME" value="logs"/>
+  <property name="ENCODING" value="UTF-8"/>
+  <property name="LOG_MDC_PATTERN" value="[%X{userId:-} %X{traceId:-}]"/>
+
+  <!-- 业务日志文件：按日期和大小切分，保留 15 天，最多占用 20GB。 -->
+  <appender name="DEFAULT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_HOME}/easy-next-admin.log</file>
+    <Append>true</Append>
+    <!-- 单进程写文件，不启用 prudent 模式。 -->
+    <prudent>false</prudent>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%d{HH:mm:ss.SSS} [%t] %-5level ${LOG_MDC_PATTERN} %logger{50}:%line - %m%n</pattern>
+      <charset>${ENCODING}</charset>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <FileNamePattern>${LOG_HOME}/%d{yyyy-MM-dd}/easy-next-admin-%i.log</FileNamePattern>
+      <maxHistory>15</maxHistory>
+      <totalSizeCap>20GB</totalSizeCap>
+      <maxFileSize>10MB</maxFileSize>
+    </rollingPolicy>
+  </appender>
+
+  <!-- 控制台彩色格式，适合本地开发和容器标准输出。 -->
+  <property name="CONSOLE_LOG_PATTERN"
+            value="%clr(%d{HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]) ${LOG_MDC_PATTERN} %clr(%-60.60logger{59}){cyan} %clr(:%line){cyan} %m%n%wEx"/>
+  <conversionRule conversionWord="clr" class="org.springframework.boot.logging.logback.ColorConverter"/>
+  <conversionRule conversionWord="wex"
+                  class="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
+  <conversionRule conversionWord="wEx"
+                  class="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
+
+  <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+    </encoder>
+  </appender>
+
+  <!-- 异步文件输出：业务线程先入队，后台线程再写磁盘，减少请求链路阻塞。 -->
+  <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+    <!-- 0 表示队列接近满时不主动丢弃低级别日志。 -->
+    <discardingThreshold>0</discardingThreshold>
+    <!-- 队列不宜过大，避免异常退出时损失过多缓冲日志。 -->
+    <queueSize>512</queueSize>
+    <!-- 应用关闭时最多等待 1 秒刷新异步日志。 -->
+    <maxFlushTime>1000</maxFlushTime>
+    <appender-ref ref="DEFAULT"/>
+  </appender>
+
+  <!-- 模块日志级别：Logback logger 名称不支持 com.laker.admin.module.**.mapper 这类通配。 -->
+  <logger name="com.laker.admin.module" level="INFO"/>
+  <logger name="com.laker.admin.infrastructure" level="INFO"/>
+  <logger name="io.micrometer.core.instrument.logging" level="WARN"/>
+  <logger name="org.apache.kafka.clients" level="WARN"/>
+
+  <!-- P6Spy SQL 日志入口，仅在启用相关依赖和配置时生效。 -->
+  <logger name="p6spy" level="INFO"/>
+  <!-- 默认 INFO，生产环境可按部署 profile 覆盖。 -->
+  <root level="INFO">
+    <appender-ref ref="ASYNC"/>
+    <appender-ref ref="console"/>
+  </root>
+</configuration>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.laker.admin.module.system.mapper.SysDeptMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.laker.admin.module.system.entity.SysDept">
+        <id column="id" property="deptId" />
+        <result column="dept_name" property="deptName" />
+        <result column="full_name" property="fullName" />
+        <result column="address" property="address" />
+        <result column="pid" property="pid" />
+        <result column="tree_path" property="treePath" />
+        <result column="leader_user_id" property="leaderUserId" />
+        <result column="status" property="status" />
+        <result column="sort" property="sort" />
+        <result column="remark" property="remark" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, dept_name, full_name, address, pid, tree_path, leader_user_id, status, sort, remark
+    </sql>
+
+</mapper>
