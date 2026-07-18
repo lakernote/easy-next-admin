@@ -27,67 +27,64 @@ public final class AssistantUserStreamEventAdapter implements Consumer<Assistant
             return;
         }
         switch (internalEvent.event()) {
-            case "context_built" -> progress("context",
+            case CONTEXT_BUILT -> progress("context",
                     AssistantChatStreamEvent.AssistantChatPhase.PREPARING,
                     "整理本轮请求上下文"
             );
-            case "conversation_turn_acquired" -> progress("conversation_lock",
+            case CONVERSATION_TURN_ACQUIRED -> progress("conversation_lock",
                     AssistantChatStreamEvent.AssistantChatPhase.PREPARING,
                     "进入当前会话执行队列"
             );
-            case "conversation_state_loaded" -> progress("conversation_state",
+            case CONVERSATION_STATE_LOADED -> progress("conversation_state",
                     AssistantChatStreamEvent.AssistantChatPhase.PREPARING,
                     "读取最近对话和待处理动作"
             );
-            case "tool_visibility_ready" -> progress("tool_visibility",
+            case TOOL_VISIBILITY_READY -> progress("tool_visibility",
                     AssistantChatStreamEvent.AssistantChatPhase.PREPARING,
                     "准备当前账号可用的企业能力"
             );
-            case "model_call_started" -> progress("model_call",
+            case MODEL_CALL_STARTED -> progress("model_call",
                     AssistantChatStreamEvent.AssistantChatPhase.THINKING,
                     "模型正在分析并决定下一步"
             );
-            case "model_call_finished" -> progress("model_response",
+            case MODEL_CALL_FINISHED -> progress("model_response",
                     AssistantChatStreamEvent.AssistantChatPhase.THINKING,
                     "模型已返回本轮决策"
             );
-            case "tool_selection_ready" -> progress("tool_selection",
+            case TOOL_SELECTION_READY -> progress("tool_selection",
                     AssistantChatStreamEvent.AssistantChatPhase.USING_TOOL,
                     "选择需要调用的企业能力"
             );
-            case "tool_arguments_ready" -> progress("tool_arguments",
+            case TOOL_ARGUMENTS_READY -> progress("tool_arguments",
                     AssistantChatStreamEvent.AssistantChatPhase.USING_TOOL,
                     "整理企业能力所需输入"
             );
-            case "tool_arguments_validated" -> progress("tool_validation",
+            case TOOL_ARGUMENTS_VALIDATED -> progress("tool_validation",
                     AssistantChatStreamEvent.AssistantChatPhase.USING_TOOL,
                     "校验企业能力输入"
             );
-            case "tool_finished" -> progress("tool_result",
+            case TOOL_FINISHED -> progress("tool_result",
                     AssistantChatStreamEvent.AssistantChatPhase.USING_TOOL,
                     "企业能力已返回执行结果"
             );
-            case "decision_ready" -> progress("decision",
+            case DECISION_READY -> progress("decision",
                     AssistantChatStreamEvent.AssistantChatPhase.THINKING,
                     "确认本轮执行结论"
             );
-            case "plan_ready" -> progress("plan",
+            case PLAN_READY -> progress("plan",
                     AssistantChatStreamEvent.AssistantChatPhase.THINKING,
                     "整理下一步动作和用户提示"
             );
-            case "conversation_state_written" -> progress("conversation_write",
+            case CONVERSATION_STATE_WRITTEN -> progress("conversation_write",
                     AssistantChatStreamEvent.AssistantChatPhase.SAVING,
                     "保存本轮会话状态"
             );
-            case "response_ready" -> progress("response",
+            case RESPONSE_READY -> progress("response",
                     AssistantChatStreamEvent.AssistantChatPhase.SAVING,
                     "准备向你展示最终回复"
             );
-            case "done" -> emitDone(internalEvent.payload());
-            case "error" -> userEventSink.accept(AssistantChatStreamEvent.failed("助手执行失败，请稍后重试"));
-            default -> {
-                // 未定义的内部事件默认不进入普通用户合同。
-            }
+            case DONE -> emitDone(internalEvent.payload());
+            case ERROR -> userEventSink.accept(AssistantChatStreamEvent.failed("助手执行失败，请稍后重试"));
         }
     }
 

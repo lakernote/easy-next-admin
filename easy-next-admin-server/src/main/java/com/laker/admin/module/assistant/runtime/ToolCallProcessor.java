@@ -89,7 +89,7 @@ public class ToolCallProcessor {
             );
             updateToolSurface(runState, executionOutcome);
             if (executionOutcome.waitsForUser()) {
-                return Optional.of(AgentResultFactory.fallback(runState));
+                return Optional.of(AgentResultFactory.waitingForUser(runState));
             }
         }
         closeToolSurfaceAfterCompletedRound(runState);
@@ -113,20 +113,28 @@ public class ToolCallProcessor {
     AgentResult rejectCallsWithoutToolSurface(AssistantRequestContext context,
                                                AgentLoopState runState,
                                                List<ToolCall> calls,
-                                               AgentLoopListener listener) {
+                                               AgentLoopListener listener,
+                                               AgentTerminationReason terminationReason) {
         if (runState.currentPlan() == null) {
             String requestedTool = calls.get(0).name();
+            boolean modelCallLimit = terminationReason == AgentTerminationReason.MODEL_CALL_LIMIT;
             runState.updateCurrentPlan(AgentResultFactory.blockedPlan(
                     context,
                     requestedTool,
-                    "模型请求了本轮不可见工具",
-                    "tool.not_visible"
+                    modelCallLimit ? "模型调用达到预算后仍请求 Tool" : "模型请求了本轮不可见工具",
+                    modelCallLimit ? "model.call_limit" : "tool.not_visible"
             ));
-            AssistantToolResult result = AssistantToolResult.failed(requestedTool, "当前没有可用或有权限的 Tool");
+            AssistantToolResult result = AssistantToolResult.failed(
+                    requestedTool,
+                    modelCallLimit
+                            ? "模型调用已达到本轮安全预算，不能继续请求 Tool"
+                            : "当前没有可用或有权限的 Tool"
+            );
             runState.addToolResult(result);
             AgentLoopEvents.toolFinished(context, listener, result);
         }
-        return AgentResultFactory.fallback(runState);
+        runState.markTerminationReason(terminationReason);
+        return AgentResultFactory.fallback(runState, terminationReason);
     }
 
     private Optional<ToolCallOutcome> executeRequestedToolCall(AssistantRequestContext context,
@@ -136,6 +144,7 @@ public class ToolCallProcessor {
                                                                ToolCall requestedToolCall,
                                                                int maxToolCalls) {
         if (!runState.hasToolCallBudget(maxToolCalls)) {
+            runState.markTerminationReason(AgentTerminationReason.TOOL_CALL_LIMIT);
             recordProtocolFailure(
                     context,
                     runState,
@@ -152,6 +161,7 @@ public class ToolCallProcessor {
             return Optional.empty();
         }
         if (!containsDefinition(runState.activeToolDefinitions(), requestedToolCall.name())) {
+            runState.markTerminationReason(AgentTerminationReason.BLOCKED);
             AssistantToolResult result = AssistantToolResult.failed(
                     requestedToolCall.name(),
                     "当前阶段不允许调用该 Tool；请基于已有结果回复"
@@ -190,6 +200,7 @@ public class ToolCallProcessor {
             return Optional.empty();
         }
         if (!runState.markToolCallAttempted(signature(requestedToolCall))) {
+            runState.markTerminationReason(AgentTerminationReason.DUPLICATE_TOOL_CALL);
             recordProtocolFailure(
                     context,
                     runState,
@@ -270,7 +281,8 @@ public class ToolCallProcessor {
         }
         return AgentResultFactory.fromRunState(
                 runState,
-                "这个请求包含多个并行写操作。为避免误操作，本轮没有执行任何一项；请一次只处理一个写操作。"
+                "这个请求包含多个并行写操作。为避免误操作，本轮没有执行任何一项；请一次只处理一个写操作。",
+                AgentTerminationReason.BLOCKED
         );
     }
 

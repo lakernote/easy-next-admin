@@ -53,21 +53,25 @@ public class AssistantAgentMetrics {
                 .record(call.durationMs(), TimeUnit.MILLISECONDS);
     }
 
-    public void recordTurn(String decision, String status, AssistantRunTrace trace) {
+    public void recordTurn(String decision,
+                           String terminationReason,
+                           String status,
+                           AssistantRunTrace trace) {
         AssistantTokenUsage usage = trace == null ? AssistantTokenUsage.ZERO : trace.tokenUsage();
         Timer.builder(TURN_TIMER)
                 .description("企业 Agent 单轮请求耗时")
                 .tag("decision", tagValue(decision).toLowerCase())
+                .tag("termination", tagValue(terminationReason).toLowerCase())
                 .tag("result", tagValue(status).toLowerCase())
                 .publishPercentiles(PERCENTILES)
                 .publishPercentileHistogram()
                 .register(meterRegistry)
                 .record(trace == null ? 0 : trace.totalDurationMs(), TimeUnit.MILLISECONDS);
-        recordTurnTokens(decision, status, "prompt", usage.promptTokens());
-        recordTurnTokens(decision, status, "completion", usage.completionTokens());
-        recordTurnTokens(decision, status, "total", usage.totalTokens());
-        recordTurnTokens(decision, status, "cached_prompt", usage.cachedPromptTokens());
-        recordTurnTokens(decision, status, "reasoning", usage.reasoningTokens());
+        recordTurnTokens(decision, terminationReason, status, "prompt", usage.promptTokens());
+        recordTurnTokens(decision, terminationReason, status, "completion", usage.completionTokens());
+        recordTurnTokens(decision, terminationReason, status, "total", usage.totalTokens());
+        recordTurnTokens(decision, terminationReason, status, "cached_prompt", usage.cachedPromptTokens());
+        recordTurnTokens(decision, terminationReason, status, "reasoning", usage.reasoningTokens());
     }
 
     private void recordModelPhase(AssistantModelCallRecord call, String phase, long durationMs) {
@@ -97,11 +101,16 @@ public class AssistantAgentMetrics {
                 .record(Math.max(0, tokens));
     }
 
-    private void recordTurnTokens(String decision, String status, String type, int tokens) {
+    private void recordTurnTokens(String decision,
+                                  String terminationReason,
+                                  String status,
+                                  String type,
+                                  int tokens) {
         DistributionSummary.builder(TURN_TOKEN_DISTRIBUTION)
                 .description("企业 Agent 单轮总 Token 分布")
                 .baseUnit("tokens")
                 .tag("decision", tagValue(decision).toLowerCase())
+                .tag("termination", tagValue(terminationReason).toLowerCase())
                 .tag("result", tagValue(status).toLowerCase())
                 .tag("type", type)
                 .publishPercentiles(PERCENTILES)

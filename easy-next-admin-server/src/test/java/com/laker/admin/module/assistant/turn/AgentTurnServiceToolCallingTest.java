@@ -5,12 +5,14 @@ import com.laker.admin.module.assistant.context.AssistantRequestContext;
 import com.laker.admin.module.assistant.dto.AssistantEntryResponse;
 import com.laker.admin.module.assistant.dto.AssistantMessageRequest;
 import com.laker.admin.module.assistant.dto.AssistantAgentLifecycleEvent;
+import com.laker.admin.module.assistant.dto.AssistantAgentLifecycleEventType;
 import com.laker.admin.module.assistant.tool.execution.ToolExecutionStatus;
 import com.laker.admin.module.assistant.tool.execution.ToolExecutionPlan;
 import com.laker.admin.module.assistant.runtime.AgentLoop;
 import com.laker.admin.module.assistant.runtime.AgentLoopListener;
 import com.laker.admin.module.assistant.runtime.ToolSetBuilder;
 import com.laker.admin.module.assistant.runtime.AgentResult;
+import com.laker.admin.module.assistant.runtime.AgentTerminationReason;
 import com.laker.admin.module.assistant.state.AssistantChatMemory;
 import com.laker.admin.module.assistant.state.AssistantConversationState;
 import com.laker.admin.module.assistant.state.AssistantConversationStateStore;
@@ -75,7 +77,7 @@ class AgentTurnServiceToolCallingTest {
         assertThatThrownBy(() -> agentTurnService.run(
                 new AssistantMessageRequest(context.normalizedMessage(), context.conversationId()),
                 event -> {
-                    if ("conversation_turn_acquired".equals(event.event())) {
+                    if (event.event() == AssistantAgentLifecycleEventType.CONVERSATION_TURN_ACQUIRED) {
                         throw new AssertionError("模拟租约建立后的非普通观察者故障");
                     }
                 }
@@ -131,7 +133,13 @@ class AgentTurnServiceToolCallingTest {
                     listener.onArgumentsValidated(resolution);
                     listener.onToolFinished(result);
                     return new AgentResult(
-                            plan, result, result.summary(), 1, 1, List.of(definition.name()),
+                            plan,
+                            result,
+                            result.summary(),
+                            AgentTerminationReason.FINAL_RESPONSE,
+                            1,
+                            1,
+                            List.of(definition.name()),
                             AssistantPendingActionUpdate.unchanged()
                     );
                 });
@@ -160,13 +168,14 @@ class AgentTurnServiceToolCallingTest {
                 new AssistantMessageRequest(context.normalizedMessage(), context.conversationId()),
                 event -> {
                     events.add(event);
-                    if ("tool_arguments_ready".equals(event.event())) {
+                    if (event.event() == AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_READY) {
                         throw new IllegalStateException("断开的 SSE 观察者不应打断业务 Turn");
                     }
                 }
         );
 
         assertThat(response.reply()).isEqualTo("找到 1 个待办");
+        assertThat(response.terminationReason()).isEqualTo("FINAL_RESPONSE");
         assertThat(response.trace().steps()).extracting(AssistantEntryResponse.AssistantTraceStepSnapshot::name)
                 .containsExactly(
                         "context_build",
@@ -178,16 +187,16 @@ class AgentTurnServiceToolCallingTest {
                 );
         assertThat(events).extracting(AssistantAgentLifecycleEvent::event)
                 .containsSubsequence(
-                        "conversation_turn_acquired",
-                        "tool_visibility_ready",
-                        "tool_selection_ready",
-                        "tool_arguments_ready",
-                        "tool_arguments_validated",
-                        "tool_finished",
-                        "decision_ready",
-                        "conversation_state_written",
-                        "response_ready",
-                        "done"
+                        AssistantAgentLifecycleEventType.CONVERSATION_TURN_ACQUIRED,
+                        AssistantAgentLifecycleEventType.TOOL_VISIBILITY_READY,
+                        AssistantAgentLifecycleEventType.TOOL_SELECTION_READY,
+                        AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_READY,
+                        AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_VALIDATED,
+                        AssistantAgentLifecycleEventType.TOOL_FINISHED,
+                        AssistantAgentLifecycleEventType.DECISION_READY,
+                        AssistantAgentLifecycleEventType.CONVERSATION_STATE_WRITTEN,
+                        AssistantAgentLifecycleEventType.RESPONSE_READY,
+                        AssistantAgentLifecycleEventType.DONE
                 );
         verify(stateWriter).writeTurn(
                 eq(context), eq(state), eq(AssistantPendingActionUpdate.unchanged()),
@@ -245,6 +254,7 @@ class AgentTurnServiceToolCallingTest {
                 plan,
                 result,
                 result.summary(),
+                AgentTerminationReason.BLOCKED,
                 1,
                 1,
                 List.of(ToolSetBuilder.CONFIRM_PENDING_ACTION),
@@ -304,7 +314,12 @@ class AgentTurnServiceToolCallingTest {
         when(visibilityPolicy.selectVisibleTools(context)).thenReturn(visibility);
         when(agentLoop.run(eq(context), eq(state), eq(visibility.tools()), any(AgentLoopListener.class)))
                 .thenReturn(new AgentResult(
-                plan, result, result.summary(), 2, 1,
+                plan,
+                result,
+                result.summary(),
+                AgentTerminationReason.FINAL_RESPONSE,
+                2,
+                1,
                 List.of(ToolSetBuilder.CONFIRM_PENDING_ACTION),
                 AssistantPendingActionUpdate.unchanged()
         ));

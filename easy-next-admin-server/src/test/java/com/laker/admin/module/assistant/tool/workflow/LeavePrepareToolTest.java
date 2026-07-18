@@ -32,12 +32,18 @@ class LeavePrepareToolTest {
         assertThat(tool.definition().description())
                 .contains("用于", "不用于")
                 .contains("仅填写用户明确提供的假别、起止时间和原因")
+                .contains("假别必须在用户原文中出现")
                 .contains("缺失字段省略");
+        assertThat(tool.definition().inputSchema())
+                .filteredOn(field -> field.name().equals("leaveType"))
+                .singleElement()
+                .satisfies(field -> assertThat(field.description())
+                        .contains("用户原文明确出现", "未说明则省略"));
         assertThat(tool.definition().inputSchema())
                 .filteredOn(field -> field.name().equals("reason"))
                 .singleElement()
                 .satisfies(field -> assertThat(field.description())
-                        .contains("未说明则省略", "不能从假别或时间推断"));
+                        .contains("未说明则省略", "整句请假目标推断"));
     }
 
     @Test

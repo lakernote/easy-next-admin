@@ -3,6 +3,8 @@ package com.laker.admin.module.assistant.stream;
 import com.laker.admin.module.assistant.dto.AssistantChatStreamEvent;
 import com.laker.admin.module.assistant.dto.AssistantEntryResponse;
 import com.laker.admin.module.assistant.dto.AssistantAgentLifecycleEvent;
+import com.laker.admin.module.assistant.dto.AssistantAgentLifecycleEventType;
+import com.laker.admin.module.assistant.dto.AssistantAgentLifecyclePhase;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -20,14 +22,18 @@ class AssistantUserStreamEventAdapterTest {
         List<AssistantChatStreamEvent> events = new ArrayList<>();
         AssistantUserStreamEventAdapter adapter = new AssistantUserStreamEventAdapter(events::add);
 
-        adapter.accept(internal("context_built", Map.of("prompt", "secret")));
-        adapter.accept(internal("conversation_state_loaded", Map.of("pendingArguments", "secret")));
-        adapter.accept(internal("model_call_started", Map.of("messages", "secret")));
-        adapter.accept(internal("model_call_finished", Map.of("response", "secret")));
-        adapter.accept(internal("tool_selection_ready", Map.of("toolArguments", "secret")));
-        adapter.accept(internal("tool_arguments_ready", Map.of("toolArguments", "secret")));
-        adapter.accept(internal("tool_finished", Map.of("toolResult", "secret")));
-        adapter.accept(internal("conversation_state_written", Map.of("trace", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.CONTEXT_BUILT, Map.of("prompt", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.CONVERSATION_STATE_LOADED,
+                Map.of("pendingArguments", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.MODEL_CALL_STARTED, Map.of("messages", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.MODEL_CALL_FINISHED, Map.of("response", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.TOOL_SELECTION_READY,
+                Map.of("toolArguments", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_READY,
+                Map.of("toolArguments", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.TOOL_FINISHED, Map.of("toolResult", "secret")));
+        adapter.accept(internal(AssistantAgentLifecycleEventType.CONVERSATION_STATE_WRITTEN,
+                Map.of("trace", "secret")));
 
         assertThat(events).extracting(AssistantChatStreamEvent::step)
                 .containsExactly(
@@ -63,7 +69,14 @@ class AssistantUserStreamEventAdapterTest {
         when(response.plan()).thenReturn(plan);
         when(plan.status()).thenReturn("READY");
 
-        adapter.accept(new AssistantAgentLifecycleEvent("done", "DONE", "run-1", "trace-secret", null, response));
+        adapter.accept(new AssistantAgentLifecycleEvent(
+                AssistantAgentLifecycleEventType.DONE,
+                AssistantAgentLifecyclePhase.DONE,
+                "run-1",
+                "trace-secret",
+                null,
+                response
+        ));
 
         assertThat(events).hasSize(1);
         AssistantChatStreamEvent done = events.get(0);
@@ -73,7 +86,14 @@ class AssistantUserStreamEventAdapterTest {
         assertThat(done.toString()).doesNotContain("trace-secret");
     }
 
-    private static AssistantAgentLifecycleEvent internal(String event, Object payload) {
-        return new AssistantAgentLifecycleEvent(event, "RUNNING", "run-1", "trace-secret", null, payload);
+    private static AssistantAgentLifecycleEvent internal(AssistantAgentLifecycleEventType event, Object payload) {
+        return new AssistantAgentLifecycleEvent(
+                event,
+                AssistantAgentLifecyclePhase.RUNNING,
+                "run-1",
+                "trace-secret",
+                null,
+                payload
+        );
     }
 }

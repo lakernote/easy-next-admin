@@ -106,9 +106,12 @@ public class AssistantRunTraceRecorder {
         }
     }
 
-    public void recordTurn(String decision, String status, AssistantRunTrace trace) {
+    public void recordTurn(String decision,
+                           String terminationReason,
+                           String status,
+                           AssistantRunTrace trace) {
         if (metrics != null) {
-            metrics.recordTurn(decision, status, trace);
+            metrics.recordTurn(decision, terminationReason, status, trace);
         }
     }
 

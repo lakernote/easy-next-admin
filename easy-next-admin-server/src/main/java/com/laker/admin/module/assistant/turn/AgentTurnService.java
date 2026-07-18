@@ -105,6 +105,7 @@ public class AgentTurnService {
         AssistantRunTrace.Builder traceBuilder = AssistantRunTrace.builder(System.nanoTime());
         traceRecorder.reset();
         String runStatus = "UNKNOWN";
+        String terminationReason = "UNKNOWN";
         boolean turnMetricRecorded = false;
         try {
             AssistantRequestContext context = traceStep(
@@ -201,6 +202,7 @@ public class AgentTurnService {
                                         "plan", planMetadata(result.plan()),
                                         "toolResult", toolResultMetadata(result.toolResult()),
                                         "replyLength", result.reply() == null ? 0 : result.reply().length(),
+                                        "terminationReason", result.terminationReason(),
                                         "modelCallCount", result.modelCallCount(),
                                         "toolCallCount", result.toolCallCount(),
                                         "calledToolNames", result.executedToolNames()
@@ -216,6 +218,7 @@ public class AgentTurnService {
 
                 ToolExecutionPlan plan = runResult.plan();
                 runStatus = plan.status().name();
+                terminationReason = runResult.terminationReason().name();
                 AssistantToolResult toolResult = runResult.toolResult();
                 emit(eventObserver, AssistantAgentLifecycleEvent.decisionReady(context, plan, traceBuilder.lastStep()));
                 emit(eventObserver, AssistantAgentLifecycleEvent.planReady(context, plan, traceBuilder.lastStep()));
@@ -248,15 +251,27 @@ public class AgentTurnService {
                 emit(eventObserver, AssistantAgentLifecycleEvent.responseReady(context, reply, agentRunStep));
                 trace = traceBuilder.build(System.nanoTime());
                 response = AssistantEntryResponse.turnReady(
-                        context, toolVisibilityPlan, plan, toolResult, reply, trace);
+                        context,
+                        toolVisibilityPlan,
+                        plan,
+                        toolResult,
+                        reply,
+                        runResult.terminationReason(),
+                        trace
+                );
             }
-            traceRecorder.recordTurn(runStatus, "OK", trace);
+            traceRecorder.recordTurn(runStatus, terminationReason, "OK", trace);
             turnMetricRecorded = true;
             emit(eventObserver, AssistantAgentLifecycleEvent.done(response));
             return response;
         } catch (RuntimeException ex) {
             if (!turnMetricRecorded) {
-                traceRecorder.recordTurn(runStatus, "FAILED", traceBuilder.build(System.nanoTime()));
+                traceRecorder.recordTurn(
+                        runStatus,
+                        terminationReason,
+                        "FAILED",
+                        traceBuilder.build(System.nanoTime())
+                );
             }
             throw ex;
         } finally {

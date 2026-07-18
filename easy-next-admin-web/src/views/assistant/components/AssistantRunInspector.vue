@@ -7,6 +7,7 @@
         <p>{{ inspection.summary }}</p>
       </div>
       <div class="run-verdict-tags">
+        <el-tag :type="inspection.tone" effect="plain">{{ terminationLabel(result.terminationReason) }}</el-tag>
         <el-tag :type="inspection.tone" effect="dark">{{ decisionLabel(result.plan.status) }}</el-tag>
         <el-tag v-if="result.plan.toolName" effect="plain">
           {{ result.plan.toolName }}
@@ -192,7 +193,7 @@
 import { computed, ref } from 'vue'
 import { DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { decisionLabel, inspectAssistantRun } from '@/features/assistant/inspector'
+import { decisionLabel, inspectAssistantRun, terminationLabel } from '@/features/assistant/inspector'
 import type { AssistantEntryResponse } from '@/features/assistant/types'
 import AssistantStepExplorer from './AssistantStepExplorer.vue'
 

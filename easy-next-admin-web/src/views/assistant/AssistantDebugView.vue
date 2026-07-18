@@ -100,6 +100,7 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Promotion, Refresh } from '@element-plus/icons-vue'
 import { runAssistantDebugTurn } from '@/features/assistant/api'
+import { terminationLabel } from '@/features/assistant/inspector'
 import { DEFAULT_ASSISTANT_SAMPLE } from '@/features/assistant/samples'
 import type { AssistantSample } from '@/features/assistant/samples'
 import type { AssistantEntryResponse } from '@/features/assistant/types'
@@ -115,14 +116,9 @@ const debugConversationId = ref<string | number | null>(null)
 
 const metrics = computed(() => [
   { label: '运行状态', value: lastResult.value?.plan.status || '-' },
+  { label: '终止原因', value: lastResult.value ? terminationLabel(lastResult.value.terminationReason) : '-' },
   { label: '总 Token', value: lastResult.value?.trace.tokenUsage.totalTokens ?? '-' },
-  { label: '总耗时', value: formatDuration(lastResult.value?.trace.latency.totalDurationMs) },
-  {
-    label: '模型 / Tool 调用',
-    value: lastResult.value
-      ? `${lastResult.value.trace.latency.modelCallCount} / ${lastResult.value.trace.latency.toolCallCount}`
-      : '-'
-  }
+  { label: '总耗时', value: formatDuration(lastResult.value?.trace.latency.totalDurationMs) }
 ])
 
 const formattedResponse = computed(() => (lastResult.value ? JSON.stringify(lastResult.value, null, 2) : ''))

@@ -1,6 +1,7 @@
 package com.laker.admin.module.assistant.dto;
 
 import com.laker.admin.module.assistant.context.AssistantRequestContext;
+import com.laker.admin.module.assistant.runtime.AgentTerminationReason;
 import com.laker.admin.module.assistant.tool.execution.ToolExecutionPlan;
 import com.laker.admin.module.assistant.tool.AssistantToolArgument;
 import com.laker.admin.module.assistant.tool.AssistantToolVisibilityPlan;
@@ -30,6 +31,7 @@ public record AssistantEntryResponse(
         Long conversationId,
         String normalizedMessage,
         String reply,
+        String terminationReason,
         AssistantVisibleToolSnapshot tools,
         ToolExecutionPlanSnapshot plan,
         AssistantToolExecutionSnapshot execution,
@@ -43,6 +45,7 @@ public record AssistantEntryResponse(
                                                    ToolExecutionPlan plan,
                                                    AssistantToolResult toolResult,
                                                    String reply,
+                                                   AgentTerminationReason terminationReason,
                                                    AssistantRunTrace trace) {
         return new AssistantEntryResponse(
                 TURN_READY,
@@ -51,6 +54,7 @@ public record AssistantEntryResponse(
                 context.conversationId(),
                 context.normalizedMessage(),
                 reply,
+                terminationReason.name(),
                 AssistantVisibleToolSnapshot.from(toolVisibilityPlan),
                 ToolExecutionPlanSnapshot.from(plan),
                 AssistantToolExecutionSnapshot.from(toolResult),

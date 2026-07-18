@@ -153,6 +153,21 @@ export interface AssistantTimeSnapshot {
   now: string
 }
 
+export type AgentTerminationReason =
+  | 'FINAL_RESPONSE'
+  | 'WAITING_FOR_INPUT'
+  | 'WAITING_FOR_CONFIRMATION'
+  | 'BLOCKED'
+  | 'TOOL_CALL_LIMIT'
+  | 'DUPLICATE_TOOL_CALL'
+  | 'MODEL_CALL_LIMIT'
+  | 'MODEL_ERROR'
+  | 'MODEL_MAX_TOKENS'
+  | 'MODEL_CONTENT_FILTERED'
+  | 'MODEL_REFUSED'
+  | 'MODEL_PAUSED'
+  | 'MODEL_PROTOCOL_ERROR'
+
 export interface AssistantEntryResponse {
   phase: string
   runId: string
@@ -160,6 +175,7 @@ export interface AssistantEntryResponse {
   conversationId?: string | number | null
   normalizedMessage: string
   reply?: string | null
+  terminationReason: AgentTerminationReason
   tools: AssistantVisibleToolSnapshot
   plan: ToolExecutionPlanSnapshot
   execution: AssistantToolExecutionSnapshot

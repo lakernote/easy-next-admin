@@ -125,6 +125,36 @@ class DefaultAssistantToolArgumentValidatorTest {
     }
 
     @Test
+    void shouldRejectInventedLeaveTypeAndRequestRestatementAsReason() {
+        AssistantVisibleTool tool = leaveTool();
+        var context = requestContext("我想今天下午请假");
+        var selection = AssistantToolSelection.selected(tool, List.of(tool), "test");
+        var resolution = new AssistantToolArgumentResolution(
+                tool.name(),
+                List.of(
+                        new AssistantToolArgument("leaveType", "请假类型", "事假", "事假"),
+                        new AssistantToolArgument("startTime", "开始时间", "2026-07-18T13:30", "2026-07-18 13:30"),
+                        new AssistantToolArgument("endTime", "结束时间", "2026-07-18T18:00", "2026-07-18 18:00"),
+                        new AssistantToolArgument("reason", "请假原因", "今天下午请假", "今天下午请假")
+                ),
+                List.of()
+        );
+
+        AssistantToolArgumentResolution validated = new DefaultAssistantToolArgumentValidator(
+                List.of(new LeavePrepareToolArgumentValidationRule())
+        ).validate(context, selection, resolution);
+
+        assertThat(validated.complete()).isFalse();
+        assertThat(validated.argumentMap())
+                .containsKeys("startTime", "endTime")
+                .doesNotContainKeys("leaveType", "reason");
+        assertThat(validated.missingRequiredParameters())
+                .extracting(ToolInputField::name)
+                .containsExactly("leaveType", "reason");
+        assertThat(validated.providedArgumentKeys()).doesNotContain("leaveType", "reason");
+    }
+
+    @Test
     void shouldKeepReasonRestoredFromPendingActionWithoutTreatingItAsCurrentInput() {
         AssistantVisibleTool tool = leaveTool();
         var context = requestContext("确认提交");

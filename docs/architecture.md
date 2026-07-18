@@ -206,6 +206,12 @@ max_tokens / content_filter / refusal` 等结束原因归一化为 `ModelFinishR
 过滤、拒绝和未知非空终态采用 fail-closed。若截断前已经获得真实 Tool observation，则回退到该确定性结果，不丢掉已经完成的工作。
 循环预算在启动期校验，并在 Runtime 再次夹紧，避免错误配置形成无界循环。
 
+Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止，它不复用 `ToolExecutionStatus` 或
+`AssistantToolRunStatus`。正常最终回复、等待补参、等待确认、安全策略阻止、重复 Tool Call、模型/Tool
+调用预算耗尽，以及模型错误、截断、过滤、拒绝、暂停和协议异常都有明确枚举。这样一个已经成功执行 Tool、
+但在最终合成阶段遇到模型异常的回合，可以同时表达“Tool 结果已保留”和“Agent 因模型错误停止”，不会被一个
+笼统的 `BLOCKED` 覆盖。终止原因进入同步调试响应、Agent Run Trace 和低基数指标；普通用户仍只接收精简状态。
+
 模型选中 Tool 后，Runtime 直接使用标准 `ToolDefinition.name` 记录工具身份，不存在固定 Intent 枚举或 Route，也不再维护一份重复的
 `capabilities` 能力字符串。模型的选择语义只来自 `description` 和 `inputSchema`；`subjectScope` 则向 Runtime 明确声明
 `NONE / CURRENT_USER / AUTHORIZED_TARGET`，不让它用“参数是否为空”猜测 Tool 实际查询谁。新增业务能力只需增加 Tool。Pending Action 的补字段由原业务 Tool 继续完成；明确确认和取消由仅在存在待处理动作时动态暴露的内部控制 Tool 完成，
@@ -262,6 +268,8 @@ max_tokens / content_filter / refusal` 等结束原因归一化为 `ModelFinishR
   锁键使用固定长度摘要兼容 Redis 和 MySQL 降级实现，租约获取后立即进入 try-with-resources，并覆盖 State Load 到 State Write；租约自动续期，释放异常只记录日志，不能覆盖已经完成的业务结果。锁后端异常采用 fail-closed，不能降级成无锁执行；该锁只保护 Agent 会话状态，业务 Tool 仍必须保留事务、幂等和自己的并发校验。
 - 模型调用开始/结束、Tool 选择、参数解析、参数校验和每次 Tool 完成事件由 `AgentLoopListener` 在 AgentLoop 内真实阶段发出，
   不在 AgentLoop 结束后从最终 Plan 反推伪造中间状态。观察者仅用于诊断，SSE 断开或任意观察者异常都会被隔离。
+  内部事件使用 `AssistantAgentLifecycleEventType` 和 `AssistantAgentLifecyclePhase` 枚举；Trace、SSE 适配和测试直接匹配
+  类型，不维护生命周期事件字符串。普通用户 SSE 仍由单向适配器映射成安全的 `progress/done/error` 消息。
 - Pending Action 的确认或取消只作用于服务端保存的原动作；新话题仍可选择其他有权限 Tool，不会被旧动作锁死。
 
 当前内置 Tool 数量较少，因此把全部有权限的 Tool Schema 交给模型，避免词面召回误删正确能力。企业 Tool 数量超过上下文预算后，

@@ -19,6 +19,7 @@ describe('inspectAssistantRun', () => {
   it('treats missing parameters as a normal clarification state', () => {
     const source = result()
     source.plan.status = 'INPUT_REQUIRED'
+    source.terminationReason = 'WAITING_FOR_INPUT'
     source.plan.missingParameters = [{
       key: 'reason',
       label: '请假原因',
@@ -34,6 +35,19 @@ describe('inspectAssistantRun', () => {
     expect(inspection.title).toBe('等待用户补充信息')
     expect(inspection.tone).toBe('warning')
     expect(inspection.observations.join('')).toContain('这是正常澄清，不是模型故障')
+  })
+
+  it('separates agent termination from a preserved tool result', () => {
+    const source = result()
+    source.terminationReason = 'MODEL_ERROR'
+
+    const inspection = inspectAssistantRun(source)
+
+    expect(inspection.title).toBe('已保留真实结果并安全停止')
+    expect(inspection.tone).toBe('warning')
+    expect(inspection.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '终止原因', value: '模型调用异常' })
+    ]))
   })
 
 })
@@ -53,6 +67,7 @@ function result(): AssistantEntryResponse {
     conversationId: 1,
     normalizedMessage: '我有哪些待办',
     reply: '找到 1 个待办',
+    terminationReason: 'FINAL_RESPONSE',
     tools: {
       toolNames: ['workflow.task.list_my_pending'],
       toolCount: 1,

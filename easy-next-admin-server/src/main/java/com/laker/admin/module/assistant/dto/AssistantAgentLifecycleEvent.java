@@ -24,19 +24,16 @@ import java.util.Map;
  * API key、Authorization、权限列表、IP 等敏感上下文不进入该结构。</p>
  */
 public record AssistantAgentLifecycleEvent(
-        String event,
-        String phase,
+        AssistantAgentLifecycleEventType event,
+        AssistantAgentLifecyclePhase phase,
         String runId,
         String traceId,
         AssistantEntryResponse.AssistantTraceStepSnapshot step,
         Object payload
 ) {
-    private static final String RUNNING = "RUNNING";
-    private static final String DONE = "DONE";
-
     public static AssistantAgentLifecycleEvent contextBuilt(AssistantRequestContext context,
                                                     AssistantRunTrace.AssistantTraceStep step) {
-        return event("context_built", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.CONTEXT_BUILT, context, step, Map.of(
                 "conversationId", context.conversationId() == null ? "" : context.conversationId(),
                 "normalizedMessage", context.normalizedMessage(),
                 "time", new AssistantEntryResponse.AssistantTimeSnapshot(
@@ -50,7 +47,7 @@ public record AssistantAgentLifecycleEvent(
 
     public static AssistantAgentLifecycleEvent conversationTurnAcquired(AssistantRequestContext context,
                                                                  AssistantRunTrace.AssistantTraceStep step) {
-        return event("conversation_turn_acquired", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.CONVERSATION_TURN_ACQUIRED, context, step, Map.of(
                 "conversationId", context.conversationId() == null ? "" : context.conversationId(),
                 "acquired", true
         ));
@@ -61,7 +58,7 @@ public record AssistantAgentLifecycleEvent(
                                                                AssistantRunTrace.AssistantTraceStep step) {
         AssistantPendingAction pendingAction = conversationState == null ? null : conversationState.pendingAction();
         if (pendingAction == null) {
-            return event("conversation_state_loaded", context, step, Map.of(
+            return event(AssistantAgentLifecycleEventType.CONVERSATION_STATE_LOADED, context, step, Map.of(
                     "version", conversationState == null ? 0 : conversationState.version(),
                     "chatMemory", chatMemoryPayload(conversationState == null ? null : conversationState.chatMemory()),
                     "pendingState", Map.of(
@@ -71,7 +68,7 @@ public record AssistantAgentLifecycleEvent(
                     "lastResult", lastResultPayload(conversationState == null ? null : conversationState.lastResult())
             ));
         }
-        return event("conversation_state_loaded", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.CONVERSATION_STATE_LOADED, context, step, Map.of(
                 "version", conversationState.version(),
                 "chatMemory", chatMemoryPayload(conversationState.chatMemory()),
                 "pendingState", Map.ofEntries(
@@ -97,7 +94,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent decisionReady(AssistantRequestContext context,
                                                      ToolExecutionPlan plan,
                                                      AssistantRunTrace.AssistantTraceStep step) {
-        return event("decision_ready", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.DECISION_READY, context, step, Map.of(
                 "status", plan.status().name(),
                 "toolName", text(plan.toolName()),
                 "reason", text(plan.reason()),
@@ -109,7 +106,7 @@ public record AssistantAgentLifecycleEvent(
                                                            AssistantToolVisibilityPlan plan,
                                                            AssistantRunTrace.AssistantTraceStep step) {
         return event(
-                "tool_visibility_ready",
+                AssistantAgentLifecycleEventType.TOOL_VISIBILITY_READY,
                 context,
                 step,
                 AssistantEntryResponse.AssistantVisibleToolSnapshot.from(plan)
@@ -119,7 +116,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent modelCallStarted(AssistantRequestContext context,
                                                                 int step,
                                                                 ToolCallingRequest request) {
-        return event("model_call_started", context, null, Map.of(
+        return event(AssistantAgentLifecycleEventType.MODEL_CALL_STARTED, context, null, Map.of(
                 "step", step,
                 "operationName", request.operationName(),
                 "messageCount", request.messages().size(),
@@ -130,7 +127,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent modelCallFinished(AssistantRequestContext context,
                                                                  int step,
                                                                  ToolCallingResponse response) {
-        return event("model_call_finished", context, null, Map.of(
+        return event(AssistantAgentLifecycleEventType.MODEL_CALL_FINISHED, context, null, Map.of(
                 "step", step,
                 "hasToolCalls", response.hasToolCalls(),
                 "toolCallCount", response.toolCalls().size(),
@@ -142,7 +139,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent toolSelectionReady(AssistantRequestContext context,
                                                           AssistantToolSelection selection,
                                                           AssistantRunTrace.AssistantTraceStep step) {
-        return event("tool_selection_ready", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.TOOL_SELECTION_READY, context, step, Map.of(
                 "toolName", selection.toolName() == null ? "" : selection.toolName(),
                 "availableToolNames", selection.availableTools().stream()
                         .map(tool -> tool.name())
@@ -155,7 +152,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent toolArgumentsReady(AssistantRequestContext context,
                                                           AssistantToolArgumentResolution resolution,
                                                           AssistantRunTrace.AssistantTraceStep step) {
-        return event("tool_arguments_ready", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_READY, context, step, Map.of(
                 "toolName", resolution.toolName() == null ? "" : resolution.toolName(),
                 "complete", resolution.complete(),
                 "filledArguments", resolution.arguments().stream()
@@ -170,7 +167,7 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent toolArgumentsValidated(AssistantRequestContext context,
                                                               AssistantToolArgumentResolution resolution,
                                                               AssistantRunTrace.AssistantTraceStep step) {
-        return event("tool_arguments_validated", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.TOOL_ARGUMENTS_VALIDATED, context, step, Map.of(
                 "toolName", resolution.toolName() == null ? "" : resolution.toolName(),
                 "complete", resolution.complete(),
                 "filledArguments", resolution.arguments().stream()
@@ -185,24 +182,27 @@ public record AssistantAgentLifecycleEvent(
     public static AssistantAgentLifecycleEvent planReady(AssistantRequestContext context,
                                                  ToolExecutionPlan plan,
                                                  AssistantRunTrace.AssistantTraceStep step) {
-        return event("plan_ready", context, step, AssistantEntryResponse.ToolExecutionPlanSnapshot.from(plan));
+        return event(AssistantAgentLifecycleEventType.PLAN_READY, context, step,
+                AssistantEntryResponse.ToolExecutionPlanSnapshot.from(plan));
     }
 
     public static AssistantAgentLifecycleEvent toolFinished(AssistantRequestContext context,
                                                     AssistantToolResult result,
                                                     AssistantRunTrace.AssistantTraceStep step) {
-        return event("tool_finished", context, step, AssistantEntryResponse.AssistantToolExecutionSnapshot.from(result));
+        return event(AssistantAgentLifecycleEventType.TOOL_FINISHED, context, step,
+                AssistantEntryResponse.AssistantToolExecutionSnapshot.from(result));
     }
 
     public static AssistantAgentLifecycleEvent responseReady(AssistantRequestContext context,
                                                      String reply,
                                                      AssistantRunTrace.AssistantTraceStep step) {
-        return event("response_ready", context, step, Map.of("reply", reply == null ? "" : reply));
+        return event(AssistantAgentLifecycleEventType.RESPONSE_READY, context, step,
+                Map.of("reply", reply == null ? "" : reply));
     }
 
     public static AssistantAgentLifecycleEvent conversationStateWritten(AssistantRequestContext context,
                                                                  AssistantRunTrace.AssistantTraceStep step) {
-        return event("conversation_state_written", context, step, Map.of(
+        return event(AssistantAgentLifecycleEventType.CONVERSATION_STATE_WRITTEN, context, step, Map.of(
                 "conversationId", context.conversationId() == null ? "" : context.conversationId(),
                 "written", true
         ));
@@ -210,8 +210,8 @@ public record AssistantAgentLifecycleEvent(
 
     public static AssistantAgentLifecycleEvent done(AssistantEntryResponse response) {
         return new AssistantAgentLifecycleEvent(
-                "done",
-                DONE,
+                AssistantAgentLifecycleEventType.DONE,
+                AssistantAgentLifecyclePhase.DONE,
                 response.runId(),
                 response.traceId(),
                 null,
@@ -221,8 +221,8 @@ public record AssistantAgentLifecycleEvent(
 
     public static AssistantAgentLifecycleEvent failed(String runId, String traceId, String message) {
         return new AssistantAgentLifecycleEvent(
-                "error",
-                "FAILED",
+                AssistantAgentLifecycleEventType.ERROR,
+                AssistantAgentLifecyclePhase.FAILED,
                 runId,
                 traceId,
                 null,
@@ -230,25 +230,8 @@ public record AssistantAgentLifecycleEvent(
         );
     }
 
-    public static List<String> eventNames() {
-        return List.of(
-                "context_built",
-                "conversation_turn_acquired",
-                "conversation_state_loaded",
-                "tool_visibility_ready",
-                "model_call_started",
-                "model_call_finished",
-                "decision_ready",
-                "tool_selection_ready",
-                "tool_arguments_ready",
-                "tool_arguments_validated",
-                "plan_ready",
-                "tool_finished",
-                "conversation_state_written",
-                "response_ready",
-                "done",
-                "error"
-        );
+    public static List<AssistantAgentLifecycleEventType> eventTypes() {
+        return List.of(AssistantAgentLifecycleEventType.values());
     }
 
     private static String text(String value) {
@@ -280,13 +263,13 @@ public record AssistantAgentLifecycleEvent(
         );
     }
 
-    private static AssistantAgentLifecycleEvent event(String event,
+    private static AssistantAgentLifecycleEvent event(AssistantAgentLifecycleEventType event,
                                               AssistantRequestContext context,
                                               AssistantRunTrace.AssistantTraceStep step,
                                               Object payload) {
         return new AssistantAgentLifecycleEvent(
                 event,
-                RUNNING,
+                AssistantAgentLifecyclePhase.RUNNING,
                 context.runId(),
                 context.traceId(),
                 step == null ? null : AssistantEntryResponse.AssistantTraceStepSnapshot.from(step),

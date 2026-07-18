@@ -28,11 +28,14 @@ final class AgentResultFactory {
     private AgentResultFactory() {
     }
 
-    static AgentResult fromRunState(AgentLoopState runState, String reply) {
+    static AgentResult fromRunState(AgentLoopState runState,
+                                    String reply,
+                                    AgentTerminationReason terminationReason) {
         return create(
                 runState.currentPlan(),
                 runState.toolResults(),
                 reply,
+                terminationReason,
                 runState.modelCallCount(),
                 runState.toolCallCount(),
                 runState.executedToolNames(),
@@ -50,20 +53,33 @@ final class AgentResultFactory {
         if (plan == null) {
             runState.updateCurrentPlan(directResponsePlan(context));
         }
-        return fromRunState(runState, reply);
+        return fromRunState(runState, reply, runState.finalResponseTerminationReason());
     }
 
-    static AgentResult fallback(AgentLoopState runState) {
+    static AgentResult waitingForUser(AgentLoopState runState) {
+        AgentTerminationReason terminationReason = runState.currentPlan() != null
+                && runState.currentPlan().status() == ToolExecutionStatus.APPROVAL_REQUIRED
+                ? AgentTerminationReason.WAITING_FOR_CONFIRMATION
+                : AgentTerminationReason.WAITING_FOR_INPUT;
         return fromRunState(
                 runState,
-                fallbackReply(runState.currentPlan(), aggregateToolResults(runState.toolResults()))
+                fallbackReply(runState.currentPlan(), aggregateToolResults(runState.toolResults())),
+                terminationReason
+        );
+    }
+
+    static AgentResult fallback(AgentLoopState runState, AgentTerminationReason terminationReason) {
+        return fromRunState(
+                runState,
+                fallbackReply(runState.currentPlan(), aggregateToolResults(runState.toolResults())),
+                terminationReason
         );
     }
 
     static AgentResult modelFailure(AssistantRequestContext context,
                                     AgentLoopState runState) {
         if (runState.currentPlan() != null) {
-            return fallback(runState);
+            return fallback(runState, AgentTerminationReason.MODEL_ERROR);
         }
         return modelUnavailable(
                 context,
@@ -76,8 +92,9 @@ final class AgentResultFactory {
     static AgentResult abnormalFinish(AssistantRequestContext context,
                                       AgentLoopState runState,
                                       ModelFinishReason finishReason) {
+        AgentTerminationReason terminationReason = terminationReason(finishReason);
         if (runState.currentPlan() != null) {
-            return fallback(runState);
+            return fallback(runState, terminationReason);
         }
         String evidence = switch (finishReason) {
             case MAX_TOKENS -> "model.response.truncated";
@@ -99,12 +116,26 @@ final class AgentResultFactory {
         String reply = finishReason == ModelFinishReason.MAX_TOKENS
                 ? "模型回复因长度限制未完整生成，请缩短问题后重试。"
                 : "模型未能可靠完成本次回复，请调整问题或稍后重试。";
-        return fromRunState(runState, reply);
+        return fromRunState(runState, reply, terminationReason);
+    }
+
+    static AgentResult modelCallLimit(AssistantRequestContext context,
+                                      AgentLoopState runState) {
+        if (runState.currentPlan() == null) {
+            runState.updateCurrentPlan(blockedPlan(
+                    context,
+                    null,
+                    "模型调用达到本轮安全预算",
+                    "model.call_limit"
+            ));
+        }
+        return fallback(runState, AgentTerminationReason.MODEL_CALL_LIMIT);
     }
 
     static AgentResult create(ToolExecutionPlan plan,
                               List<AssistantToolResult> toolResults,
                               String reply,
+                              AgentTerminationReason terminationReason,
                               int modelCallCount,
                               int toolCallCount,
                               List<String> executedToolNames,
@@ -113,6 +144,7 @@ final class AgentResultFactory {
                 completeFinalResponseStep(plan, reply),
                 aggregateToolResults(toolResults),
                 reply,
+                terminationReason,
                 modelCallCount,
                 toolCallCount,
                 executedToolNames,
@@ -139,6 +171,7 @@ final class AgentResultFactory {
                 plan,
                 AssistantToolResult.skipped("Tool Calling 模型当前不可用"),
                 "暂时无法完成可靠回复，请稍后重试。",
+                AgentTerminationReason.MODEL_ERROR,
                 modelCalls,
                 toolCalls,
                 calledToolNames,
@@ -175,6 +208,17 @@ final class AgentResultFactory {
                 List.of(evidence),
                 reason
         );
+    }
+
+    private static AgentTerminationReason terminationReason(ModelFinishReason finishReason) {
+        return switch (finishReason) {
+            case MAX_TOKENS -> AgentTerminationReason.MODEL_MAX_TOKENS;
+            case CONTENT_FILTER -> AgentTerminationReason.MODEL_CONTENT_FILTERED;
+            case REFUSAL -> AgentTerminationReason.MODEL_REFUSED;
+            case PAUSED -> AgentTerminationReason.MODEL_PAUSED;
+            case ERROR -> AgentTerminationReason.MODEL_ERROR;
+            case UNKNOWN, STOP, TOOL_CALLS, UNSPECIFIED -> AgentTerminationReason.MODEL_PROTOCOL_ERROR;
+        };
     }
 
     static AssistantToolResult aggregateToolResults(List<AssistantToolResult> results) {

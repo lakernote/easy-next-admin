@@ -151,8 +151,17 @@ public class AgentLoop {
                 ));
 
                 if (!allowTools) {
+                    AgentTerminationReason terminationReason = step == maxSteps
+                            && !state.activeToolDefinitions().isEmpty()
+                            ? AgentTerminationReason.MODEL_CALL_LIMIT
+                            : AgentTerminationReason.BLOCKED;
                     return toolCallProcessor.rejectCallsWithoutToolSurface(
-                            context, state, requestedToolCalls, safeListener);
+                            context,
+                            state,
+                            requestedToolCalls,
+                            safeListener,
+                            terminationReason
+                    );
                 }
 
                 Optional<AgentResult> waitingForUser = toolCallProcessor.executeRequestedToolCalls(
@@ -173,7 +182,7 @@ public class AgentLoop {
             }
             return AgentResultFactory.finalAnswer(context, state, response.content());
         }
-        return AgentResultFactory.modelFailure(context, state);
+        return AgentResultFactory.modelCallLimit(context, state);
     }
 
     private AgentLoopState start(AssistantRequestContext context,

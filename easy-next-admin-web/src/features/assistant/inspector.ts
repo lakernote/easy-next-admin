@@ -64,6 +64,9 @@ export function inspectAssistantRun(result: AssistantEntryResponse): AssistantRu
   if (!result.plan.toolName) {
     observations.push('本轮未选择企业 Tool；如果问题需要企业数据，应检查可见 Tool 和 description 是否覆盖用户目标。')
   }
+  if (!['FINAL_RESPONSE', 'WAITING_FOR_INPUT', 'WAITING_FOR_CONFIRMATION'].includes(result.terminationReason)) {
+    observations.push(`Agent 因“${terminationLabel(result.terminationReason)}”停止；业务计划状态和 Tool 结果需分开判断。`)
+  }
   if (observations.length === 0) {
     observations.push('未发现明显异常；Tool 选择、执行结果和最终回复已经形成闭环。')
   }
@@ -71,6 +74,12 @@ export function inspectAssistantRun(result: AssistantEntryResponse): AssistantRu
   return {
     ...state,
     checks: [
+      {
+        label: '终止原因',
+        value: terminationLabel(result.terminationReason),
+        detail: '表示 Agent Loop 为什么停止，不代表 Tool 业务执行是否成功。',
+        tone: terminationTone(result.terminationReason)
+      },
       {
         label: '模型决策',
         value: decisionLabel(result.plan.status),
@@ -101,6 +110,22 @@ export function inspectAssistantRun(result: AssistantEntryResponse): AssistantRu
 }
 
 function resolveRunState(result: AssistantEntryResponse, missingLabels: string[]) {
+  const abnormalTermination = ![
+    'FINAL_RESPONSE',
+    'WAITING_FOR_INPUT',
+    'WAITING_FOR_CONFIRMATION'
+  ].includes(result.terminationReason)
+  if (abnormalTermination) {
+    const hasPreservedResult = result.execution.status === 'EXECUTED'
+      || result.execution.status === 'PARTIAL_SUCCESS'
+    return {
+      title: hasPreservedResult ? '已保留真实结果并安全停止' : '本轮提前终止',
+      summary: hasPreservedResult
+        ? `Agent 因“${terminationLabel(result.terminationReason)}”停止，已执行的 Tool 结果仍然保留。`
+        : result.execution.summary || result.plan.reason || '请查看终止原因和第一个失败步骤。',
+      tone: hasPreservedResult ? 'warning' as const : 'danger' as const
+    }
+  }
   if (result.execution.status === 'FAILED' || result.plan.status === 'BLOCKED') {
     return {
       title: '本轮未完成',
@@ -165,4 +190,29 @@ export function decisionLabel(value: string) {
     BLOCKED: '无法安全规划'
   }
   return labels[value] || value
+}
+
+export function terminationLabel(value: string) {
+  const labels: Record<string, string> = {
+    FINAL_RESPONSE: '已生成最终回复',
+    WAITING_FOR_INPUT: '等待用户补充',
+    WAITING_FOR_CONFIRMATION: '等待用户确认',
+    BLOCKED: '安全策略阻止',
+    TOOL_CALL_LIMIT: 'Tool 调用达到预算',
+    DUPLICATE_TOOL_CALL: '检测到重复 Tool 调用',
+    MODEL_CALL_LIMIT: '模型调用达到预算',
+    MODEL_ERROR: '模型调用异常',
+    MODEL_MAX_TOKENS: '模型输出被截断',
+    MODEL_CONTENT_FILTERED: '模型输出被过滤',
+    MODEL_REFUSED: '模型拒绝请求',
+    MODEL_PAUSED: '模型要求暂停',
+    MODEL_PROTOCOL_ERROR: '模型协议响应异常'
+  }
+  return labels[value] || value
+}
+
+function terminationTone(value: string): AssistantInspectionTone {
+  if (value === 'FINAL_RESPONSE') return 'success'
+  if (value === 'WAITING_FOR_INPUT' || value === 'WAITING_FOR_CONFIRMATION') return 'warning'
+  return 'danger'
 }

@@ -20,13 +20,22 @@ class AssistantAgentMetricsTest {
                 AssistantModelCallTiming.synchronous(120, 5, 110, 5),
                 usage
         ));
-        metrics.recordTurn("DIRECT_RESPONSE", "SUCCESS", new AssistantRunTrace(120, usage, java.util.List.of()));
+        metrics.recordTurn(
+                "DIRECT_RESPONSE",
+                "FINAL_RESPONSE",
+                "SUCCESS",
+                new AssistantRunTrace(120, usage, java.util.List.of())
+        );
 
         assertThat(registry.find(AssistantAgentMetrics.MODEL_CALL_TIMER).timers()).hasSize(4);
         assertThat(registry.find(AssistantAgentMetrics.MODEL_TOKEN_DISTRIBUTION).summaries()).hasSize(5);
         assertThat(registry.find(AssistantAgentMetrics.TURN_TOKEN_DISTRIBUTION).summaries()).hasSize(5);
         assertThat(registry.find(AssistantAgentMetrics.MODEL_CALL_TIMER)
                 .tag("phase", "provider_round_trip")
+                .timer()
+                .count()).isEqualTo(1);
+        assertThat(registry.find(AssistantAgentMetrics.TURN_TIMER)
+                .tag("termination", "final_response")
                 .timer()
                 .count()).isEqualTo(1);
     }

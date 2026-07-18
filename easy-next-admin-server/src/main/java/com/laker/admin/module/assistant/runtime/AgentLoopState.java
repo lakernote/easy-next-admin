@@ -32,6 +32,7 @@ final class AgentLoopState {
     private AssistantPendingActionUpdate pendingActionUpdate = AssistantPendingActionUpdate.unchanged();
     private ToolExecutionPlan currentPlan;
     private ToolDefinition lastToolDefinition;
+    private AgentTerminationReason terminationReasonHint;
     private int modelCallCount;
     private int toolCallCount;
     private boolean modelCallRetryAttempted;
@@ -160,6 +161,16 @@ final class AgentLoopState {
 
     void updateCurrentPlan(ToolExecutionPlan plan) {
         this.currentPlan = plan;
+    }
+
+    void markTerminationReason(AgentTerminationReason reason) {
+        this.terminationReasonHint = Objects.requireNonNull(reason, "reason must not be null");
+    }
+
+    AgentTerminationReason finalResponseTerminationReason() {
+        return terminationReasonHint == null
+                ? AgentTerminationReason.FINAL_RESPONSE
+                : terminationReasonHint;
     }
 
     ToolDefinition lastToolDefinition() {

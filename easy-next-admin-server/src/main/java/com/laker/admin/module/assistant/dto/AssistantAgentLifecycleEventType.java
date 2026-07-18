@@ -1,0 +1,21 @@
+package com.laker.admin.module.assistant.dto;
+
+/** Agent Turn 内部可观察的真实生命周期节点。 */
+public enum AssistantAgentLifecycleEventType {
+    CONTEXT_BUILT,
+    CONVERSATION_TURN_ACQUIRED,
+    CONVERSATION_STATE_LOADED,
+    TOOL_VISIBILITY_READY,
+    MODEL_CALL_STARTED,
+    MODEL_CALL_FINISHED,
+    DECISION_READY,
+    TOOL_SELECTION_READY,
+    TOOL_ARGUMENTS_READY,
+    TOOL_ARGUMENTS_VALIDATED,
+    PLAN_READY,
+    TOOL_FINISHED,
+    CONVERSATION_STATE_WRITTEN,
+    RESPONSE_READY,
+    DONE,
+    ERROR
+}
