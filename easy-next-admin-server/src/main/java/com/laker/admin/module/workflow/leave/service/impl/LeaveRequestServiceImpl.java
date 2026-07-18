@@ -64,7 +64,7 @@ public class LeaveRequestServiceImpl extends ServiceImpl<BizLeaveRequestMapper, 
         leaveRequest.setApplicantId(principal.getUserId());
         leaveRequest.setRequestNo(businessNumberService.nextNumber(NUMBER_RULE_CODE));
         leaveRequest.setApplicantDeptId(principal.getDeptId());
-        leaveRequest.setLeaveType(request.getLeaveType());
+        leaveRequest.setLeaveType(request.getLeaveType().code());
         leaveRequest.setStartTime(request.getStartTime());
         leaveRequest.setEndTime(request.getEndTime());
         leaveRequest.setDays(request.getDays());
@@ -84,7 +84,7 @@ public class LeaveRequestServiceImpl extends ServiceImpl<BizLeaveRequestMapper, 
         startProcessRequest.setTitle(displayName + "请假申请");
         startProcessRequest.setComment(request.getReason());
         startProcessRequest.setVariables(Map.of(
-                "leaveType", request.getLeaveType(),
+                "leaveType", request.getLeaveType().code(),
                 "startTime", request.getStartTime().toString(),
                 "endTime", request.getEndTime().toString(),
                 "days", request.getDays(),

@@ -12,6 +12,7 @@ public record LeaveRequestActionDraft(
         String actionType,
         String toolName,
         String leaveType,
+        String leaveTypeLabel,
         LocalDateTime startTime,
         LocalDateTime endTime,
         BigDecimal days,

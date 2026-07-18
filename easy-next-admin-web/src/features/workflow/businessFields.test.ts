@@ -16,6 +16,12 @@ describe('workflow business fields', () => {
     expect(fields.find((field) => field.key === 'leavePeriod')?.value).toBe('自 2026-05-10 09:00 起，至 2026-05-11 18:00 止（共 2 天）')
     expect(fields.find((field) => field.key === 'leavePeriod')?.span).toBe(3)
     expect(fields.find((field) => field.key === 'reason')?.value).toBe('家庭事务，申请年假。')
+
+    expect(buildBusinessFields('leave', {
+      leaveType: 'PATERNITY',
+      startTime: '2026-05-10T09:00',
+      endTime: '2026-05-10T18:00'
+    }).find((field) => field.key === 'leaveType')?.value).toBe('陪产假')
   })
 
   it('builds configured details for purchase, expense and repair workflow variables', () => {

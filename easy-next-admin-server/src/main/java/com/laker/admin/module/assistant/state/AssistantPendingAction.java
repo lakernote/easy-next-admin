@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  *   "actionId": "act_123",
  *   "idempotencyKey": "assistant:action:act_123",
  *   "filledArguments": [
- *     {"key": "leaveType", "label": "请假类型", "value": "病假", "displayValue": "病假"}
+ *     {"key": "leaveType", "label": "请假类型", "value": "SICK", "displayValue": "病假"}
  *   ],
  *   "missingParameters": [
  *     {"name": "reason", "displayName": "请假原因", "required": true}

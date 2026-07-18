@@ -1,6 +1,7 @@
 package com.laker.admin.module.assistant.tool.workflow;
 
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
+import com.laker.admin.module.assistant.tool.AssistantToolArgument;
 import com.laker.admin.module.assistant.tool.AssistantToolExecutionContext;
 import com.laker.admin.module.assistant.tool.AssistantToolResult;
 import com.laker.admin.module.assistant.tool.AssistantToolRunStatus;
@@ -17,12 +18,14 @@ import com.laker.admin.module.workflow.leave.dto.LeaveApplyRequest;
 import com.laker.admin.module.workflow.leave.dto.LeaveRequestView;
 import com.laker.admin.module.workflow.leave.service.ILeaveRequestService;
 import com.laker.admin.module.workflow.leave.support.LeavePeriodCalculator;
+import com.laker.admin.module.workflow.leave.support.LeaveType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,8 @@ import java.util.Objects;
 @Component
 public class LeavePrepareTool implements ConfirmableTool {
     public static final String TOOL_NAME = "workflow.leave.prepare";
+    private static final LocalTime AFTERNOON_START = LocalTime.of(13, 30);
+    private static final LocalTime AFTERNOON_END = LocalTime.of(18, 0);
     private static final String DESCRIPTION = """
             用于为当前用户准备一笔新请假申请；不用于查询请假单、流程进度或休假制度。仅填写用户明确提供的假别、起止时间和原因；假别必须在用户原文中出现，不能把请假目标或时间复述成原因，缺失字段省略。
             """;
@@ -49,8 +54,11 @@ public class LeavePrepareTool implements ConfirmableTool {
             ToolRiskLevel.MEDIUM,
             List.of(
                     input("leaveType", "请假类型", ToolSchemaType.STRING, ToolSchemaFormat.NONE,
-                            "年假、事假、病假、调休等；只在用户原文明确出现该假别时填写，未说明则省略。", true,
-                            List.of("年假", "事假", "病假", "调休", "补休", "婚假", "产假", "陪产假", "丧假")),
+                            "使用稳定代码；映射为：" + LeaveType.agentSchemaDescription()
+                                    + "。只在用户原文明确出现对应中文假别时填写，未说明则省略。",
+                            true,
+                            LeaveType.agentCodes(),
+                            LeaveType.agentLabels()),
                     input("startTime", "开始时间", ToolSchemaType.STRING, ToolSchemaFormat.DATE_TIME,
                             "ISO-8601 本地时间；上午/全天 09:00，下午 13:30。", true),
                     input("endTime", "结束时间", ToolSchemaType.STRING, ToolSchemaFormat.DATE_TIME,
@@ -93,17 +101,23 @@ public class LeavePrepareTool implements ConfirmableTool {
     public AssistantToolResult prepare(AssistantToolExecutionContext context) {
         Map<String, String> arguments = context.plan().argumentMap();
         try {
-            String leaveType = requireArgument(arguments, "leaveType");
+            LeaveType leaveType = requireLeaveType(arguments);
             LocalDateTime startTime = parseDateTime(requireArgument(arguments, "startTime"));
             LocalDateTime endTime = parseDateTime(requireArgument(arguments, "endTime"));
+            LeavePeriod normalizedPeriod = normalizeNamedPeriod(
+                    context.requestContext().normalizedMessage(),
+                    startTime,
+                    endTime
+            );
             String reason = requireArgument(arguments, "reason");
-            BigDecimal days = leavePeriodCalculator.calculate(startTime, endTime);
+            BigDecimal days = leavePeriodCalculator.calculate(normalizedPeriod.startTime(), normalizedPeriod.endTime());
             LeaveRequestActionDraft draft = new LeaveRequestActionDraft(
                     "SUBMIT_LEAVE_REQUEST",
                     TOOL_NAME,
-                    leaveType,
-                    startTime,
-                    endTime,
+                    leaveType.code(),
+                    leaveType.label(),
+                    normalizedPeriod.startTime(),
+                    normalizedPeriod.endTime(),
                     days,
                     reason,
                     "确认后将提交请假申请并启动请假审批流程"
@@ -124,7 +138,7 @@ public class LeavePrepareTool implements ConfirmableTool {
     public AssistantToolResult executeConfirmed(AssistantToolExecutionContext context) {
         Map<String, String> arguments = context.plan().argumentMap();
         try {
-            String leaveType = requireArgument(arguments, "leaveType");
+            LeaveType leaveType = requireLeaveType(arguments);
             LocalDateTime startTime = parseDateTime(requireArgument(arguments, "startTime"));
             LocalDateTime endTime = parseDateTime(requireArgument(arguments, "endTime"));
             String reason = requireArgument(arguments, "reason");
@@ -135,7 +149,7 @@ public class LeavePrepareTool implements ConfirmableTool {
         }
     }
 
-    private AssistantToolResult submitLeaveRequest(String leaveType,
+    private AssistantToolResult submitLeaveRequest(LeaveType leaveType,
                                                    LocalDateTime startTime,
                                                    LocalDateTime endTime,
                                                    BigDecimal days,
@@ -181,6 +195,52 @@ public class LeavePrepareTool implements ConfirmableTool {
         return value;
     }
 
+    private static LeaveType requireLeaveType(Map<String, String> arguments) {
+        String code = requireArgument(arguments, "leaveType");
+        return LeaveType.fromCode(code)
+                .orElseThrow(() -> new IllegalArgumentException("请假类型代码不合法: " + code));
+    }
+
+    @Override
+    public List<AssistantToolArgument> confirmationArguments(AssistantToolExecutionContext context,
+                                                             AssistantToolResult preparedResult) {
+        if (preparedResult == null || !(preparedResult.data() instanceof LeaveRequestActionDraft draft)) {
+            return ConfirmableTool.super.confirmationArguments(context, preparedResult);
+        }
+        return context.plan().filledArguments().stream()
+                .map(argument -> switch (argument.key()) {
+                    case "leaveType" -> new AssistantToolArgument(
+                            argument.key(), argument.label(), draft.leaveType(), draft.leaveTypeLabel()
+                    );
+                    case "startTime" -> dateTimeArgument(argument, draft.startTime());
+                    case "endTime" -> dateTimeArgument(argument, draft.endTime());
+                    default -> argument;
+                })
+                .toList();
+    }
+
+    private static AssistantToolArgument dateTimeArgument(AssistantToolArgument argument, LocalDateTime value) {
+        return new AssistantToolArgument(
+                argument.key(),
+                argument.label(),
+                value.toString(),
+                value.toString().replace('T', ' ')
+        );
+    }
+
+    private static LeavePeriod normalizeNamedPeriod(String message,
+                                                    LocalDateTime startTime,
+                                                    LocalDateTime endTime) {
+        if (message != null
+                && message.contains("下午")
+                && startTime.toLocalDate().equals(endTime.toLocalDate())
+                && startTime.toLocalTime().equals(LocalTime.of(13, 0))
+                && endTime.toLocalTime().equals(AFTERNOON_END)) {
+            return new LeavePeriod(startTime.with(AFTERNOON_START), endTime);
+        }
+        return new LeavePeriod(startTime, endTime);
+    }
+
     private static LocalDateTime parseDateTime(String value) {
         try {
             return LocalDateTime.parse(value);
@@ -205,6 +265,20 @@ public class LeavePrepareTool implements ConfirmableTool {
                                         String description,
                                         boolean required,
                                         List<String> options) {
-        return new ToolInputField(key, label, type, format, description, required, options);
+        return input(key, label, type, format, description, required, options, Map.of());
+    }
+
+    private static ToolInputField input(String key,
+                                        String label,
+                                        ToolSchemaType type,
+                                        ToolSchemaFormat format,
+                                        String description,
+                                        boolean required,
+                                        List<String> options,
+                                        Map<String, String> optionLabels) {
+        return new ToolInputField(key, label, type, format, description, required, options, optionLabels);
+    }
+
+    private record LeavePeriod(LocalDateTime startTime, LocalDateTime endTime) {
     }
 }

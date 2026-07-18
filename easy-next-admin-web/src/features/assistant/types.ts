@@ -33,6 +33,7 @@ export interface ToolInputFieldSnapshot {
   description: string
   required: boolean
   options: string[]
+  optionLabels?: Record<string, string>
 }
 
 export interface AssistantToolArgumentSnapshot {

@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 当前阶段的助手入口响应。
@@ -91,7 +92,8 @@ public record AssistantEntryResponse(
             String format,
             String description,
             boolean required,
-            List<String> options
+            List<String> options,
+            Map<String, String> optionLabels
     ) {
         static ToolInputFieldSnapshot from(ToolInputField parameter) {
             return new ToolInputFieldSnapshot(
@@ -101,7 +103,8 @@ public record AssistantEntryResponse(
                     parameter.format().value(),
                     parameter.description(),
                     parameter.required(),
-                    parameter.enumValues()
+                    parameter.enumValues(),
+                    parameter.enumLabels()
             );
         }
     }

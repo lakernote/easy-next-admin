@@ -226,6 +226,8 @@ Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止�
 - `AssistantToolRegistry` 在应用启动时校验标准机器名、Schema 重复字段和执行接口；写 Tool 未实现 `ConfirmableTool` 会直接启动失败。
 - 原生 Tool Call 参数只接受 Schema 内字段，日期、枚举、业务标识和领域不变量继续确定性校验；普通语义字段允许模型同义归纳，
   不再要求与用户原话逐字匹配。
+- Tool 枚举参数使用与 API、流程变量和数据库一致的稳定机器码，中文标签只用于 Schema 说明、原文证据校验和确认展示；
+  `AssistantToolArgument.value / displayValue` 分别保存机器值和用户可读值，禁止把中文展示文案直接写入业务枚举字段。
 - 写操作实现 `ConfirmableTool`，第一次调用只能 `prepare` 草稿；确认后才进入 `executeConfirmed`。同一模型响应包含一个写 Tool 和只读 Tool 时，
   Runtime 按“只读在前、写入在后”串行调度，每项仍独立经过参数、权限和执行策略；多个写操作会整体拒绝并要求拆分。草稿形成后先保存确认 checkpoint；确认成功会显式清除 Pending Action，
   然后只向模型保留只读 Tool，使“确认提交，然后继续查待办”能够续跑又不能顺手执行第二个写操作。

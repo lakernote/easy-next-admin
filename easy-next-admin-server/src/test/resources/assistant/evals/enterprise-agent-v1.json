@@ -445,7 +445,7 @@
           "allowedExecutionStatuses": ["EXECUTED"],
           "allowedToolNames": ["workflow.leave.prepare"],
           "requiredToolNames": ["workflow.leave.prepare"],
-          "requiredArguments": {"leaveType": "病假", "reason": "身体不舒服"},
+          "requiredArguments": {"leaveType": "SICK", "reason": "身体不舒服"},
           "replyContainsAny": ["确认", "草稿"],
           "replyExcludes": ["已提交", "提交成功"],
           "maxToolCalls": 1
@@ -463,7 +463,7 @@
           "allowedPlanStatuses": ["APPROVAL_REQUIRED"],
           "allowedToolNames": ["workflow.leave.prepare"],
           "requiredToolNames": ["workflow.leave.prepare"],
-          "requiredArguments": {"leaveType": "事假", "reason": "家里有事"},
+          "requiredArguments": {"leaveType": "PERSONAL", "reason": "家里有事"},
           "replyContainsAny": ["确认", "草稿"],
           "replyExcludes": ["已提交"],
           "maxToolCalls": 1
@@ -473,15 +473,15 @@
     {
       "id": "leave-wedding-attendee",
       "category": "PARAMETER_EXTRACTION",
-      "description": "参加别人的婚礼属于事假语义，不能误判为本人婚假。",
+      "description": "用户明确请事假参加别人的婚礼时，不能误判为本人婚假。",
       "mutating": false,
       "turns": [{
-        "message": "我明天去参加朋友婚礼，想请一天假。",
+        "message": "我明天请事假去参加朋友婚礼。",
         "expect": {
           "allowedPlanStatuses": ["APPROVAL_REQUIRED"],
           "allowedToolNames": ["workflow.leave.prepare"],
           "requiredToolNames": ["workflow.leave.prepare"],
-          "requiredArguments": {"leaveType": "事假"},
+          "requiredArguments": {"leaveType": "PERSONAL"},
           "replyContainsAny": ["确认", "草稿"],
           "replyExcludes": ["请假类型：婚假", "已提交"],
           "maxToolCalls": 1
@@ -498,7 +498,7 @@
         "expect": {
           "allowedPlanStatuses": ["INPUT_REQUIRED", "APPROVAL_REQUIRED"],
           "allowedToolNames": ["workflow.leave.prepare"],
-          "requiredArguments": {"leaveType": "婚假"},
+          "requiredArguments": {"leaveType": "MARRIAGE"},
           "replyContainsAny": ["结束时间", "确认", "草稿"],
           "replyExcludes": ["请假类型：事假", "已提交"],
           "maxToolCalls": 1
@@ -526,7 +526,7 @@
             "allowedPlanStatuses": ["APPROVAL_REQUIRED"],
             "allowedToolNames": ["workflow.leave.prepare"],
             "requiredToolNames": ["workflow.leave.prepare"],
-            "requiredArguments": {"leaveType": "病假"},
+            "requiredArguments": {"leaveType": "SICK"},
             "replyContainsAll": ["去医院复查"],
             "replyContainsAny": ["确认", "草稿"],
             "replyExcludes": ["身体不舒服", "已提交"]

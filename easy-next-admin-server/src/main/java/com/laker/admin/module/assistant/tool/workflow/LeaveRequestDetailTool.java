@@ -14,6 +14,7 @@ import com.laker.admin.module.assistant.tool.ToolSchemaFormat;
 import com.laker.admin.module.assistant.tool.ToolSchemaType;
 import com.laker.admin.module.assistant.tool.ToolSubjectScope;
 import com.laker.admin.module.workflow.leave.dto.LeaveRequestView;
+import com.laker.admin.module.workflow.leave.support.LeaveType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -95,7 +96,7 @@ public class LeaveRequestDetailTool implements AssistantTool {
         return new LeaveRequestToolItem(
                 view.getRequestNo(),
                 text(view.getApplicantName()),
-                view.getLeaveType(),
+                LeaveType.displayLabel(view.getLeaveType()),
                 dateTime(view.getStartTime()),
                 dateTime(view.getEndTime()),
                 view.getDays(),

@@ -53,6 +53,8 @@ const businessValueText: Record<string, Record<string, string>> = {
     MARRIAGE: '婚假',
     MATERNITY: '产假',
     COMPENSATORY: '调休',
+    PATERNITY: '陪产假',
+    BEREAVEMENT: '丧假',
     OTHER: '其他'
   },
   repairType: {

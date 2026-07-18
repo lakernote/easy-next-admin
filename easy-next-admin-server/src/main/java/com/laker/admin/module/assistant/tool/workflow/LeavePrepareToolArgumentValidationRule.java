@@ -5,6 +5,7 @@ import com.laker.admin.module.assistant.tool.AssistantToolArgumentResolution;
 import com.laker.admin.module.assistant.tool.AssistantToolArgumentValidationRule;
 import com.laker.admin.module.assistant.tool.AssistantVisibleTool;
 import com.laker.admin.module.assistant.tool.ToolInputField;
+import com.laker.admin.module.workflow.leave.support.LeaveType;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -43,7 +44,9 @@ public class LeavePrepareToolArgumentValidationRule implements AssistantToolArgu
         String leaveType = arguments.get("leaveType");
         if (leaveType != null
                 && resolution.providedArgumentKeys().contains("leaveType")
-                && !context.normalizedMessage().contains(leaveType)) {
+                && LeaveType.fromCode(leaveType)
+                .map(type -> !type.isExplicitlyMentionedIn(context.normalizedMessage()))
+                .orElse(true)) {
             // 假别是会进入真实申请单的枚举事实，模型不能在用户未说明时补默认值。
             addInvalid(invalid, parameterMap, "leaveType");
         }

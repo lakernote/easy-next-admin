@@ -9,6 +9,7 @@ import com.laker.admin.module.workflow.dto.WfTaskActionRequest;
 import com.laker.admin.module.workflow.entity.WfHistoricCc;
 import com.laker.admin.module.workflow.entity.WfTask;
 import com.laker.admin.module.workflow.leave.dto.LeaveApplyRequest;
+import com.laker.admin.module.workflow.leave.support.LeaveType;
 import com.laker.admin.module.workflow.leave.dto.LeaveRequestView;
 import com.laker.admin.module.workflow.leave.entity.BizLeaveRequest;
 import com.laker.admin.module.workflow.leave.service.ILeaveRequestService;
@@ -98,7 +99,7 @@ class WorkflowBusinessRequestIntegrationTest {
         asUser(ADMIN);
         prepareLeaveDefinition();
         LeaveApplyRequest request = new LeaveApplyRequest();
-        request.setLeaveType("PERSONAL");
+        request.setLeaveType(LeaveType.PERSONAL);
         request.setStartTime(LocalDateTime.of(2026, 7, 1, 13, 30));
         request.setEndTime(LocalDateTime.of(2026, 7, 1, 18, 0));
         request.setDays(new BigDecimal("99"));

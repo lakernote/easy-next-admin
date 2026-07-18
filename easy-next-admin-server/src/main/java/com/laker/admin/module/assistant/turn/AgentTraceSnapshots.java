@@ -195,7 +195,8 @@ final class AgentTraceSnapshots {
                 "format", parameter.format().value(),
                 "description", parameter.description(),
                 "required", parameter.required(),
-                "options", parameter.enumValues()
+                "options", parameter.enumValues(),
+                "optionLabels", parameter.enumLabels()
         );
     }
 }

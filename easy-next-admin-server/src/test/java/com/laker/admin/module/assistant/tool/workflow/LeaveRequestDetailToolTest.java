@@ -99,7 +99,7 @@ class LeaveRequestDetailToolTest {
         LeaveRequestView view = new LeaveRequestView();
         view.setRequestNo("LV-20260714-000001");
         view.setApplicantName("超级管理员");
-        view.setLeaveType("病假");
+        view.setLeaveType("SICK");
         view.setStartTime(LocalDateTime.of(2026, 7, 15, 13, 30));
         view.setEndTime(LocalDateTime.of(2026, 7, 15, 18, 0));
         view.setDays(new BigDecimal("0.5"));

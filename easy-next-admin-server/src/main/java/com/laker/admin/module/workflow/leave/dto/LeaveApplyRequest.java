@@ -1,5 +1,6 @@
 package com.laker.admin.module.workflow.leave.dto;
 
+import com.laker.admin.module.workflow.leave.support.LeaveType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,8 +12,8 @@ import java.time.LocalDateTime;
 
 @Data
 public class LeaveApplyRequest {
-    @NotBlank(message = "请假类型不能为空")
-    private String leaveType;
+    @NotNull(message = "请假类型不能为空")
+    private LeaveType leaveType;
     @NotNull(message = "开始时间不能为空")
     private LocalDateTime startTime;
     @NotNull(message = "结束时间不能为空")

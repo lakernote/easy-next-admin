@@ -98,6 +98,21 @@ class AssistantToolRegistryTest {
                 .hasMessageContaining("enumValues must be unique", "status");
     }
 
+    @Test
+    void shouldRejectEnumLabelWithoutMatchingMachineValue() {
+        assertThatThrownBy(() -> new ToolInputField(
+                "status",
+                "状态",
+                ToolSchemaType.STRING,
+                ToolSchemaFormat.NONE,
+                "合同状态。",
+                false,
+                List.of("ACTIVE"),
+                java.util.Map.of("DISABLED", "已停用")
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("enumLabels keys must exist in enumValues", "status");
+    }
+
     private static ToolDefinition definition(ToolExecutionMode mode) {
         return new ToolDefinition(
                 "workflow.request.prepare",

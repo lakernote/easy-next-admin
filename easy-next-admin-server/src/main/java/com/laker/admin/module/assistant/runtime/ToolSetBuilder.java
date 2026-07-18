@@ -95,7 +95,8 @@ public class ToolSetBuilder {
                         field.format(),
                         field.description(),
                         false,
-                        field.enumValues()
+                        field.enumValues(),
+                        field.enumLabels()
                 ))
                 .toList();
         return new ToolDefinition(
@@ -126,7 +127,8 @@ public class ToolSetBuilder {
                                 ? field.description() + " 当前草稿已有值；仅在用户本轮明确修改时传入。"
                                 : field.description(),
                         field.required() && !filledKeys.contains(field.name()),
-                        field.enumValues()
+                        field.enumValues(),
+                        field.enumLabels()
                 ))
                 .toList();
         return new ToolDefinition(

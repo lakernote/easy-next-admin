@@ -52,6 +52,10 @@
                 <el-option label="事假" value="PERSONAL" />
                 <el-option label="病假" value="SICK" />
                 <el-option label="调休" value="COMPENSATORY" />
+                <el-option label="婚假" value="MARRIAGE" />
+                <el-option label="产假" value="MATERNITY" />
+                <el-option label="陪产假" value="PATERNITY" />
+                <el-option label="丧假" value="BEREAVEMENT" />
               </el-select>
             </el-form-item>
           </template>

@@ -1,6 +1,9 @@
 package com.laker.admin.module.assistant.tool;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** 标准工具输入字段定义。 */
 public record ToolInputField(
@@ -10,8 +13,19 @@ public record ToolInputField(
         ToolSchemaFormat format,
         String description,
         boolean required,
-        List<String> enumValues
+        List<String> enumValues,
+        Map<String, String> enumLabels
 ) {
+    public ToolInputField(String name,
+                          String displayName,
+                          ToolSchemaType type,
+                          ToolSchemaFormat format,
+                          String description,
+                          boolean required,
+                          List<String> enumValues) {
+        this(name, displayName, type, format, description, required, enumValues, Map.of());
+    }
+
     public ToolInputField {
         name = text(name);
         displayName = text(displayName);
@@ -21,6 +35,11 @@ public record ToolInputField(
         format = format == null ? ToolSchemaFormat.NONE : format;
         description = text(description);
         enumValues = enumValues == null ? List.of() : enumValues.stream().map(ToolInputField::text).toList();
+        Map<String, String> normalizedLabels = new LinkedHashMap<>();
+        if (enumLabels != null) {
+            enumLabels.forEach((value, label) -> normalizedLabels.put(text(value), text(label)));
+        }
+        enumLabels = Collections.unmodifiableMap(normalizedLabels);
         if (name.isEmpty()) {
             throw new IllegalArgumentException("ToolInputField.name must not be blank");
         }
@@ -48,6 +67,20 @@ public record ToolInputField(
         if (!enumValues.isEmpty() && type != ToolSchemaType.STRING) {
             throw new IllegalArgumentException("ToolInputField.enumValues only supports string fields: " + name);
         }
+        if (enumLabels.entrySet().stream().anyMatch(entry -> entry.getKey().isEmpty() || entry.getValue().isEmpty())) {
+            throw new IllegalArgumentException("ToolInputField.enumLabels must not contain blank keys or labels: " + name);
+        }
+        if (!enumValues.containsAll(enumLabels.keySet())) {
+            throw new IllegalArgumentException("ToolInputField.enumLabels keys must exist in enumValues: " + name);
+        }
+    }
+
+    public String displayValue(String value) {
+        return enumLabels.getOrDefault(value, value);
+    }
+
+    public List<String> enumDisplayValues() {
+        return enumValues.stream().map(this::displayValue).toList();
     }
 
     private static String text(String value) {

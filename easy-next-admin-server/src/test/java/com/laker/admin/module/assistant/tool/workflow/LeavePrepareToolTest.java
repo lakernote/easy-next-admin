@@ -37,8 +37,13 @@ class LeavePrepareToolTest {
         assertThat(tool.definition().inputSchema())
                 .filteredOn(field -> field.name().equals("leaveType"))
                 .singleElement()
-                .satisfies(field -> assertThat(field.description())
-                        .contains("用户原文明确出现", "未说明则省略"));
+                .satisfies(field -> {
+                    assertThat(field.description())
+                            .contains("SICK=病假", "用户原文明确出现", "未说明则省略");
+                    assertThat(field.enumValues())
+                            .contains("ANNUAL", "PERSONAL", "SICK", "COMPENSATORY");
+                    assertThat(field.displayValue("SICK")).isEqualTo("病假");
+                });
         assertThat(tool.definition().inputSchema())
                 .filteredOn(field -> field.name().equals("reason"))
                 .singleElement()
@@ -48,7 +53,7 @@ class LeavePrepareToolTest {
 
     @Test
     void shouldGenerateLeaveActionDraftWithoutSubmittingRequest() {
-        AssistantToolResult result = tool.execute(new AssistantToolExecutionContext(
+        AssistantToolExecutionContext executionContext = new AssistantToolExecutionContext(
                 requestContext("我想今天下午请事假，因为家里有事"),
                 new ToolExecutionPlan(
                         "run-agent-001",
@@ -57,8 +62,8 @@ class LeavePrepareToolTest {
                         "workflow.leave.prepare",
                         false,
                         List.of(
-                                new AssistantToolArgument("leaveType", "请假类型", "事假", "事假"),
-                                new AssistantToolArgument("startTime", "开始时间", "2026-07-07T13:30", "2026-07-07 13:30"),
+                                new AssistantToolArgument("leaveType", "请假类型", "PERSONAL", "事假"),
+                                new AssistantToolArgument("startTime", "开始时间", "2026-07-07T13:00", "2026-07-07 13:00"),
                                 new AssistantToolArgument("endTime", "结束时间", "2026-07-07T18:00", "2026-07-07 18:00"),
                                 new AssistantToolArgument("reason", "请假原因", "家里有事", "家里有事")
                         ),
@@ -66,15 +71,32 @@ class LeavePrepareToolTest {
                         List.of(),
                         "业务字段已齐全，可以生成待确认动作草稿"
                 )
-        ));
+        );
+        AssistantToolResult result = tool.execute(executionContext);
 
         assertThat(result.status()).isEqualTo(AssistantToolRunStatus.EXECUTED);
         assertThat(result.artifactType()).isEqualTo("LEAVE_ACTION_DRAFT");
         assertThat(result.data()).isInstanceOf(LeaveRequestActionDraft.class);
         LeaveRequestActionDraft draft = (LeaveRequestActionDraft) result.data();
         assertThat(draft.actionType()).isEqualTo("SUBMIT_LEAVE_REQUEST");
-        assertThat(draft.leaveType()).isEqualTo("事假");
+        assertThat(draft.leaveType()).isEqualTo("PERSONAL");
+        assertThat(draft.leaveTypeLabel()).isEqualTo("事假");
+        assertThat(draft.startTime()).isEqualTo("2026-07-07T13:30");
         assertThat(draft.days()).isEqualByComparingTo("0.5");
         assertThat(draft.reason()).isEqualTo("家里有事");
+
+        assertThat(tool.confirmationArguments(executionContext, result))
+                .satisfiesExactly(
+                        argument -> {
+                            assertThat(argument.value()).isEqualTo("PERSONAL");
+                            assertThat(argument.displayValue()).isEqualTo("事假");
+                        },
+                        argument -> {
+                            assertThat(argument.value()).isEqualTo("2026-07-07T13:30");
+                            assertThat(argument.displayValue()).isEqualTo("2026-07-07 13:30");
+                        },
+                        argument -> assertThat(argument.value()).isEqualTo("2026-07-07T18:00"),
+                        argument -> assertThat(argument.value()).isEqualTo("家里有事")
+                );
     }
 }

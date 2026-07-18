@@ -312,7 +312,7 @@ final class AgentResultFactory {
 
     private static String formatMissingParameter(ToolInputField parameter) {
         if (!parameter.enumValues().isEmpty()) {
-            return parameter.displayName() + "（可选：" + String.join("、", parameter.enumValues()) + "）";
+            return parameter.displayName() + "（可选：" + String.join("、", parameter.enumDisplayValues()) + "）";
         }
         if (parameter.format() != ToolSchemaFormat.NONE) {
             // 用户可以继续使用“明天下午”等自然语言，下一轮模型会规范化为协议格式。

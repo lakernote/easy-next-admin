@@ -241,7 +241,7 @@ class AssistantConversationStateTest {
                 decision,
                 "workflow.leave.prepare",
                 false,
-                List.of(new AssistantToolArgument("leaveType", "请假类型", "病假", "病假")),
+                List.of(new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假")),
                 decision == ToolExecutionStatus.INPUT_REQUIRED
                         ? List.of(new ToolInputField("reason", "请假原因", ToolSchemaType.STRING,
                         ToolSchemaFormat.NONE, "原因", true, List.of()))

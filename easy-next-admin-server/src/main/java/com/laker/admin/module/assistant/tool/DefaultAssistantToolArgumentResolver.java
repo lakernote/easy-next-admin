@@ -137,6 +137,9 @@ public class DefaultAssistantToolArgumentResolver implements AssistantToolArgume
     }
 
     private static String displayValue(ToolInputField parameter, String value) {
+        if (!parameter.enumValues().isEmpty()) {
+            return parameter.displayValue(value);
+        }
         return parameter.format() == ToolSchemaFormat.DATE_TIME ? value.replace('T', ' ') : value;
     }
 

@@ -27,6 +27,8 @@ class DefaultAssistantToolArgumentResolverTest {
         );
 
         assertThat(resolution.argumentMap()).containsExactlyEntriesOf(Map.of("type", "ANNUAL"));
+        assertThat(resolution.arguments()).singleElement()
+                .satisfies(argument -> assertThat(argument.displayValue()).isEqualTo("年假"));
         assertThat(resolution.missingRequiredParameters())
                 .extracting(ToolInputField::name)
                 .containsExactly("startTime");
@@ -68,7 +70,8 @@ class DefaultAssistantToolArgumentResolverTest {
                 ToolRiskLevel.MEDIUM,
                 List.of(
                         new ToolInputField("type", "类型", ToolSchemaType.STRING, ToolSchemaFormat.NONE,
-                                "申请类型", true, List.of("ANNUAL", "SICK")),
+                                "申请类型", true, List.of("ANNUAL", "SICK"),
+                                Map.of("ANNUAL", "年假", "SICK", "病假")),
                         new ToolInputField("startTime", "开始时间", ToolSchemaType.STRING, ToolSchemaFormat.DATE_TIME,
                                 "ISO 时间", true, List.of())
                 ),

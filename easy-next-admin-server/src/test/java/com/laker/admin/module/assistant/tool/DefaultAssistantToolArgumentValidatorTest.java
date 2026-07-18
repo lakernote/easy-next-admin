@@ -23,7 +23,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "病假", "病假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-08T18:00", "2026-07-08 18:00"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-08T13:30", "2026-07-08 13:30"),
                         new AssistantToolArgument("reason", "请假原因", "身体不舒服", "身体不舒服")
@@ -50,7 +50,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "病假", "病假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-07T13:30", "2026-07-07 13:30"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-07T18:00", "2026-07-07 18:00"),
                         new AssistantToolArgument("reason", "请假原因", "身体不舒服", "身体不舒服")
@@ -77,7 +77,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "病假", "病假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-06T13:30", "2026-07-06 13:30"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-06T18:00", "2026-07-06 18:00"),
                         new AssistantToolArgument("reason", "请假原因", "身体不舒服", "身体不舒服")
@@ -104,7 +104,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "病假", "病假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-08T13:30", "2026-07-08 13:30"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-08T18:00", "2026-07-08 18:00"),
                         new AssistantToolArgument("reason", "请假原因", "身体不舒服", "身体不舒服")
@@ -132,7 +132,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "事假", "事假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "PERSONAL", "事假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-18T13:30", "2026-07-18 13:30"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-18T18:00", "2026-07-18 18:00"),
                         new AssistantToolArgument("reason", "请假原因", "今天下午请假", "今天下午请假")
@@ -162,7 +162,7 @@ class DefaultAssistantToolArgumentValidatorTest {
         var resolution = new AssistantToolArgumentResolution(
                 tool.name(),
                 List.of(
-                        new AssistantToolArgument("leaveType", "请假类型", "病假", "病假"),
+                        new AssistantToolArgument("leaveType", "请假类型", "SICK", "病假"),
                         new AssistantToolArgument("startTime", "开始时间", "2026-07-08T13:30", "2026-07-08 13:30"),
                         new AssistantToolArgument("endTime", "结束时间", "2026-07-08T18:00", "2026-07-08 18:00"),
                         new AssistantToolArgument("reason", "请假原因", "身体不舒服", "身体不舒服")
