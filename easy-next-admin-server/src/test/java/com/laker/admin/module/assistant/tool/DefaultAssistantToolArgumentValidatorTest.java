@@ -2,11 +2,14 @@ package com.laker.admin.module.assistant.tool;
 
 import com.laker.admin.module.assistant.tool.workflow.LeavePrepareToolArgumentValidationRule;
 import com.laker.admin.module.assistant.tool.workflow.LeavePrepareTool;
+import com.laker.admin.module.assistant.tool.workflow.LeaveRequestDetailTool;
+import com.laker.admin.module.assistant.tool.workflow.LeaveRequestToolItem;
 import com.laker.admin.module.assistant.tool.workflow.ProcessDetailTool;
 import com.laker.admin.module.assistant.tool.workflow.WorkflowProcessDetailArgumentValidationRule;
 import com.laker.admin.module.workflow.leave.support.LeavePeriodCalculator;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 
@@ -178,6 +181,51 @@ class DefaultAssistantToolArgumentValidatorTest {
         assertThat(validated.complete()).isTrue();
         assertThat(validated.argumentMap()).containsEntry("reason", "身体不舒服");
         assertThat(validated.providedArgumentKeys()).isEmpty();
+    }
+
+    @Test
+    void shouldAllowLeaveTypeAndReasonCopiedFromLatestTrustedLeaveDetail() {
+        AssistantVisibleTool tool = leaveTool();
+        var context = requestContext("参考刚才查询的请假单，帮我新建明天下午的申请。");
+        var selection = AssistantToolSelection.selected(tool, List.of(tool), "test");
+        var resolution = new AssistantToolArgumentResolution(
+                tool.name(),
+                List.of(
+                        new AssistantToolArgument("leaveType", "请假类型", "COMPENSATORY", "调休"),
+                        new AssistantToolArgument("startTime", "开始时间", "2026-07-08T13:30", "2026-07-08 13:30"),
+                        new AssistantToolArgument("endTime", "结束时间", "2026-07-08T18:00", "2026-07-08 18:00"),
+                        new AssistantToolArgument("reason", "请假原因", "陪家人看病", "陪家人看病")
+                ),
+                List.of()
+        );
+        AssistantToolResult trustedLeaveDetail = new AssistantToolResult(
+                LeaveRequestDetailTool.TOOL_NAME,
+                AssistantToolRunStatus.EXECUTED,
+                "LEAVE_REQUEST_DETAIL",
+                "请假单详情",
+                new LeaveRequestToolItem(
+                        "LV-20260707-000001",
+                        "测试用户",
+                        "调休",
+                        "2026-07-07 13:30:00",
+                        "2026-07-07 18:00:00",
+                        new BigDecimal("0.5"),
+                        "陪家人看病",
+                        "审批中",
+                        "RUNNING",
+                        1001L
+                )
+        );
+
+        AssistantToolArgumentResolution validated = new DefaultAssistantToolArgumentValidator(
+                List.of(new LeavePrepareToolArgumentValidationRule())
+        ).validate(context, selection, resolution, List.of(trustedLeaveDetail));
+
+        assertThat(validated.complete()).isTrue();
+        assertThat(validated.argumentMap())
+                .containsEntry("leaveType", "COMPENSATORY")
+                .containsEntry("reason", "陪家人看病");
+        assertThat(validated.missingRequiredParameters()).isEmpty();
     }
 
     @Test

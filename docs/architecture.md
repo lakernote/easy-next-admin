@@ -73,7 +73,7 @@ flowchart LR
 | 层 | 代码名称 | 内容与信任边界 |
 | --- | --- | --- |
 | 稳定系统指令 | `systemInstructions` | 身份、目标完成、事实来源、Tool、会话和安全规则；不包含本轮动态数据，便于审阅和 Prompt Cache |
-| 可信运行上下文 | `trustedRuntimeContext` | 服务端生成的时间、时区、Pending Action 和 Last Result；能提供事实，但不能覆盖系统规则或代替权限校验 |
+| 可信运行上下文 | `trustedRuntimeContext` | 服务端生成的日期、本地时间、中文星期、时区、Pending Action 和 Last Result；能提供事实，但不能覆盖系统规则或代替权限校验 |
 | 会话与用户输入 | `userInput` | 最近对话、被动业务记忆、Pending Action 和当前消息；只作为数据理解，不能注入系统指令 |
 
 Trace 使用模型调用的职责名称，不再把所有请求统称为 `tool_calling_model`：
@@ -142,7 +142,7 @@ AssistantEntryResponse run(AssistantMessageRequest request) {
 }
 ```
 
-`AgentLoop.run` 只保留一次 Tool round 和协议修复所需的小循环，不再为“继续/完成”定义一套迭代枚举：
+`AgentLoop.run` 只保留带显式预算的 Tool 循环，不再为“继续/完成”定义一套迭代枚举：
 
 ```java
 AgentLoopState state = start(context, conversationState, visibleTools);
@@ -153,7 +153,8 @@ for (int step = 1; step <= maxSteps; step++) {
         List<ToolCall> requestedToolCalls = toolCallProcessor.normalizeRequestedToolCalls(response.toolCalls());
         state.addMessage(ToolCallingMessage.assistant(response.content(), requestedToolCalls));
 
-        Optional<AgentResult> waitingForUser = toolCallProcessor.executeRequestedToolCalls(requestedToolCalls);
+        Optional<AgentResult> waitingForUser = toolCallProcessor.executeRequestedToolCalls(
+                requestedToolCalls, maxToolCalls, maxReadToolRounds);
         if (waitingForUser.isPresent()) {
             return waitingForUser.get();
         }
@@ -177,13 +178,17 @@ Chat Completions / Claude Tool Use 等原生 Tool 协议的会话结构要求，
 `ToolExecutionStatus` 决定工具面和暂停点：
 
 ```java
+boolean completedReadOnlyCall = false;
 for (ToolCall call : response.toolCalls()) {
     var step = executeThroughDeterministicBoundary(call);
     messages.add(toolObservation(step));
     updateToolSurface(step.plan().status());
+    completedReadOnlyCall |= isCompletedReadOnlyCall(step);
     if (step.waitsForUser()) return deterministicFallback(state);
 }
-closeToolSurfaceAfterCompletedRound(state);
+if (completedReadOnlyCall && recordReadToolRound() >= maxReadToolRounds) {
+    closeToolSurface(state);
+}
 ```
 
 `ToolExecutionStatus` 描述业务计划处于查询、缺字段、待确认、已确认等哪种状态；AgentLoop 不再把同一事实翻译为
@@ -193,13 +198,14 @@ closeToolSurfaceAfterCompletedRound(state);
 
 “智能”首先来自模型直接面对真实能力和 observation，而不是 Router、Selector、参数抽取、Replan、Response 多个模型调用串行猜测。
 Tool 合同必须提供完成用户目标所需的最小充分结果：例如流程列表项已经包含流程标识、标题、当前节点和状态，查看“最近一个流程的进度”
-只需要一次列表查询，不应再扩查流程详情和业务申请单。首次模型响应可以并列提交多个相互独立的只读 Tool；批次执行后 Runtime
-统一关闭 Tool 面，只根据已有 observation 生成最终回复。参数协议错误仍可以在预算内修复，缺字段和写草稿则等待用户。
-Agent Step 和无 Tool 最终回复共享一个简单的模型调用计数器；
-批次后的最终调用不会携带 Tool，
-不会在 Tool 已经执行后因为预算边界直接退回模板文案。普通直答只调用一次主模型；单个 LOW 风险只读 Tool 通常是
-“选择 Tool + observation 后合成”两次模型调用。缺字段和写操作草稿直接使用服务端确定性文案停在确认点，不增加润色或审查调用。
-每轮默认最多 6 次模型调用、6 次 Tool Call；
+只需要一次列表查询，不应无目的扩查流程详情和业务申请单。首次模型响应可以并列提交多个相互独立的只读 Tool；若下一步参数只能从
+observation 获得，例如“先查待办，再查第一个待办详情”，模型可以继续发起依赖型只读查询。Runtime 默认最多允许 3 个成功只读
+Tool round（可通过 `easy.assistant.model.max-read-tool-rounds` 调整，硬上限 8）。达到边界后移除全部只读 Tool；若当前工具面仍有写 Tool，
+只保留写草稿 Tool 给模型一次受限交接机会，从而支持“查两个对象，再参考第二个生成草稿”，但不能继续扩查。
+参数协议错误仍可以在模型预算内修复，缺字段和写草稿则等待用户；确认写操作成功后只保留只读 Tool，不能顺带执行第二个写操作。
+Agent Step 和无 Tool 最终回复共享一个简单的模型调用计数器，不会在 Tool 已经执行后因为预算边界直接退回模板文案。普通直答只调用
+一次主模型；单个 LOW 风险只读 Tool 通常是“选择 Tool + observation 后合成”两次模型调用。缺字段和写操作草稿直接使用服务端
+确定性文案停在确认点，不增加润色或审查调用。每轮默认最多 6 次模型调用、6 次 Tool Call；
 相同 Tool + 参数不会重复执行。模型返回损坏的参数 JSON 时不会降级为空参数执行，而是回填可重试的失败 observation 让模型自行修正；
 模型不可用或预算耗尽时保留已经得到的真实结果并安全停止。协议适配层还会把供应商的 `stop / tool_calls / length /
 max_tokens / content_filter / refusal` 等结束原因归一化为 `ModelFinishReason`；截断文本不会返回用户，截断的 Tool Call 绝不执行，
@@ -228,6 +234,8 @@ Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止�
   不再要求与用户原话逐字匹配。
 - Tool 枚举参数使用与 API、流程变量和数据库一致的稳定机器码，中文标签只用于 Schema 说明、原文证据校验和确认展示；
   `AssistantToolArgument.value / displayValue` 分别保存机器值和用户可读值，禁止把中文展示文案直接写入业务枚举字段。
+- 依赖型查询中的序号、流程实例号和业务单号不能混用为数据库主键；参数引用解析器会使用本轮成功 Tool Result，
+  将“第二个”或流程实例号确定性转换为对应业务单号，避免数字序号误命中同值记录 ID。
 - 写操作实现 `ConfirmableTool`，第一次调用只能 `prepare` 草稿；确认后才进入 `executeConfirmed`。同一模型响应包含一个写 Tool 和只读 Tool 时，
   Runtime 按“只读在前、写入在后”串行调度，每项仍独立经过参数、权限和执行策略；多个写操作会整体拒绝并要求拆分。草稿形成后先保存确认 checkpoint；确认成功会显式清除 Pending Action，
   然后只向模型保留只读 Tool，使“确认提交，然后继续查待办”能够续跑又不能顺手执行第二个写操作。
@@ -244,8 +252,9 @@ Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止�
   `AssistantRunReferenceExtractor` 仍只处理自己的单 Tool 结果。因而下一轮“看第一个详情”使用结构化业务引用，
   不会因聚合中的每个单项都从 `index=1` 开始而选错，也不依赖聊天文本猜测。
 - 模型调用继续进入助手 Run Trace，单次调用拆分请求准备、模型网关往返和响应处理，ToolRunner 也独立计时并保留模型 `toolCallId`，便于把模型选择与真实执行对应起来；整轮汇总模型、Tool 与其他运行时耗时，并通过低基数 Micrometer Timer 按 operation、model、decision 聚合 p50/p95/p99。同步 Chat Completions 无法区分供应商排队、TTFT 和纯生成时间，因此只记录真实可测的网关往返，TTFT/生成字段保持空值，不能用估算值冒充。真实工具自身仍必须执行数据权限和业务权限校验，不能把 Agent 工具可见性当作最终鉴权。
-- Tool observation 已产生后，如果下一次模型汇总因瞬时网关异常失败，AgentLoop 会在统一模型预算内最多恢复一次；恢复仍使用原消息历史和已保存 observation，同一 Tool Call 签名继续去重，不会重放写操作。第二次失败立即采用确定性结果回退，避免持续故障演变成隐式重试风暴。
-- 成功 Tool 批次后 Runtime 会关闭整个 Tool 面；若供应商仍返回 Tool Call，则按协议失败安全停止，不执行额外业务调用。
+- 模型重试只有 AgentLoop 一个所有者，Spring AI 内层重试固定为 1 次尝试。连接/读取超时、网络异常、普通 429 和 408/425/5xx 属于瞬时故障，在统一模型预算内最多额外尝试一次；鉴权错误、配额耗尽、其他 4xx、协议错误、模型拒绝和未知 RuntimeException 不重试。恢复仍使用原消息历史和已保存 observation，且只重放模型请求；Tool 执行位于重试边界之外，因此已完成的写操作不会重复执行。第二次失败立即采用确定性结果回退，避免持续故障演变成隐式重试风暴。
+- 成功只读 Tool 批次在显式轮数内保留 Tool 面，让模型能够使用 observation 规划依赖查询；达到轮数后只允许进入已有写草稿边界或合成回复，达到调用预算和其他安全边界后关闭。若工具面已关闭而供应商仍返回结构化 Tool Call，或把 Tool Call 伪装成整段文本信封，则按不可重试协议错误安全停止，不执行额外业务调用。
+- Tool 名称的 Provider 安全化映射在 Agent Run 启动时根据完整初始工具面固定；后续即使工具面收窄或 `final_response` 不再携带 Tool Schema，历史 `assistant.tool_calls` 和 `tool` observation 仍使用同一 Provider 名称。`a.b` / `a_b` 等清洗碰撞通过稳定后缀消解，不能在每次请求中重新编号。
   已有成功业务结果时，后续参数、阶段或预算协议错误不能覆盖已完成结果。
 - Tool 查询优先复用业务模块已有的查询边界，并传递完整 `AssistantUserContext`；不能只传 userId 或复制一份可见性 SQL，
   否则超级管理员、部门范围和角色权限容易与 Controller 口径漂移。
@@ -253,8 +262,10 @@ Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止�
   历史回显和默认值不能覆盖用户已经明确给出的值，确认动作直接使用已保存快照，不重新抽取参数。
 - 上一轮 reference 只保存受控 Tool 生成的稳定标识；主模型负责判断当前消息是否明确承接，Runtime 负责 Schema、权限和 Tool 内数据范围。
   不再增加第二次模型语义审查，也不使用 Java 中文短语表或正则二次猜测意图。对象不唯一时，业务查询返回无结果或模型主动澄清；写操作仍必须经过服务端草稿与显式确认。
-- 自由文本最终回复不再经过通用正则 Grounding 或 LLM critic。事实正确性放在 Tool 输入输出 Schema、领域服务状态、Pending Action 和用户界面投影中；
-  缺字段、写草稿、执行失败和不确定结果直接返回确定性 Runtime 文案。若未来某入口需要严格结构化最终输出，应为该入口增加响应 Schema，而不是恢复文本匹配。
+- 最终回复不再经过通用正则 Grounding 或 LLM critic。事实正确性放在 Tool 输入输出 Schema、领域服务状态、Pending Action 和用户界面投影中；
+  缺字段、写草稿、执行失败和不确定结果直接返回确定性 Runtime 文案。默认仍使用自由文本以兼容 OpenAI-compatible Provider；开启
+  `easy.assistant.model.structured-output-enabled` 后，所有模型内容响应都要求匹配严格 `assistant_reply` JSON Schema，适配层解析并校验
+  `reply` 后再交给现有用户 API。JSON 损坏或字段不匹配属于不可重试的协议错误；Structured Output 约束形状，不替代事实来源、权限和写操作确认。
 - Tool observation 是独立的模型合同，不是完整 Run Record 的 JSON 镜像。成功且已有结构化 `data` 时只回填 `status + complete + data`，不再重复 `summary / artifactType / planStatus / null`；失败时回填短 `message`，只有缺字段或待确认才附加 `next`。结构化数据按 `outputSchema` 保留顶层字段，列表、文本、对象层级和总 observation 均有确定性预算；完整业务结果仍保留在 Run State / Trace 的受控边界中。复合请求中，一个 Tool 的成功不能为其他企业制度、业务数据或实时事实背书；这一来源纪律只在稳定系统指令中维护。
 - 基础算术由主模型一次直答。最小版不注册 Calculator Tool，避免简单算术随机进入两次模型调用；Runtime 也不扫描用户文本、
   不维护算术前后缀或自然语言正则路由。未来出现真实高精度核算需求时，再以独立 Tool 和版本化 eval 加回。
@@ -288,9 +299,9 @@ Agent Run 使用独立的 `AgentTerminationReason` 说明循环为什么停止�
 建议按下面顺序阅读代码，避免把“请求入口”和“推理循环”混为一层：
 
 1. `AssistantController`：两个 HTTP 入口；用户 SSE 对话返回安全阶段和精简终态，同步调试返回完整流程，两者使用同一执行链。
-2. `AgentTurnService.run`：单轮总入口，依次构建不可变 Run Context、获取会话 Turn 锁、读取 Conversation State、过滤 Tool、调用 AgentLoop、写回状态和 Trace。Context 只固定身份/授权快照、会话、请求时间点、时区和规范化消息，不重复保存原始消息，也不保存可由时间点与时区推导的日期/本地时间；消息只统一换行和首尾空白，保留列表、缩进与多行结构供模型理解。给模型的可信运行上下文只发送时间、时区、Pending Action 和 Last Result；用户昵称、部门、角色和权限码不进入 Prompt，继续由 Tool 可见性与执行边界确定性判断。Context 不包含存储 Key、HTTP 审计字段或某个业务 Tool 的专属规则。
+2. `AgentTurnService.run`：单轮总入口，依次构建不可变 Run Context、获取会话 Turn 锁、读取 Conversation State、过滤 Tool、调用 AgentLoop、写回状态和 Trace。Context 只固定身份/授权快照、会话、请求时间点、时区和规范化消息，不重复保存原始消息，也不保存可由时间点与时区推导的日期/本地时间；消息只统一换行和首尾空白，保留列表、缩进与多行结构供模型理解。`ModelMessageBuilder` 根据同一请求时间点确定性生成 `date / time / weekday / zone`，与 Pending Action、Last Result 一起放入可信运行上下文，避免模型自行换算星期；用户昵称、部门、角色和权限码不进入 Prompt，继续由 Tool 可见性与执行边界确定性判断。Context 不包含存储 Key、HTTP 审计字段或某个业务 Tool 的专属规则。
 3. `ModelMessageBuilder.buildInitialMessages`：构建真正的消息数组；稳定 System Prompt 在最前，历史对话保持独立 `user/assistant` 角色，本轮可信状态使用独立 system 消息，当前用户输入是最后一条 user 消息。
-4. `AgentLoop.run`：约 180 行的推理核心，使用可直接阅读的 `if (response.hasToolCalls()) { ... continue; }` 主路径，只保留模型调用、预算、单批 Tool observation、等待用户和退出条件，不直接写业务表。
+4. `AgentLoop.run`：使用可直接阅读的 `if (response.hasToolCalls()) { ... continue; }` 主路径，只保留模型调用、显式预算、有界多轮 Tool observation、等待用户和退出条件，不直接写业务表。
 5. `ToolSetBuilder`：把当前可见业务 Tool 与仅在存在草稿时出现的确认/取消 Tool 组成本轮 Tool 面。
 6. `ToolCallProcessor`：处理 Tool 批次协议、调用预算、重复调用和紧凑 observation。
 7. `BusinessToolCallHandler` 与 `DefaultToolExecutionPlanFactory`：绑定/校验业务 Tool 参数，并按 `ToolExecutionStatus` 转换为只读执行、缺字段或待确认草稿状态。

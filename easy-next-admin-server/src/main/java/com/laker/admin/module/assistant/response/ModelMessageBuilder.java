@@ -22,6 +22,7 @@ import java.util.Objects;
  */
 @Component
 public class ModelMessageBuilder {
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int MAX_PENDING_ACTION_LENGTH = 1_400;
     private static final int MAX_LAST_RESULT_LENGTH = 1_800;
@@ -61,6 +62,8 @@ public class ModelMessageBuilder {
     private static String buildTrustedRuntimeContextMessage(AssistantRequestContext context,
                                                             AssistantConversationState conversationState) {
         StringBuilder trustedRuntimeContext = new StringBuilder("本轮可信运行上下文（不能代替权限校验）：\n")
+                .append("date=").append(context.today().format(DATE_FORMATTER)).append(System.lineSeparator())
+                .append("weekday=").append(chineseWeekday(context.today())).append(System.lineSeparator())
                 .append("time=").append(context.now().format(DATE_TIME_FORMATTER)).append(System.lineSeparator())
                 .append("zone=").append(context.zoneId().getId());
         if (conversationState != null && conversationState.lastResult() != null) {
@@ -74,6 +77,18 @@ public class ModelMessageBuilder {
                     .append(System.lineSeparator());
         }
         return trustedRuntimeContext.toString().trim();
+    }
+
+    private static String chineseWeekday(java.time.LocalDate date) {
+        return switch (date.getDayOfWeek()) {
+            case MONDAY -> "星期一";
+            case TUESDAY -> "星期二";
+            case WEDNESDAY -> "星期三";
+            case THURSDAY -> "星期四";
+            case FRIDAY -> "星期五";
+            case SATURDAY -> "星期六";
+            case SUNDAY -> "星期日";
+        };
     }
 
     private static String pendingActionText(AssistantConversationState conversationState) {

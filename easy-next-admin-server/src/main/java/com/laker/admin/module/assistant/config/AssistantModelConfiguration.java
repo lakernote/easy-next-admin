@@ -1,6 +1,7 @@
 package com.laker.admin.module.assistant.config;
 
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
+import com.laker.admin.module.assistant.runtime.model.AssistantModelResponseErrorHandler;
 import com.laker.admin.module.assistant.runtime.model.SpringAiToolCallingModelClient;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingModelClient;
 import com.laker.admin.module.assistant.trace.AssistantRunTraceRecorder;
@@ -13,6 +14,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -35,6 +37,7 @@ public class AssistantModelConfiguration {
         OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                 .baseUrl(properties.getBaseUrl())
                 .completionsPath(properties.getCompletionsPath())
+                .responseErrorHandler(new AssistantModelResponseErrorHandler())
                 .restClientBuilder(restClientBuilder.requestFactory(requestFactory));
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             apiBuilder.apiKey(new NoopApiKey());
@@ -51,6 +54,8 @@ public class AssistantModelConfiguration {
         return OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(options)
+                // 重试由 AgentLoop 的统一预算负责，避免 Spring AI 内层形成不可见的第二套重试。
+                .retryTemplate(RetryTemplate.builder().maxAttempts(1).build())
                 .build();
     }
 

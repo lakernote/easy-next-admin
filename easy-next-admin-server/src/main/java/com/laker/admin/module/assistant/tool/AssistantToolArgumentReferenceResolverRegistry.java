@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 /**
  * 按 toolName 分发结构化引用解析器。
  *
- * <p>Resolver 只读取上一轮结构化 RunState，用于跨工具、跨轮次的业务 ID 转换，
+ * <p>Resolver 只读取上一轮结构化 RunState 和本轮可信 Tool Result，用于跨工具、跨轮次的业务 ID 转换，
  * 不扫描当前消息做语义判断。</p>
  */
 @Component
@@ -34,10 +34,24 @@ public class AssistantToolArgumentReferenceResolverRegistry {
                                                          AssistantVisibleTool tool,
                                                          AssistantConversationState conversationState,
                                                          List<AssistantToolArgument> arguments) {
+        return resolveReferences(context, tool, conversationState, arguments, List.of());
+    }
+
+    public List<AssistantToolArgument> resolveReferences(AssistantRequestContext context,
+                                                         AssistantVisibleTool tool,
+                                                         AssistantConversationState conversationState,
+                                                         List<AssistantToolArgument> arguments,
+                                                         List<AssistantToolResult> trustedToolResults) {
         AssistantToolArgumentReferenceResolver resolver = resolvers.get(tool.name());
         if (resolver == null) {
             return arguments == null ? List.of() : List.copyOf(arguments);
         }
-        return resolver.resolveReferences(context, tool, conversationState, arguments);
+        return resolver.resolveReferences(
+                context,
+                tool,
+                conversationState,
+                arguments,
+                trustedToolResults == null ? List.of() : List.copyOf(trustedToolResults)
+        );
     }
 }

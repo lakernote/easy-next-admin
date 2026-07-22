@@ -53,7 +53,8 @@ public class ToolCallProcessor {
                                                     AgentLoopState runState,
                                                     AgentLoopListener listener,
                                                     List<ToolCall> requestedToolCalls,
-                                                    int maxToolCalls) {
+                                                    int maxToolCalls,
+                                                    int maxReadToolRounds) {
         if (countWriteTools(requestedToolCalls, runState.activeToolDefinitions()) > 1) {
             return Optional.of(rejectUnsafeWriteBatch(
                     context,
@@ -64,6 +65,7 @@ public class ToolCallProcessor {
             ));
         }
 
+        boolean completedReadOnlyCall = false;
         for (ToolCall requestedToolCall : scheduleReadOnlyCallsBeforeWrite(
                 requestedToolCalls,
                 runState.activeToolDefinitions()
@@ -80,6 +82,7 @@ public class ToolCallProcessor {
                 continue;
             }
             ToolCallOutcome executionOutcome = execution.get();
+            completedReadOnlyCall = completedReadOnlyCall || isCompletedReadOnlyCall(executionOutcome);
             recordExecutionAndAppendObservation(
                     context,
                     runState,
@@ -92,22 +95,30 @@ public class ToolCallProcessor {
                 return Optional.of(AgentResultFactory.waitingForUser(runState));
             }
         }
-        closeToolSurfaceAfterCompletedRound(runState);
+        completeToolRound(runState, completedReadOnlyCall, maxReadToolRounds);
         return Optional.empty();
     }
 
     /**
-     * 一个成功进入执行计划的 Tool 批次就是本轮唯一的 Tool round。
+     * 只读 Tool 可以在有界轮数内继续使用 observation 规划下一步；写边界仍由 updateToolSurface 收紧。
      *
-     * <p>模型应在同一次响应里提交全部相互独立的只读调用；批次完成后只根据 observation
-     * 生成最终答复，避免“查列表 -> 查详情 -> 再补查业务单”式无边界扩查。参数格式错误会形成
-     * BLOCKED 计划并保留 Tool 面，让模型仍有一次修复机会。</p>
+     * <p>达到只读轮数后，不再允许继续扩查；如果当前阶段原本存在写 Tool，则只保留写草稿 Tool
+     * 给模型一次受限交接机会。写 Tool 仍只能生成待确认草稿，不能直接落库；如果当前工具面已经因
+     * 确认成功收窄为只读，则这里不会重新引入第二个写操作。没有写 Tool 时关闭 Tool 面并预留最终回答调用。
+     * 参数格式错误形成 BLOCKED observation，不计入成功只读轮，仍可在模型调用预算内修复。</p>
      */
-    private static void closeToolSurfaceAfterCompletedRound(AgentLoopState runState) {
-        ToolExecutionPlan plan = runState.currentPlan();
-        if (plan != null && plan.status() != ToolExecutionStatus.BLOCKED) {
-            runState.replaceActiveToolDefinitions(List.of());
+    private static void completeToolRound(AgentLoopState runState,
+                                          boolean completedReadOnlyCall,
+                                          int maxReadToolRounds) {
+        if (completedReadOnlyCall && runState.recordReadToolRound() >= maxReadToolRounds) {
+            runState.replaceActiveToolDefinitions(writeOnlyDefinitions(runState.activeToolDefinitions()));
         }
+    }
+
+    private static boolean isCompletedReadOnlyCall(ToolCallOutcome outcome) {
+        return outcome.definition() != null
+                && outcome.definition().readOnly()
+                && outcome.plan().status() == ToolExecutionStatus.READY;
     }
 
     AgentResult rejectCallsWithoutToolSurface(AssistantRequestContext context,
@@ -417,6 +428,10 @@ public class ToolCallProcessor {
 
     private static List<ToolDefinition> readOnlyDefinitions(List<ToolDefinition> definitions) {
         return definitions.stream().filter(ToolDefinition::readOnly).toList();
+    }
+
+    private static List<ToolDefinition> writeOnlyDefinitions(List<ToolDefinition> definitions) {
+        return definitions.stream().filter(definition -> !definition.readOnly()).toList();
     }
 
     private static void notifyModelSelectedVisibleTool(AssistantRequestContext context,

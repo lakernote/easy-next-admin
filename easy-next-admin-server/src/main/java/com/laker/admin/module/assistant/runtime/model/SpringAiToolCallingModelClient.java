@@ -22,6 +22,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.util.StringUtils;
 
@@ -68,7 +69,7 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
         long responseProcessingFinishedNanos = 0;
         AssistantTokenUsage usage = AssistantTokenUsage.ZERO;
         try {
-            ToolNameMapping toolNames = ToolNameMapping.from(request.tools());
+            ToolNameMapping toolNames = ToolNameMapping.from(request.toolNameMappingTools());
             List<ToolCallback> callbacks = request.tools().stream()
                     .map(definition -> new DefinitionOnlyToolCallback(definition, toolNames, jsonCodec))
                     .map(ToolCallback.class::cast)
@@ -81,6 +82,16 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
                     .parallelToolCalls(callbacks.isEmpty() || request.tools().stream().allMatch(ToolDefinition::readOnly))
                     .internalToolExecutionEnabled(false)
                     .toolCallbacks(callbacks);
+            if (request.outputSchema() != null) {
+                options.responseFormat(ResponseFormat.builder()
+                        .type(ResponseFormat.Type.JSON_SCHEMA)
+                        .jsonSchema(ResponseFormat.JsonSchema.builder()
+                                .name(request.outputSchema().name())
+                                .schema(request.outputSchema().schema())
+                                .strict(true)
+                                .build())
+                        .build());
+            }
             if (!callbacks.isEmpty()) {
                 options.toolChoice("auto");
             }
@@ -92,10 +103,15 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
             providerFinishedNanos = System.nanoTime();
 
             responseProcessingStartedNanos = providerFinishedNanos;
-            ToolCallingResponse result = toCoreResponse(response, toolNames);
+            ToolCallingResponse result = toCoreResponse(response, toolNames, request.outputSchema());
             usage = tokenUsage(response);
-            if (!StringUtils.hasText(result.content()) && !result.hasToolCalls()) {
-                throw new IllegalStateException("Tool Calling 模型返回空内容");
+            if (!result.hasToolCalls() && looksLikeTextualToolCall(result.content())) {
+                throw ModelCallException.protocol("模型把 Tool Call 作为普通文本返回");
+            }
+            if (!StringUtils.hasText(result.content())
+                    && !result.hasToolCalls()
+                    && isNormalContentFinish(result.finishReason())) {
+                throw ModelCallException.protocol("Tool Calling 模型返回空内容");
             }
             responseProcessingFinishedNanos = System.nanoTime();
             record(
@@ -110,6 +126,7 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
             );
             return result;
         } catch (RuntimeException ex) {
+            ModelCallException failure = ModelCallException.classify(ex);
             long failedAtNanos = System.nanoTime();
             if (providerStartedNanos == 0) {
                 preparationFinishedNanos = failedAtNanos;
@@ -128,9 +145,9 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
                     request,
                     null,
                     null,
-                    errorMessage(ex)
+                    errorMessage(failure)
             );
-            throw ex;
+            throw failure;
         }
     }
 
@@ -180,7 +197,9 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
         };
     }
 
-    private ToolCallingResponse toCoreResponse(ChatResponse response, ToolNameMapping toolNames) {
+    private ToolCallingResponse toCoreResponse(ChatResponse response,
+                                               ToolNameMapping toolNames,
+                                               ToolCallingOutputSchema outputSchema) {
         Generation generation = response == null ? null : response.getResult();
         AssistantMessage output = generation == null ? null : generation.getOutput();
         if (output == null) {
@@ -201,7 +220,54 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
         String finishReason = generation.getMetadata() == null
                 ? ""
                 : generation.getMetadata().getFinishReason();
-        return new ToolCallingResponse(output.getText(), calls, finishReason);
+        ModelFinishReason normalizedFinishReason = ModelFinishReason.fromProvider(finishReason);
+        Map<String, Object> structuredContent = calls.isEmpty()
+                && outputSchema != null
+                && isNormalContentFinish(normalizedFinishReason)
+                ? parseStructuredContent(output.getText())
+                : Map.of();
+        return new ToolCallingResponse(
+                output.getText(),
+                calls,
+                normalizedFinishReason,
+                finishReason,
+                structuredContent
+        );
+    }
+
+    private Map<String, Object> parseStructuredContent(String content) {
+        if (!StringUtils.hasText(content)) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> parsed = jsonCodec.fromJson(content, ARGUMENT_TYPE);
+            if (parsed == null) {
+                throw ModelCallException.protocol("Structured Output 不是 JSON 对象");
+            }
+            return parsed;
+        } catch (ModelCallException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw ModelCallException.protocol("Structured Output 不是合法 JSON 对象");
+        }
+    }
+
+    private static boolean isNormalContentFinish(ModelFinishReason finishReason) {
+        return finishReason == ModelFinishReason.STOP || finishReason == ModelFinishReason.UNSPECIFIED;
+    }
+
+    /**
+     * 兼容供应商在 Tool 面关闭后偶尔返回的伪 XML Tool Call。
+     *
+     * <p>只拒绝整个回复都是明确调用信封的情况，不扫描普通正文中的工具术语，也不承担事实审查。</p>
+     */
+    private static boolean looksLikeTextualToolCall(String content) {
+        if (!StringUtils.hasText(content)) {
+            return false;
+        }
+        String normalized = content.trim().toLowerCase(java.util.Locale.ROOT);
+        return (normalized.startsWith("<tool_call>") && normalized.endsWith("</tool_call>"))
+                || (normalized.startsWith("<function_call>") && normalized.endsWith("</function_call>"));
     }
 
     private ParsedToolArguments parseArguments(String arguments) {
@@ -252,6 +318,7 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
         metadata.put("toolCount", request.tools().size());
         metadata.put("toolNames", request.tools().stream().map(ToolDefinition::name).toList());
         metadata.put("maxOutputTokens", effectiveMaxOutputTokens(request));
+        metadata.put("outputSchema", request.outputSchema() == null ? "" : request.outputSchema().name());
         return Map.copyOf(metadata);
     }
 
@@ -275,9 +342,17 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
     }
 
     private Map<String, Object> modelRequestContent(ToolCallingRequest request) {
-        ToolNameMapping toolNames = ToolNameMapping.from(request.tools());
+        ToolNameMapping toolNames = ToolNameMapping.from(request.toolNameMappingTools());
         boolean parallelToolCalls = request.tools().isEmpty()
                 || request.tools().stream().allMatch(ToolDefinition::readOnly);
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("model", properties.getModel());
+        options.put("temperature", properties.getTemperature());
+        options.put("maxOutputTokens", effectiveMaxOutputTokens(request));
+        options.put("toolChoice", request.tools().isEmpty() ? "none" : "auto");
+        options.put("parallelToolCalls", parallelToolCalls);
+        options.put("internalToolExecutionEnabled", false);
+        options.put("responseFormat", request.outputSchema() == null ? "text" : "json_schema");
         return Map.of(
                 "messages", modelVisibleMessages(request, toolNames),
                 "tools", request.tools().stream().map(definition -> Map.of(
@@ -285,14 +360,7 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
                         "description", toolDescription(definition),
                         "inputSchema", inputSchema(definition)
                 )).toList(),
-                "options", Map.of(
-                        "model", properties.getModel(),
-                        "temperature", properties.getTemperature(),
-                        "maxOutputTokens", effectiveMaxOutputTokens(request),
-                        "toolChoice", request.tools().isEmpty() ? "none" : "auto",
-                        "parallelToolCalls", parallelToolCalls,
-                        "internalToolExecutionEnabled", false
-                )
+                "options", Map.copyOf(options)
         );
     }
 
@@ -476,11 +544,7 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
             Map<String, String> canonicalToProvider = new LinkedHashMap<>();
             Map<String, String> providerToCanonical = new LinkedHashMap<>();
             for (ToolDefinition definition : definitions) {
-                String providerName = providerSafeName(definition.name());
-                if (providerToCanonical.containsKey(providerName)
-                        && !providerToCanonical.get(providerName).equals(definition.name())) {
-                    providerName = withHash(providerName, definition.name());
-                }
+                String providerName = uniqueProviderName(definition.name(), providerToCanonical);
                 canonicalToProvider.put(definition.name(), providerName);
                 providerToCanonical.put(providerName, definition.name());
             }
@@ -509,6 +573,20 @@ public class SpringAiToolCallingModelClient implements ToolCallingModelClient {
             }
             String result = safe.isEmpty() ? "tool" : safe.toString();
             return result.length() <= MAX_FUNCTION_NAME_LENGTH ? result : withHash(result, source);
+        }
+
+        private static String uniqueProviderName(String canonicalName,
+                                                 Map<String, String> providerToCanonical) {
+            String safeName = providerSafeName(canonicalName);
+            String candidate = safeName;
+            int salt = 0;
+            while (providerToCanonical.containsKey(candidate)
+                    && !providerToCanonical.get(candidate).equals(canonicalName)) {
+                String source = salt == 0 ? canonicalName : canonicalName + "#" + salt;
+                salt++;
+                candidate = withHash(safeName, source);
+            }
+            return candidate;
         }
 
         private static String withHash(String safeName, String source) {

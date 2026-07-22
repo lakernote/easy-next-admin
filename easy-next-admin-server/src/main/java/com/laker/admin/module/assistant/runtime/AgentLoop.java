@@ -3,18 +3,22 @@ package com.laker.admin.module.assistant.runtime;
 import com.laker.admin.module.assistant.config.AssistantModelProperties;
 import com.laker.admin.module.assistant.context.AssistantRequestContext;
 import com.laker.admin.module.assistant.response.ModelMessageBuilder;
+import com.laker.admin.module.assistant.runtime.model.ModelCallException;
+import com.laker.admin.module.assistant.runtime.model.ModelCallFailureType;
 import com.laker.admin.module.assistant.runtime.model.ModelFinishReason;
 import com.laker.admin.module.assistant.runtime.model.ToolCall;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingMessage;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingModelClient;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingRequest;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingResponse;
+import com.laker.admin.module.assistant.runtime.model.ToolCallingOutputSchema;
 import com.laker.admin.module.assistant.state.AssistantConversationState;
 import com.laker.admin.module.assistant.tool.AssistantVisibleTool;
 import com.laker.admin.module.assistant.tool.ToolDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -35,9 +39,9 @@ import java.util.Optional;
  * return invalidModelResponse()
  * }</pre>
  *
- * <p>参数协议错误可以在统一预算内修复一次，因此实现仍保留一个很小的循环；成功执行一个
- * Tool round 后 Tool 面会关闭，不允许模型无边界扩查。权限、参数、确认、幂等与 observation
- * 都在 {@link ToolCallProcessor}，会话加载和写回在上层 {@code AgentTurnService}。</p>
+ * <p>参数协议错误可以在统一预算内修复；只读 Tool 可以在显式轮数和调用预算内根据 observation
+ * 继续规划。权限、参数、确认、幂等与 observation 都在 {@link ToolCallProcessor}，会话加载和写回
+ * 在上层 {@code AgentTurnService}。</p>
  */
 @Component
 public class AgentLoop {
@@ -49,6 +53,8 @@ public class AgentLoop {
     private final ToolCallProcessor toolCallProcessor;
     private final int maxSteps;
     private final int maxToolCalls;
+    private final int maxReadToolRounds;
+    private final ToolCallingOutputSchema outputSchema;
 
     public AgentLoop(ToolCallingModelClient modelClient,
                      AssistantModelProperties modelProperties,
@@ -73,6 +79,14 @@ public class AgentLoop {
                 1,
                 AssistantModelProperties.MAX_TOOL_CALLS_LIMIT
         );
+        this.maxReadToolRounds = bounded(
+                properties.getMaxReadToolRounds(),
+                1,
+                AssistantModelProperties.MAX_READ_TOOL_ROUNDS_LIMIT
+        );
+        this.outputSchema = properties.isStructuredOutputEnabled()
+                ? ToolCallingOutputSchema.assistantReply()
+                : null;
     }
 
     public AgentResult run(AssistantRequestContext context,
@@ -105,20 +119,32 @@ public class AgentLoop {
             ToolCallingRequest request = new ToolCallingRequest(
                     state.messageHistory(),
                     allowTools ? state.activeToolDefinitions() : List.of(),
+                    state.toolNameMappingDefinitions(),
                     finalResponseCall ? "final_response" : "agent_step",
-                    null
+                    null,
+                    outputSchema
             );
             ToolCallingResponse response;
             try {
                 AgentLoopEvents.modelCallStarted(context, safeListener, step, request);
                 response = modelClient.call(request);
                 AgentLoopEvents.modelCallFinished(context, safeListener, step, response);
-            } catch (RuntimeException ex) {
-                log.warn("Assistant model call failed, runId={}, traceId={}, type={}",
-                        context.runId(), context.traceId(), ex.getClass().getSimpleName());
-                if (step < maxSteps && state.tryMarkModelCallRetry()) {
+            } catch (ModelCallException ex) {
+                log.warn("Assistant model call failed, runId={}, traceId={}, failureType={}, retryable={}",
+                        context.runId(), context.traceId(), ex.failureType(), ex.retryable());
+                if (ex.retryable()
+                        && step < maxSteps
+                        && state.tryMarkModelCallRetry()
+                        && waitBeforeRetry(ex)) {
                     continue;
                 }
+                if (ex.failureType() == ModelCallFailureType.PROTOCOL_ERROR) {
+                    return AgentResultFactory.abnormalFinish(context, state, ModelFinishReason.STOP);
+                }
+                return AgentResultFactory.modelFailure(context, state);
+            } catch (RuntimeException ex) {
+                log.warn("Assistant model adapter failed without retry, runId={}, traceId={}, type={}",
+                        context.runId(), context.traceId(), ex.getClass().getSimpleName());
                 return AgentResultFactory.modelFailure(context, state);
             }
 
@@ -170,7 +196,8 @@ public class AgentLoop {
                         state,
                         safeListener,
                         requestedToolCalls,
-                        maxToolCalls
+                        maxToolCalls,
+                        maxReadToolRounds
                 );
                 if (waitingForUser.isPresent()) {
                     return waitingForUser.get();
@@ -180,7 +207,11 @@ public class AgentLoop {
             if (!response.hasContent()) {
                 return AgentResultFactory.abnormalFinish(context, state, response.finishReason());
             }
-            return AgentResultFactory.finalAnswer(context, state, response.content());
+            String finalReply = finalReply(response);
+            if (!StringUtils.hasText(finalReply)) {
+                return AgentResultFactory.abnormalFinish(context, state, ModelFinishReason.STOP);
+            }
+            return AgentResultFactory.finalAnswer(context, state, finalReply);
         }
         return AgentResultFactory.modelCallLimit(context, state);
     }
@@ -199,5 +230,30 @@ public class AgentLoop {
 
     private static int bounded(int value, int lowerBound, int upperBound) {
         return Math.min(upperBound, Math.max(lowerBound, value));
+    }
+
+    private String finalReply(ToolCallingResponse response) {
+        if (outputSchema == null) {
+            return response.content();
+        }
+        if (response.structuredContent().size() != 1) {
+            return "";
+        }
+        Object reply = response.structuredContent().get("reply");
+        return reply instanceof String text ? text : "";
+    }
+
+    private static boolean waitBeforeRetry(ModelCallException exception) {
+        long delayMillis = Math.min(1_000L, Math.max(0L, exception.retryDelay().toMillis()));
+        if (delayMillis == 0L) {
+            return true;
+        }
+        try {
+            Thread.sleep(delayMillis);
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 }

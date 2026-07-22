@@ -31,15 +31,16 @@ class LeavePrepareToolTest {
                         .contains("下午/全天 18:00"));
         assertThat(tool.definition().description())
                 .contains("用于", "不用于")
-                .contains("仅填写用户明确提供的假别、起止时间和原因")
-                .contains("假别必须在用户原文中出现")
+                .contains("填写用户明确提供的假别、起止时间和原因")
+                .contains("参考本轮刚查询的请假单")
+                .contains("不能从其他内容猜测")
                 .contains("缺失字段省略");
         assertThat(tool.definition().inputSchema())
                 .filteredOn(field -> field.name().equals("leaveType"))
                 .singleElement()
                 .satisfies(field -> {
                     assertThat(field.description())
-                            .contains("SICK=病假", "用户原文明确出现", "未说明则省略");
+                            .contains("SICK=病假", "用户原文明确出现", "复用本轮刚查询请假单", "否则省略");
                     assertThat(field.enumValues())
                             .contains("ANNUAL", "PERSONAL", "SICK", "COMPENSATORY");
                     assertThat(field.displayValue("SICK")).isEqualTo("病假");

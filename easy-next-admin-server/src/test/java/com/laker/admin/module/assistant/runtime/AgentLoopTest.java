@@ -5,6 +5,7 @@ import com.laker.admin.infrastructure.idempotency.idempotent.IdempotentHandler;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.module.assistant.config.AssistantModelProperties;
 import com.laker.admin.module.assistant.response.ModelMessageBuilder;
+import com.laker.admin.module.assistant.runtime.model.ModelCallException;
 import com.laker.admin.module.assistant.runtime.model.ModelFinishReason;
 import com.laker.admin.module.assistant.runtime.model.ToolCall;
 import com.laker.admin.module.assistant.runtime.model.ToolCallingMessage;
@@ -121,9 +122,10 @@ class AgentLoopTest {
                     .doesNotContain("找到 2 个待办", "artifactType", "planStatus");
         });
         assertThat(model.requests().get(1).tools())
-                .as("成功 Tool round 后只允许模型合成最终答复")
-                .isEmpty();
-        assertThat(model.requests().get(1).operationName()).isEqualTo("final_response");
+                .as("只读 Tool round 后模型仍可基于 observation 继续规划")
+                .extracting(ToolDefinition::name)
+                .containsExactly("workflow.task.list");
+        assertThat(model.requests().get(1).operationName()).isEqualTo("agent_step");
         assertThat(model.requests().get(1).messages())
                 .extracting(ToolCallingMessage::role)
                 .endsWith(ToolCallingMessageRole.ASSISTANT, ToolCallingMessageRole.TOOL);
@@ -131,6 +133,134 @@ class AgentLoopTest {
                 .singleElement()
                 .satisfies(call -> assertThat(call.id()).isEqualTo("call_1"));
         assertThat(model.requests().get(1).messages().get(4).toolCallId()).isEqualTo("call_1");
+    }
+
+    @Test
+    void dependentReadOnlyToolsCanUsePreviousObservationBeforeFinalResponse() {
+        AtomicInteger listExecutions = new AtomicInteger();
+        AtomicInteger detailExecutions = new AtomicInteger();
+        AssistantTool listTool = tool(
+                definition("test.item.list", "查询项目列表", List.of()),
+                context -> {
+                    listExecutions.incrementAndGet();
+                    return new AssistantToolResult(
+                            "test.item.list",
+                            AssistantToolRunStatus.EXECUTED,
+                            "ITEM_LIST",
+                            "找到第一个项目",
+                            Map.of("items", List.of(Map.of("id", "42")))
+                    );
+                }
+        );
+        AssistantTool detailTool = tool(
+                definition("test.item.detail", "查询项目详情", List.of(new ToolInputField(
+                        "value", "项目 ID", ToolSchemaType.STRING, ToolSchemaFormat.NONE,
+                        "列表 observation 中的项目 ID", true, List.of()
+                ))),
+                context -> {
+                    detailExecutions.incrementAndGet();
+                    return new AssistantToolResult(
+                            "test.item.detail",
+                            AssistantToolRunStatus.EXECUTED,
+                            "ITEM_DETAIL",
+                            "项目 42 详情",
+                            Map.of("id", context.plan().argumentMap().get("value"), "name", "示例项目")
+                    );
+                }
+        );
+        AssistantToolRegistry registry = new AssistantToolRegistry(List.of(listTool, detailTool));
+        RecordingModelClient model = new RecordingModelClient(List.of(
+                new ToolCallingResponse(null, List.of(
+                        new ToolCall("list", listTool.definition().name(), Map.of())
+                ), "tool_calls"),
+                new ToolCallingResponse(null, List.of(
+                        new ToolCall("detail", detailTool.definition().name(), Map.of("value", "42"))
+                ), "tool_calls"),
+                new ToolCallingResponse("第一个项目是示例项目。", List.of(), "stop")
+        ));
+
+        AgentResult result = agentLoop(model, registry, 6, 6, 2, false).run(
+                requestContext("先查询列表，再查看第一个项目详情"),
+                AssistantConversationState.empty(),
+                List.of(
+                        AssistantVisibleTool.from(listTool.definition()),
+                        AssistantVisibleTool.from(detailTool.definition())
+                )
+        );
+
+        assertThat(result.reply()).isEqualTo("第一个项目是示例项目。");
+        assertThat(result.executedToolNames())
+                .containsExactly("test.item.list", "test.item.detail");
+        assertThat(listExecutions).hasValue(1);
+        assertThat(detailExecutions).hasValue(1);
+        assertThat(model.requests()).hasSize(3);
+        assertThat(model.requests().get(1).tools()).isNotEmpty();
+        assertThat(model.requests().get(2).tools()).isEmpty();
+        assertThat(model.requests().get(2).operationName()).isEqualTo("final_response");
+    }
+
+    @Test
+    void readRoundLimitAllowsOneWriteDraftHandoffWithoutFurtherReads() {
+        AtomicInteger prepared = new AtomicInteger();
+        AtomicInteger confirmed = new AtomicInteger();
+        AssistantTool firstRead = tool(
+                definition("test.item.list", "查询项目列表", List.of()),
+                context -> new AssistantToolResult(
+                        "test.item.list",
+                        AssistantToolRunStatus.EXECUTED,
+                        "ITEM_LIST",
+                        "找到两个项目",
+                        Map.of("items", List.of(Map.of("id", "1"), Map.of("id", "2")))
+                )
+        );
+        AssistantTool secondRead = tool(
+                definition("test.item.detail", "查询第二个项目详情", List.of()),
+                context -> new AssistantToolResult(
+                        "test.item.detail",
+                        AssistantToolRunStatus.EXECUTED,
+                        "ITEM_DETAIL",
+                        "第二个项目可作为申请参考",
+                        Map.of("date", "2026-07-18", "reason", "客户支持")
+                )
+        );
+        ConfirmableTool writeTool = confirmableTool(prepared, confirmed);
+        AssistantToolRegistry registry = new AssistantToolRegistry(List.of(firstRead, secondRead, writeTool));
+        RecordingModelClient model = new RecordingModelClient(List.of(
+                new ToolCallingResponse(null, List.of(new ToolCall(
+                        "list", firstRead.definition().name(), Map.of()
+                )), "tool_calls"),
+                new ToolCallingResponse(null, List.of(new ToolCall(
+                        "detail", secondRead.definition().name(), Map.of()
+                )), "tool_calls"),
+                new ToolCallingResponse(null, List.of(new ToolCall(
+                        "draft",
+                        writeTool.definition().name(),
+                        Map.of("date", "2026-07-18", "reason", "客户支持")
+                )), "tool_calls")
+        ));
+        List<AssistantVisibleTool> visibleTools = List.of(
+                AssistantVisibleTool.from(firstRead.definition()),
+                AssistantVisibleTool.from(secondRead.definition()),
+                AssistantVisibleTool.from(writeTool.definition())
+        );
+
+        AgentResult result = agentLoop(model, registry, 6, 6, 2, false).run(
+                requestContext("查询两个项目，参考第二个项目新建申请"),
+                AssistantConversationState.empty(),
+                visibleTools
+        );
+
+        assertThat(result.plan().status()).isEqualTo(ToolExecutionStatus.APPROVAL_REQUIRED);
+        assertThat(result.terminationReason()).isEqualTo(AgentTerminationReason.WAITING_FOR_CONFIRMATION);
+        assertThat(result.executedToolNames())
+                .containsExactly("test.item.list", "test.item.detail", "workflow.request.prepare");
+        assertThat(prepared).hasValue(1);
+        assertThat(confirmed).hasValue(0);
+        assertThat(model.requests()).hasSize(3);
+        assertThat(model.requests().get(2).operationName()).isEqualTo("agent_step");
+        assertThat(model.requests().get(2).tools())
+                .extracting(ToolDefinition::name)
+                .containsExactly("workflow.request.prepare");
     }
 
     @Test
@@ -383,11 +513,67 @@ class AgentLoopTest {
     }
 
     @Test
-    void gatewayFailureRetriesAtMostOnce() {
+    void finalResponseRetryNeverReplaysAConfirmedWriteTool() {
+        AtomicInteger prepared = new AtomicInteger();
+        AtomicInteger confirmed = new AtomicInteger();
+        AtomicInteger modelCalls = new AtomicInteger();
+        List<ToolCallingRequest> requests = new ArrayList<>();
+        ConfirmableTool writeTool = confirmableTool(prepared, confirmed);
+        AssistantToolRegistry registry = new AssistantToolRegistry(List.of(writeTool));
+        ToolCallingModelClient model = request -> {
+            requests.add(request);
+            return switch (modelCalls.incrementAndGet()) {
+                case 1 -> new ToolCallingResponse(null, List.of(new ToolCall(
+                        "confirm", ToolSetBuilder.CONFIRM_PENDING_ACTION, Map.of()
+                )), "tool_calls");
+                case 2 -> throw ModelCallException.serverError("temporary final response failure");
+                default -> new ToolCallingResponse("申请已提交。", List.of(), "stop");
+            };
+        };
+
+        AgentResult result = agentLoop(model, registry).run(
+                requestContext("确认提交"),
+                state(completePendingAction()),
+                List.of(AssistantVisibleTool.from(writeTool.definition()))
+        );
+
+        assertThat(result.reply()).isEqualTo("申请已提交。");
+        assertThat(confirmed).hasValue(1);
+        assertThat(prepared).hasValue(0);
+        assertThat(modelCalls).hasValue(3);
+        assertThat(requests.get(1).tools()).isEmpty();
+        assertThat(requests.get(2).tools()).isEmpty();
+        assertThat(requests.get(1).messages()).isEqualTo(requests.get(2).messages());
+    }
+
+    @Test
+    void modelRefusalIsNotRetried() {
+        RecordingModelClient model = new RecordingModelClient(List.of(
+                new ToolCallingResponse(
+                        "",
+                        List.of(),
+                        ModelFinishReason.REFUSAL,
+                        "refusal"
+                )
+        ));
+
+        AgentResult result = agentLoop(model, new AssistantToolRegistry(List.of())).run(
+                requestContext("你好"),
+                AssistantConversationState.empty(),
+                List.of()
+        );
+
+        assertThat(result.terminationReason()).isEqualTo(AgentTerminationReason.MODEL_REFUSED);
+        assertThat(result.modelCallCount()).isEqualTo(1);
+        assertThat(model.requests()).hasSize(1);
+    }
+
+    @Test
+    void retryableGatewayFailureRetriesAtMostOnce() {
         AtomicInteger attempts = new AtomicInteger();
         ToolCallingModelClient model = request -> {
             if (attempts.getAndIncrement() == 0) {
-                throw new IllegalStateException("temporary gateway failure");
+                throw ModelCallException.serverError("temporary gateway failure");
             }
             return new ToolCallingResponse("恢复成功", List.of(), "stop");
         };
@@ -404,15 +590,115 @@ class AgentLoopTest {
         assertThat(attempts).hasValue(2);
     }
 
+    @Test
+    void unknownRuntimeFailureIsNotRetried() {
+        AtomicInteger attempts = new AtomicInteger();
+        ToolCallingModelClient model = request -> {
+            attempts.incrementAndGet();
+            throw new IllegalStateException("adapter bug");
+        };
+
+        AgentResult result = agentLoop(model, new AssistantToolRegistry(List.of())).run(
+                requestContext("你好"),
+                AssistantConversationState.empty(),
+                List.of()
+        );
+
+        assertThat(result.terminationReason()).isEqualTo(AgentTerminationReason.MODEL_ERROR);
+        assertThat(result.modelCallCount()).isEqualTo(1);
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
+    void protocolFailureIsNotRetriedAndKeepsItsTerminationReason() {
+        AtomicInteger attempts = new AtomicInteger();
+        ToolCallingModelClient model = request -> {
+            attempts.incrementAndGet();
+            throw ModelCallException.protocol("invalid provider payload");
+        };
+
+        AgentResult result = agentLoop(model, new AssistantToolRegistry(List.of())).run(
+                requestContext("你好"),
+                AssistantConversationState.empty(),
+                List.of()
+        );
+
+        assertThat(result.terminationReason()).isEqualTo(AgentTerminationReason.MODEL_PROTOCOL_ERROR);
+        assertThat(result.modelCallCount()).isEqualTo(1);
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
+    void structuredOutputIsUnwrappedWithoutChangingTheUserReplyContract() {
+        RecordingModelClient model = new RecordingModelClient(List.of(
+                new ToolCallingResponse(
+                        "{\"reply\":\"结构化回答\"}",
+                        List.of(),
+                        ModelFinishReason.STOP,
+                        "stop",
+                        Map.of("reply", "结构化回答")
+                )
+        ));
+
+        AgentResult result = agentLoop(
+                model,
+                new AssistantToolRegistry(List.of()),
+                6,
+                6,
+                3,
+                true
+        ).run(requestContext("你好"), AssistantConversationState.empty(), List.of());
+
+        assertThat(result.reply()).isEqualTo("结构化回答");
+        assertThat(model.requests()).singleElement().satisfies(request ->
+                assertThat(request.outputSchema()).isNotNull()
+        );
+    }
+
+    @Test
+    void structuredOutputWithUnexpectedFieldsFailsAsProtocolErrorWithoutRetry() {
+        RecordingModelClient model = new RecordingModelClient(List.of(
+                new ToolCallingResponse(
+                        "{\"answer\":\"错误字段\"}",
+                        List.of(),
+                        ModelFinishReason.STOP,
+                        "stop",
+                        Map.of("answer", "错误字段")
+                )
+        ));
+
+        AgentResult result = agentLoop(
+                model,
+                new AssistantToolRegistry(List.of()),
+                6,
+                6,
+                3,
+                true
+        ).run(requestContext("你好"), AssistantConversationState.empty(), List.of());
+
+        assertThat(result.terminationReason()).isEqualTo(AgentTerminationReason.MODEL_PROTOCOL_ERROR);
+        assertThat(result.modelCallCount()).isEqualTo(1);
+        assertThat(model.requests()).hasSize(1);
+    }
+
     private static AgentLoop agentLoop(ToolCallingModelClient model,
                                        AssistantToolRegistry registry) {
-        return agentLoop(model, registry, 6, 6);
+        return agentLoop(model, registry, 6, 6, 3, false);
     }
 
     private static AgentLoop agentLoop(ToolCallingModelClient model,
                                        AssistantToolRegistry registry,
                                        int maxModelCalls,
                                        int maxToolCalls) {
+        return agentLoop(model, registry, maxModelCalls, maxToolCalls, 3, false);
+    }
+
+    private static AgentLoop agentLoop(ToolCallingModelClient model,
+                                       AssistantToolRegistry registry,
+                                       int maxModelCalls,
+                                       int maxToolCalls,
+                                       int maxReadToolRounds,
+                                       boolean structuredOutputEnabled) {
         EasyJsonCodec jsonCodec = new EasyJsonCodec(new ObjectMapper());
         AssistantToolRunner toolRunner = new AssistantToolRunner(
                 registry,
@@ -441,6 +727,8 @@ class AgentLoopTest {
         AssistantModelProperties properties = new AssistantModelProperties();
         properties.setMaxModelCalls(maxModelCalls);
         properties.setMaxToolCalls(maxToolCalls);
+        properties.setMaxReadToolRounds(maxReadToolRounds);
+        properties.setStructuredOutputEnabled(structuredOutputEnabled);
         return new AgentLoop(
                 model,
                 properties,

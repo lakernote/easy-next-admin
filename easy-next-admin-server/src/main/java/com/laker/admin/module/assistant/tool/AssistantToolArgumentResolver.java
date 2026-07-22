@@ -3,6 +3,7 @@ package com.laker.admin.module.assistant.tool;
 import com.laker.admin.module.assistant.context.AssistantRequestContext;
 import com.laker.admin.module.assistant.state.AssistantConversationState;
 
+import java.util.List;
 import java.util.Map;
 
 /** 将模型按 Tool Schema 生成的原生参数转换为可验证的企业 Tool 参数。 */
@@ -11,4 +12,12 @@ public interface AssistantToolArgumentResolver {
                                                                AssistantVisibleTool tool,
                                                                Map<String, Object> arguments,
                                                                AssistantConversationState conversationState);
+
+    default AssistantToolArgumentResolution resolveToolCallArguments(AssistantRequestContext context,
+                                                                      AssistantVisibleTool tool,
+                                                                      Map<String, Object> arguments,
+                                                                      AssistantConversationState conversationState,
+                                                                      List<AssistantToolResult> trustedToolResults) {
+        return resolveToolCallArguments(context, tool, arguments, conversationState);
+    }
 }

@@ -156,6 +156,10 @@ easy:
       max-tokens: ${EASY_ASSISTANT_MODEL_MAX_TOKENS:800}
       max-model-calls: ${EASY_ASSISTANT_MAX_MODEL_CALLS:6}
       max-tool-calls: ${EASY_ASSISTANT_MAX_TOOL_CALLS:6}
+      # 允许模型读取 observation 后继续进行有界只读查询；1 表示保持单 Tool round。
+      max-read-tool-rounds: ${EASY_ASSISTANT_MAX_READ_TOOL_ROUNDS:3}
+      # 仅在 Provider 支持 response_format=json_schema 时开启；用户 API 的 reply 字段保持不变。
+      structured-output-enabled: ${EASY_ASSISTANT_STRUCTURED_OUTPUT_ENABLED:false}
   spring:
     redis:
       database: ${EASY_REDIS_DATABASE:0}

@@ -23,6 +23,7 @@ import java.util.Set;
 final class AgentLoopState {
     private final List<AssistantVisibleTool> visibleTools;
     private final List<ToolDefinition> businessToolDefinitions;
+    private final List<ToolDefinition> toolNameMappingDefinitions;
     private final List<ToolCallingMessage> messageHistory;
     private final List<AssistantToolResult> toolResults = new ArrayList<>();
     private final List<String> executedToolNames = new ArrayList<>();
@@ -35,6 +36,7 @@ final class AgentLoopState {
     private AgentTerminationReason terminationReasonHint;
     private int modelCallCount;
     private int toolCallCount;
+    private int readToolRoundCount;
     private boolean modelCallRetryAttempted;
 
     private AgentLoopState(List<AssistantVisibleTool> visibleTools,
@@ -54,6 +56,7 @@ final class AgentLoopState {
                         "activeToolDefinitions must not be null"
                 )
         );
+        this.toolNameMappingDefinitions = this.activeToolDefinitions;
         this.messageHistory = new ArrayList<>(
                 Objects.requireNonNull(initialMessageHistory, "initialMessageHistory must not be null")
         );
@@ -81,6 +84,10 @@ final class AgentLoopState {
 
     void incrementToolCallCount() {
         toolCallCount++;
+    }
+
+    int recordReadToolRound() {
+        return ++readToolRoundCount;
     }
 
     boolean markToolCallAttempted(String signature) {
@@ -131,6 +138,10 @@ final class AgentLoopState {
 
     List<ToolDefinition> activeToolDefinitions() {
         return activeToolDefinitions;
+    }
+
+    List<ToolDefinition> toolNameMappingDefinitions() {
+        return toolNameMappingDefinitions;
     }
 
     void replaceActiveToolDefinitions(List<ToolDefinition> definitions) {

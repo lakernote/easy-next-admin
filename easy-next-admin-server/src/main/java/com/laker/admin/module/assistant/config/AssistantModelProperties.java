@@ -12,6 +12,7 @@ import java.time.Duration;
 public class AssistantModelProperties {
     public static final int MAX_MODEL_CALLS_LIMIT = 16;
     public static final int MAX_TOOL_CALLS_LIMIT = 32;
+    public static final int MAX_READ_TOOL_ROUNDS_LIMIT = 8;
     /**
      * OpenAI-compatible Chat Completions 基础地址，例如 https://dashscope.aliyuncs.com/compatible-mode/v1。
      */
@@ -58,6 +59,19 @@ public class AssistantModelProperties {
     @Min(1)
     @Max(MAX_TOOL_CALLS_LIMIT)
     private int maxToolCalls = 6;
+
+    /**
+     * 单轮允许模型基于 observation 继续规划的只读 Tool 批次数。
+     * 值为 1 时等价于单 Tool round；默认允许三轮依赖型只读查询。
+     */
+    @Min(1)
+    @Max(MAX_READ_TOOL_ROUNDS_LIMIT)
+    private int maxReadToolRounds = 3;
+
+    /**
+     * 是否要求模型最终回复匹配严格 JSON Schema。默认关闭以兼容不同 OpenAI-compatible Provider。
+     */
+    private boolean structuredOutputEnabled;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -129,5 +143,21 @@ public class AssistantModelProperties {
 
     public void setMaxToolCalls(int maxToolCalls) {
         this.maxToolCalls = maxToolCalls;
+    }
+
+    public int getMaxReadToolRounds() {
+        return maxReadToolRounds;
+    }
+
+    public void setMaxReadToolRounds(int maxReadToolRounds) {
+        this.maxReadToolRounds = maxReadToolRounds;
+    }
+
+    public boolean isStructuredOutputEnabled() {
+        return structuredOutputEnabled;
+    }
+
+    public void setStructuredOutputEnabled(boolean structuredOutputEnabled) {
+        this.structuredOutputEnabled = structuredOutputEnabled;
     }
 }

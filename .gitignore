@@ -44,3 +44,4 @@ easy-next-admin-web/dist/
 easy-next-admin-web/.env
 easy-next-admin-web/.env.*
 /storage/
+/.playwright-cli/

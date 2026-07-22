@@ -42,7 +42,7 @@ public class LeavePrepareTool implements ConfirmableTool {
     private static final LocalTime AFTERNOON_START = LocalTime.of(13, 30);
     private static final LocalTime AFTERNOON_END = LocalTime.of(18, 0);
     private static final String DESCRIPTION = """
-            用于为当前用户准备一笔新请假申请；不用于查询请假单、流程进度或休假制度。仅填写用户明确提供的假别、起止时间和原因；假别必须在用户原文中出现，不能把请假目标或时间复述成原因，缺失字段省略。
+            用于为当前用户准备一笔新请假申请；不用于查询请假单、流程进度或休假制度。填写用户明确提供的假别、起止时间和原因；当用户明确要求参考本轮刚查询的请假单时，假别和原因也可复用该成功 Tool Result，不能从其他内容猜测，缺失字段省略。
             """;
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
@@ -55,7 +55,7 @@ public class LeavePrepareTool implements ConfirmableTool {
             List.of(
                     input("leaveType", "请假类型", ToolSchemaType.STRING, ToolSchemaFormat.NONE,
                             "使用稳定代码；映射为：" + LeaveType.agentSchemaDescription()
-                                    + "。只在用户原文明确出现对应中文假别时填写，未说明则省略。",
+                                    + "。只在用户原文明确出现对应中文假别，或用户明确要求复用本轮刚查询请假单时填写；否则省略。",
                             true,
                             LeaveType.agentCodes(),
                             LeaveType.agentLabels()),
@@ -64,7 +64,7 @@ public class LeavePrepareTool implements ConfirmableTool {
                     input("endTime", "结束时间", ToolSchemaType.STRING, ToolSchemaFormat.DATE_TIME,
                             "ISO-8601 本地时间；上午 12:00，下午/全天 18:00。", true),
                     input("reason", "请假原因", ToolSchemaType.STRING, ToolSchemaFormat.NONE,
-                            "保留用户单独陈述的原因原话；未说明则省略，不能从假别、时间或整句请假目标推断。", true)
+                            "保留用户单独陈述的原因原话，或用户明确要求复用本轮刚查询请假单的原因；未说明则省略，不能从假别、时间或整句请假目标推断。", true)
             ),
             List.of(
                     new ToolOutputField("requestNo", ToolSchemaType.STRING, true),

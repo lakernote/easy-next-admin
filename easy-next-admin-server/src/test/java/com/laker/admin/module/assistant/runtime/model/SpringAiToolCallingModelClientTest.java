@@ -15,6 +15,7 @@ import com.laker.admin.module.assistant.trace.AssistantTraceContentPolicy;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.DefaultUsage;
@@ -24,9 +25,13 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.ai.openai.api.ResponseFormat;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -138,7 +143,10 @@ class SpringAiToolCallingModelClientTest {
                         List.of(ToolCallingMessage.user("你好")),
                         List.of()
                 )))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOfSatisfying(ModelCallException.class, failure -> {
+                    assertThat(failure.failureType()).isEqualTo(ModelCallFailureType.PROTOCOL_ERROR);
+                    assertThat(failure.retryable()).isFalse();
+                });
 
         assertThat(traceRecorder.modelCallsSince(0))
                 .singleElement()
@@ -216,6 +224,183 @@ class SpringAiToolCallingModelClientTest {
                 .hasSize(2)
                 .doesNotHaveDuplicates()
                 .allMatch(name -> name.matches("[A-Za-z0-9_-]+"));
+    }
+
+    @Test
+    void shouldKeepCollidingProviderNameStableWhenFinalCallHasNoTools() {
+        ChatModel chatModel = mock(ChatModel.class);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicReference<String> calledProviderName = new AtomicReference<>();
+        List<Prompt> prompts = new ArrayList<>();
+        when(chatModel.call(org.mockito.ArgumentMatchers.any(Prompt.class))).thenAnswer(invocation -> {
+            Prompt prompt = invocation.getArgument(0);
+            prompts.add(prompt);
+            if (calls.getAndIncrement() == 0) {
+                OpenAiChatOptions options = (OpenAiChatOptions) prompt.getOptions();
+                String providerName = options.getToolCallbacks().get(1).getToolDefinition().name();
+                calledProviderName.set(providerName);
+                return new ChatResponse(List.of(new Generation(
+                        AssistantMessage.builder()
+                                .content("")
+                                .toolCalls(List.of(new AssistantMessage.ToolCall(
+                                        "call-collision", "function", providerName, "{}"
+                                )))
+                                .build(),
+                        ChatGenerationMetadata.builder().finishReason("tool_calls").build()
+                )));
+            }
+            return new ChatResponse(List.of(new Generation(
+                    AssistantMessage.builder().content("完成").build(),
+                    ChatGenerationMetadata.builder().finishReason("stop").build()
+            )));
+        });
+        SpringAiToolCallingModelClient client = new SpringAiToolCallingModelClient(
+                chatModel,
+                new AssistantModelProperties(),
+                new AssistantRunTraceRecorder(),
+                new EasyJsonCodec(new ObjectMapper())
+        );
+        ToolDefinition dotted = definition();
+        ToolDefinition underscored = new ToolDefinition(
+                "workflow_process_query",
+                "下划线查询",
+                "用于验证 Provider 名碰撞。",
+                "",
+                ToolExecutionMode.READ_ONLY,
+                ToolRiskLevel.LOW,
+                List.of(),
+                List.of()
+        );
+        List<ToolDefinition> mappingTools = List.of(dotted, underscored);
+
+        ToolCallingResponse first = client.call(new ToolCallingRequest(
+                List.of(ToolCallingMessage.user("查询")),
+                mappingTools
+        ));
+        ToolCall canonicalCall = first.toolCalls().get(0);
+        assertThat(canonicalCall.name()).isEqualTo(underscored.name());
+
+        client.call(new ToolCallingRequest(
+                List.of(
+                        ToolCallingMessage.user("查询"),
+                        ToolCallingMessage.assistant("", List.of(canonicalCall)),
+                        ToolCallingMessage.tool(canonicalCall.id(), "{\"status\":\"EXECUTED\"}")
+                ),
+                List.of(),
+                mappingTools,
+                "final_response",
+                null,
+                null
+        ));
+
+        assertThat(prompts).hasSize(2);
+        assertThat(prompts.get(1).getInstructions())
+                .filteredOn(AssistantMessage.class::isInstance)
+                .map(AssistantMessage.class::cast)
+                .singleElement()
+                .satisfies(message -> assertThat(message.getToolCalls()).singleElement().satisfies(call ->
+                        assertThat(call.name()).isEqualTo(calledProviderName.get())
+                ));
+        assertThat(prompts.get(1).getInstructions())
+                .filteredOn(ToolResponseMessage.class::isInstance)
+                .map(ToolResponseMessage.class::cast)
+                .singleElement()
+                .satisfies(message -> assertThat(message.getResponses()).singleElement().satisfies(response ->
+                        assertThat(response.name()).isEqualTo(calledProviderName.get())
+                ));
+    }
+
+    @Test
+    void shouldRequestAndParseStrictStructuredOutputWhenConfigured() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(org.mockito.ArgumentMatchers.any(Prompt.class))).thenReturn(new ChatResponse(List.of(
+                new Generation(
+                        AssistantMessage.builder().content("{\"reply\":\"结构化回答\"}").build(),
+                        ChatGenerationMetadata.builder().finishReason("stop").build()
+                )
+        )));
+        SpringAiToolCallingModelClient client = new SpringAiToolCallingModelClient(
+                chatModel,
+                new AssistantModelProperties(),
+                new AssistantRunTraceRecorder(),
+                new EasyJsonCodec(new ObjectMapper())
+        );
+
+        ToolCallingResponse response = client.call(new ToolCallingRequest(
+                List.of(ToolCallingMessage.user("你好")),
+                List.of(),
+                List.of(),
+                "final_response",
+                null,
+                ToolCallingOutputSchema.assistantReply()
+        ));
+
+        assertThat(response.structuredContent()).containsExactly(Map.entry("reply", "结构化回答"));
+        ArgumentCaptor<Prompt> promptCaptor = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(promptCaptor.capture());
+        ResponseFormat responseFormat = ((OpenAiChatOptions) promptCaptor.getValue().getOptions()).getResponseFormat();
+        assertThat(responseFormat.getType()).isEqualTo(ResponseFormat.Type.JSON_SCHEMA);
+        assertThat(responseFormat.getJsonSchema().getName()).isEqualTo("assistant_reply");
+        assertThat(responseFormat.getJsonSchema().getStrict()).isTrue();
+        assertThat(responseFormat.getJsonSchema().getSchema()).containsEntry("additionalProperties", false);
+    }
+
+    @Test
+    void malformedStructuredOutputIsANonRetryableProtocolFailure() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(org.mockito.ArgumentMatchers.any(Prompt.class))).thenReturn(new ChatResponse(List.of(
+                new Generation(
+                        AssistantMessage.builder().content("not-json").build(),
+                        ChatGenerationMetadata.builder().finishReason("stop").build()
+                )
+        )));
+        SpringAiToolCallingModelClient client = new SpringAiToolCallingModelClient(
+                chatModel,
+                new AssistantModelProperties(),
+                new AssistantRunTraceRecorder(),
+                new EasyJsonCodec(new ObjectMapper())
+        );
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.call(new ToolCallingRequest(
+                        List.of(ToolCallingMessage.user("你好")),
+                        List.of(),
+                        List.of(),
+                        "final_response",
+                        null,
+                        ToolCallingOutputSchema.assistantReply()
+                )))
+                .isInstanceOfSatisfying(ModelCallException.class, failure -> {
+                    assertThat(failure.failureType()).isEqualTo(ModelCallFailureType.PROTOCOL_ERROR);
+                    assertThat(failure.retryable()).isFalse();
+                });
+    }
+
+    @Test
+    void textualToolEnvelopeWithoutStructuredToolCallIsRejectedAsProtocolFailure() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(org.mockito.ArgumentMatchers.any(Prompt.class))).thenReturn(new ChatResponse(List.of(
+                new Generation(
+                        AssistantMessage.builder()
+                                .content("<tool_call>workflow_leave_create<arg_key>reason</arg_key></tool_call>")
+                                .build(),
+                        ChatGenerationMetadata.builder().finishReason("stop").build()
+                )
+        )));
+        SpringAiToolCallingModelClient client = new SpringAiToolCallingModelClient(
+                chatModel,
+                new AssistantModelProperties(),
+                new AssistantRunTraceRecorder(),
+                new EasyJsonCodec(new ObjectMapper())
+        );
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.call(new ToolCallingRequest(
+                        List.of(ToolCallingMessage.user("新建申请")),
+                        List.of()
+                )))
+                .isInstanceOfSatisfying(ModelCallException.class, failure -> {
+                    assertThat(failure.failureType()).isEqualTo(ModelCallFailureType.PROTOCOL_ERROR);
+                    assertThat(failure.retryable()).isFalse();
+                });
     }
 
     @Test

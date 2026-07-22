@@ -228,7 +228,7 @@ final class AgentResultFactory {
         if (results.size() == 1) {
             return results.get(0);
         }
-        String summary = results.stream()
+        String summary = userVisibleSummaryResults(results).stream()
                 .map(AssistantToolResult::summary)
                 .filter(StringUtils::hasText)
                 .distinct()
@@ -240,6 +240,29 @@ final class AgentResultFactory {
                 summary,
                 Map.of("results", List.copyOf(results))
         );
+    }
+
+    /**
+     * 同一个 Tool 用候选标识重试并在后续成功时，不把已经恢复的中间失败继续拼进用户文案。
+     * 完整结果和 PARTIAL_SUCCESS 状态仍保留在聚合 data / Trace 中，便于调试与审计。
+     */
+    private static List<AssistantToolResult> userVisibleSummaryResults(List<AssistantToolResult> results) {
+        return java.util.stream.IntStream.range(0, results.size())
+                .filter(index -> !isSupersededFailure(results, index))
+                .mapToObj(results::get)
+                .toList();
+    }
+
+    private static boolean isSupersededFailure(List<AssistantToolResult> results, int index) {
+        AssistantToolResult candidate = results.get(index);
+        if (candidate.status() != AssistantToolRunStatus.FAILED
+                || !StringUtils.hasText(candidate.toolName())) {
+            return false;
+        }
+        return results.subList(index + 1, results.size()).stream()
+                .anyMatch(later -> candidate.toolName().equals(later.toolName())
+                        && (later.status() == AssistantToolRunStatus.EXECUTED
+                        || later.status() == AssistantToolRunStatus.PARTIAL_SUCCESS));
     }
 
     static String fallbackReply(ToolExecutionPlan plan, AssistantToolResult result) {

@@ -40,6 +40,14 @@ public class DefaultAssistantToolArgumentValidator implements AssistantToolArgum
     public AssistantToolArgumentResolution validate(AssistantRequestContext context,
                                                     AssistantToolSelection toolSelection,
                                                     AssistantToolArgumentResolution resolution) {
+        return validate(context, toolSelection, resolution, List.of());
+    }
+
+    @Override
+    public AssistantToolArgumentResolution validate(AssistantRequestContext context,
+                                                    AssistantToolSelection toolSelection,
+                                                    AssistantToolArgumentResolution resolution,
+                                                    List<AssistantToolResult> trustedToolResults) {
         Objects.requireNonNull(context, "context must not be null");
         if (toolSelection == null || !toolSelection.hasSelectedTool() || resolution == null) {
             return resolution == null ? AssistantToolArgumentResolution.empty(null) : resolution;
@@ -60,7 +68,12 @@ public class DefaultAssistantToolArgumentValidator implements AssistantToolArgum
         });
         AssistantToolArgumentValidationRule rule = rules.get(tool.name());
         if (rule != null) {
-            rule.invalidParameters(context, tool, resolution)
+            rule.invalidParameters(
+                            context,
+                            tool,
+                            resolution,
+                            trustedToolResults == null ? List.of() : List.copyOf(trustedToolResults)
+                    )
                     .forEach(parameter -> invalidParameters.put(parameter.name(), parameter));
         }
         if (invalidParameters.isEmpty()) {

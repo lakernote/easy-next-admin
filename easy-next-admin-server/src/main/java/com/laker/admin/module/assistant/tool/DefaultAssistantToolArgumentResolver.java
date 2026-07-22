@@ -42,6 +42,15 @@ public class DefaultAssistantToolArgumentResolver implements AssistantToolArgume
                                                                     AssistantVisibleTool tool,
                                                                     Map<String, Object> rawArguments,
                                                                     AssistantConversationState conversationState) {
+        return resolveToolCallArguments(context, tool, rawArguments, conversationState, List.of());
+    }
+
+    @Override
+    public AssistantToolArgumentResolution resolveToolCallArguments(AssistantRequestContext context,
+                                                                    AssistantVisibleTool tool,
+                                                                    Map<String, Object> rawArguments,
+                                                                    AssistantConversationState conversationState,
+                                                                    List<AssistantToolResult> trustedToolResults) {
         Objects.requireNonNull(context, "context must not be null");
         if (tool == null) {
             return AssistantToolArgumentResolution.empty(null);
@@ -63,7 +72,8 @@ public class DefaultAssistantToolArgumentResolver implements AssistantToolArgume
                 context,
                 tool,
                 conversationState,
-                arguments
+                arguments,
+                trustedToolResults
         );
         return resolutionFromArguments(tool, arguments);
     }

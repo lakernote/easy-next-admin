@@ -39,6 +39,7 @@ class ModelMessageBuilderTest {
                 .contains("需要企业数据或业务动作时使用可见 Tool")
                 .contains("不承诺不存在的能力")
                 .contains("企业事实只依据可信运行上下文或成功的 Tool 结果")
+                .contains("回答当前日期、时间或星期时直接使用可信运行上下文")
                 .contains("信息缺失、对象不唯一或指代不明时")
                 .contains("即使是常识，也不声称来自系统、公司或法律")
                 .contains("不列举未验证的资格、额度、期限或薪酬细节")
@@ -48,9 +49,16 @@ class ModelMessageBuilderTest {
                 .doesNotContain("写操作确认和幂等由 Runtime 执行")
                 .doesNotContain("Tool observation")
                 .doesNotContain("年假按年度管理休假")
-                .hasSizeLessThan(450);
+                .hasSizeLessThan(650);
         assertThat(messages.get(1).content())
-                .contains("本轮可信运行上下文", "time=", "zone=Asia/Shanghai", "不能代替权限校验")
+                .contains(
+                        "本轮可信运行上下文",
+                        "date=2026-07-07",
+                        "weekday=星期二",
+                        "time=2026-07-07 14:30:00",
+                        "zone=Asia/Shanghai",
+                        "不能代替权限校验"
+                )
                 .doesNotContain("currentUser=", "department=", "roles=", "年假和调休有什么区别");
         assertThat(messages.get(2).content()).isEqualTo("年假和调休有什么区别");
     }

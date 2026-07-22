@@ -116,7 +116,7 @@ npm run dev
 - **批处理任务**：查看长任务进度、失败明细、Worker 租约、取消状态和未完成项恢复；固定账期支持多实例动态领取分区。入口：`/batch/tasks`
 - **流程中心**：统一发起请假、采购、报修流程，处理我的流程；按直属上级、部门负责人、职能角色等规则派单，管理员可监控流程实例和维护流程配置。入口：`/workflow/start`、`/workflow/tasks`、`/workflow/instances`、`/workflow/console`
 - **消息中心**：个人消息、流程通知、审计提醒和任务消息。入口：`/messages`
-- **智能助手**：只保留两个入口。普通员工在 `/assistant/chat` 使用真实 SSE 对话，后端每完成一个上下文、模型或 Tool 阶段，页面都会追加一个安全执行步骤，最终只返回精简回复；管理员在 `/assistant/debug` 同步运行同一条 Agent 链，可按 Step 查看真实输入输出、模型实际可见的消息数组/Tool Schema/生成选项、供应商语义输出、Runtime 归一化结果、Token、耗时和完整 Trace，便于学习、调试与 eval。同步调试使用真实 Conversation State，相同 `conversationId` 会读取并写回同一会话，只有新建或重置测试时才生成新会话。Spring AI 负责 OpenAI-compatible 模型与 Tool Calling 协议适配，项目自己的 Java Mini Runtime 负责单批 Tool round、权限、同会话并发保护、写操作确认、幂等、审计和结构化结果合同。普通员工不会收到 Prompt、Tool 参数或 Trace；生产 Trace 默认只保留元数据，local profile 默认输出统一脱敏且单 Payload 最多 100000 字符的调试内容。
+- **智能助手**：只保留两个入口。普通员工在 `/assistant/chat` 使用真实 SSE 对话，后端每完成一个上下文、模型或 Tool 阶段，页面都会追加一个安全执行步骤，最终只返回精简回复；管理员在 `/assistant/debug` 同步运行同一条 Agent 链，可按 Step 查看真实输入输出、模型实际可见的消息数组/Tool Schema/生成选项、供应商语义输出、Runtime 归一化结果、Token、耗时和完整 Trace，便于学习、调试与 eval。同步调试使用真实 Conversation State，相同 `conversationId` 会读取并写回同一会话，只有新建或重置测试时才生成新会话。Spring AI 负责 OpenAI-compatible 模型与 Tool Calling 协议适配，项目自己的 Java Mini Runtime 负责有界多轮只读规划、权限、同会话并发保护、写操作确认、幂等、审计和结构化结果合同，并可按 Provider 能力开启严格 Structured Output。普通员工不会收到 Prompt、Tool 参数或 Trace；生产 Trace 默认只保留元数据，local profile 默认输出统一脱敏且单 Payload 最多 100000 字符的调试内容。
 - **个人中心**：个人资料、改密、登录历史和会话管理。入口：`/profile/security`
 
 功能说明、组件用法和实现原理见 [功能与组件](docs/features-and-components.md)。

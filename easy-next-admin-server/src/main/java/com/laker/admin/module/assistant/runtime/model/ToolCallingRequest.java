@@ -8,22 +8,34 @@ import java.util.List;
 public record ToolCallingRequest(
         List<ToolCallingMessage> messages,
         List<ToolDefinition> tools,
+        List<ToolDefinition> toolNameMappingTools,
         String operationName,
-        Integer maxOutputTokens
+        Integer maxOutputTokens,
+        ToolCallingOutputSchema outputSchema
 ) {
     public ToolCallingRequest(List<ToolCallingMessage> messages, List<ToolDefinition> tools) {
-        this(messages, tools, "agent_step", null);
+        this(messages, tools, tools, "agent_step", null, null);
     }
 
     public ToolCallingRequest(List<ToolCallingMessage> messages,
                               List<ToolDefinition> tools,
                               String operationName) {
-        this(messages, tools, operationName, null);
+        this(messages, tools, tools, operationName, null, null);
+    }
+
+    public ToolCallingRequest(List<ToolCallingMessage> messages,
+                              List<ToolDefinition> tools,
+                              String operationName,
+                              Integer maxOutputTokens) {
+        this(messages, tools, tools, operationName, maxOutputTokens, null);
     }
 
     public ToolCallingRequest {
         messages = messages == null ? List.of() : List.copyOf(messages);
         tools = tools == null ? List.of() : List.copyOf(tools);
+        toolNameMappingTools = toolNameMappingTools == null
+                ? tools
+                : List.copyOf(toolNameMappingTools);
         operationName = operationName == null || operationName.isBlank()
                 ? "agent_step"
                 : operationName;

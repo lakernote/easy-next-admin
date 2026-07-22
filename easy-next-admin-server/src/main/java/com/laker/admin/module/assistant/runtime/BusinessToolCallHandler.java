@@ -85,7 +85,8 @@ final class BusinessToolCallHandler {
                 context,
                 visibleTool,
                 call.arguments(),
-                conversationState
+                conversationState,
+                runState.toolResults()
         );
         AssistantPendingAction pendingAction = pendingActionFrom(conversationState);
         if (pendingAction != null && call.name().equals(pendingAction.toolName())) {
@@ -102,7 +103,12 @@ final class BusinessToolCallHandler {
             );
         }
         AgentLoopEvents.argumentsResolved(context, listener, resolution);
-        AssistantToolArgumentResolution validated = argumentValidator.validate(context, selection, resolution);
+        AssistantToolArgumentResolution validated = argumentValidator.validate(
+                context,
+                selection,
+                resolution,
+                runState.toolResults()
+        );
         AgentLoopEvents.argumentsValidated(context, listener, validated);
         ToolExecutionPlan plan = planFactory.create(context, definition, visibleTool, validated)
                 .withToolCallId(call.id());
