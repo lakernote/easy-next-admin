@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TitleComponent,
@@ -19,6 +20,7 @@ use([
   BarChart,
   LineChart,
   PieChart,
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TitleComponent,

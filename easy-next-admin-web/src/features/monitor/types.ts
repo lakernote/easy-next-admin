@@ -17,6 +17,253 @@ export interface SystemStatusOverview {
   runtime: RuntimeInfo[]
 }
 
+export interface DiagnosisMetricSample { name: string; type: string; baseUnit?: string; description?: string; tags: Record<string, string>; measurements: Record<string, number> }
+export interface HistoryPage<T> { items: T[]; hasMore: boolean; nextBefore?: string }
+export interface MetricHistoryPoint { capturedAt: string; tags: Record<string, string>; measurements: Record<string, number> }
+export interface DiagnosisEvent { type: string; traceId?: string; name: string; method?: string; status: number; costMs: number; occurredAt: string; detail?: string; value?: number; threshold?: number; slow: boolean; error: boolean; reasons: string[] }
+export interface SlowSample { type: string; traceId?: string; name: string; method?: string; costMs: number; occurredAt: string; reasons: string[] }
+export interface ErrorSample { id: string | number; source?: string; traceId?: string; requestUri: string; requestMethod: string; errorType: string; errorMessage: string; stackTrace: string; createdAt: string }
+export interface TraceSample { type?: string; traceId?: string; name: string; method: string; status: number; tree: string; costMs: number; finishedAt: string }
+export interface ChildOperationSummary { count: number; errorCount: number; totalDurationMs: number; maxDurationMs: number }
+export interface OperationSample { type: string; traceId?: string; name: string; threadName: string; outcome: string; durationMs: number; cpuTimeMs: number; allocatedBytes: number; blockedCount: number; blockedTimeMs: number; waitedCount: number; waitedTimeMs: number; detail?: string; lockInfo: string; stackTrace: string; childSummaries: Record<string, ChildOperationSummary>; finishedAt: string }
+export interface JfrFile { fileName: string; sizeBytes: number; recordingStartedAt?: string; recordingEndedAt?: string; modifiedAt: string }
+export interface TraceJfrSelection { traceId: string; from?: string; to?: string; files: JfrFile[] }
+
+export interface JfrRecorderStatus {
+  enabled: boolean
+  available: boolean
+  running: boolean
+  lastError: string
+  retentionDays: number
+  maxTotalBytes: number
+  completedFiles: number
+  completedBytes: number
+  activeBytes: number
+  totalBytes: number
+  oldestRecordingAt?: string
+  coverageHours: number
+  capacityPressure: boolean
+  sessionStartedAt?: string
+  autoStopAt?: string
+  maxSessionMinutes?: number
+}
+
+export interface DiagnosisSummary {
+  status: 'HEALTHY' | 'WARNING' | 'ERROR' | string
+  sampledAt: string
+  windowMinutes: number
+  summaryTruncated: boolean
+  summarySampleLimit: number
+  activeTotal: number
+  activeByType: Record<string, number>
+  traces: number
+  slow: number
+  errors: number
+  retentionDays: number
+  historyBytes: number
+  jfrFiles: number
+  jfrBytes: number
+  thresholdsMs: Record<string, number>
+  jfr: JfrRecorderStatus
+  storage: DiagnosisStorageStatus
+  metricsStorage: DiagnosisMetricStorageStatus
+}
+
+export interface DiagnosisStorageStatus {
+  oldestSegmentDate?: string
+  coverageDays: number
+  retentionDays: number
+  historyBytes: number
+  maxHistoryBytes: number
+  pendingWrites: number
+  queueCapacity: number
+  pendingBytes: number
+  pendingMaxBytes: number
+  droppedWrites: number
+  byteBudgetDroppedWrites: number
+  capacityPressure: boolean
+}
+
+export interface DiagnosisMetricStorageStatus {
+  enabled: boolean
+  storageDirectory: string
+  retentionDays: number
+  maxStorageBytes: number
+  maxSegmentBytes: number
+  storageBytes: number
+  oldestSegmentDate?: string
+  coverageDays: number
+  segmentCount: number
+  droppedWrites: number
+  rejectedSeries: number
+  evictedSeries: number
+}
+
+export interface ActiveOperation {
+  id: string
+  type: string
+  traceId?: string
+  name: string
+  detail?: string
+  threadId: number
+  threadName: string
+  threadState: string
+  durationMs: number
+  cpuTimeMs: number
+  allocatedBytes: number
+  blockedCount: number
+  blockedTimeMs: number
+  waitedCount: number
+  waitedTimeMs: number
+  lockInfo: string
+  stackTrace: string
+  startedAt: string
+  sampledAt?: string
+}
+
+export interface TransactionSample {
+  traceId?: string
+  name: string
+  success: boolean
+  costMs: number
+  finishedAt: string
+}
+
+export interface TraceCorrelation {
+  trace?: TraceSample
+  transactions: TransactionSample[]
+  operations: OperationSample[]
+  errors: ErrorSample[]
+  events: DiagnosisEvent[]
+  slow: SlowSample[]
+}
+
+export interface JfrAggregate {
+  key: string
+  detail: string
+  count: number
+  estimatedBytes: number
+  totalDurationNanos: number
+  maxDurationNanos: number
+}
+
+export interface JfrAnalysis {
+  status: string
+  message: string
+  fileName?: string
+  fileSizeBytes: number
+  modifiedAt?: string
+  recordingStartedAt?: string
+  recordingEndedAt?: string
+  scannedEvents: number
+  relevantEvents: number
+  deduplicatedEvents?: number
+  truncated: boolean
+  executionHotspots: JfrAggregate[]
+  allocations: JfrAggregate[]
+  locks: JfrAggregate[]
+  gcPauses: JfrAggregate[]
+  ioActivities: JfrAggregate[]
+  errorThrows: JfrAggregate[]
+  operations: JfrRuntimeOperation[]
+}
+
+export interface JfrRuntimeOperation {
+  type: string
+  traceId?: string
+  operation: string
+  detail: string
+  outcome: string
+  errorType: string
+  durationNanos: number
+  cpuTimeMs: number
+  allocatedBytes: number
+  blockedCount: number
+  waitedCount: number
+  startedAt: string
+  endedAt: string
+}
+
+export interface ThreadStackFrame { className: string; methodName: string; fileName?: string; lineNumber: number; nativeMethod: boolean }
+export interface HeldThreadLock { type: string; className: string; identityHashCode: number; label: string; lockedAt?: string }
+export interface ThreadSnapshot {
+  id: number
+  name: string
+  state: string
+  daemon: boolean
+  priority: number
+  cpuTimeNanos?: number
+  allocatedBytes?: number
+  blockedCount: number
+  blockedTimeMs?: number
+  waitedCount: number
+  waitedTimeMs?: number
+  waitingOn?: { label: string }
+  lockOwner?: { id: number; name: string }
+  lockedMonitors: HeldThreadLock[]
+  lockedSynchronizers: HeldThreadLock[]
+  stackTrace: ThreadStackFrame[]
+  stackTruncated: boolean
+  deadlocked: boolean
+}
+export interface ThreadDump { sampledAt: string; totalThreads: number; returnedThreads: number; truncated: boolean; stackDepth: number; cpuTimeEnabled: boolean; allocatedMemoryEnabled: boolean; contentionMonitoringEnabled: boolean; threads: ThreadSnapshot[] }
+export interface DeadlockReport { sampledAt: string; detected: boolean; count: number; truncated: boolean; threads: ThreadSnapshot[] }
+export interface PoolMetric { name: string; meterType: string; baseUnit?: string; description?: string; tags: Record<string, string>; measurements: Record<string, number> }
+export interface PoolView { type: string; name: string; active?: number; idle?: number; pending?: number; current?: number; max?: number; completed?: number; utilizationPercent?: number; metrics: PoolMetric[] }
+export interface PoolDiagnostics { sampledAt: string; pools: PoolView[] }
+export interface HeapHistogramCapability { supported: boolean; status: 'AVAILABLE' | 'UNAVAILABLE'; impact: string; message: string }
+export interface HeapClassHistogramRow { rank: number; instances: number; bytes: number; className: string; module?: string }
+export interface HeapHistogram {
+  sampledAt: string
+  status: 'READY' | 'UNAVAILABLE' | 'BUSY' | 'FAILED'
+  supported: boolean
+  allObjects: boolean
+  impact: string
+  message: string
+  limit: number
+  totalClasses: number
+  returnedClasses: number
+  truncated: boolean
+  totalInstances: number
+  totalBytes: number
+  classes: HeapClassHistogramRow[]
+}
+
+export interface RuntimeStatisticRow {
+  type: string
+  name: string
+  detail: string
+  sampled: boolean
+  coverage: string
+  count: number
+  errorCount: number
+  errorRate: number
+  avgDurationMs: number
+  maxDurationMs: number
+  p50Ms: number
+  p95Ms: number
+  p99Ms: number
+  totalDurationMs: number
+  avgCpuMs?: number
+  avgAllocatedBytes?: number
+  cpuSamples: number
+  allocatedSamples: number
+}
+export interface RuntimeStatistics {
+  type: string
+  windowHours: number
+  from: string
+  to: string
+  sampled: boolean
+  coverage: string
+  matchedSamples: number
+  scanLimitReached: boolean
+  groupLimitReached: boolean
+  totalGroups: number
+  coverageByType: Array<{ type: string; sampled: boolean; coverage: string; readSamples: number; matchedSamples: number; scanLimitReached: boolean; note: string }>
+  items: RuntimeStatisticRow[]
+}
+
 export type NumericStat = number | string
 
 export interface CpuMetrics {

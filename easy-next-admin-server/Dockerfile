@@ -13,7 +13,9 @@ RUN groupadd --system app \
     && apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p logs storage work \
+    && mkdir -p logs storage work data/diagnosis \
+    && java --list-modules | grep -q '^jdk.jfr@' \
+    && java --list-modules | grep -q '^jdk.management@' \
     && chown -R app:app /app
 
 COPY --chown=app:app easy-next-admin-server/target/easyNextAdmin.jar /app/app.jar

@@ -5,6 +5,7 @@ public enum SpanType {
     Controller,
     Service,
     Mapper,
+    Transaction,
     Remote,
     Schedule,
     Kafka,

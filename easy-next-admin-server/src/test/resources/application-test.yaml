@@ -31,3 +31,6 @@ spring:
 easy:
   features:
     redis: false
+  monitor:
+    diagnosis:
+      storage-dir: ./target/test-data/diagnosis

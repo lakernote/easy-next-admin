@@ -41,10 +41,12 @@
 
   <!-- 异步文件输出：业务线程先入队，后台线程再写磁盘，减少请求链路阻塞。 -->
   <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
-    <!-- 0 表示队列接近满时不主动丢弃低级别日志。 -->
-    <discardingThreshold>0</discardingThreshold>
+    <!-- 剩余 20% 容量时开始丢弃 TRACE/DEBUG/INFO，为 WARN/ERROR 留出突发空间。 -->
+    <discardingThreshold>102</discardingThreshold>
     <!-- 队列不宜过大，避免异常退出时损失过多缓冲日志。 -->
     <queueSize>512</queueSize>
+    <!-- 文件系统变慢或队列已满时直接丢弃，不让业务线程等待日志磁盘。 -->
+    <neverBlock>true</neverBlock>
     <!-- 应用关闭时最多等待 1 秒刷新异步日志。 -->
     <maxFlushTime>1000</maxFlushTime>
     <appender-ref ref="DEFAULT"/>

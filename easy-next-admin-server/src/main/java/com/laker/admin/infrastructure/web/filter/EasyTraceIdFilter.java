@@ -16,7 +16,7 @@ public class EasyTraceIdFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        // 网关、前端、服务端都用 X-Trace-Id 承载链路号；没有传入时由服务端生成。
+        // 网关、前端、服务端都用 X-Trace-Id 承载链路号；缺失或格式非法时由服务端生成。
         String traceId = EasyTraceIdContext.resolveFromRequest(request);
         response.setHeader(EasyNextAdminConstants.TRACE_ID_HEADER, traceId);
         try (EasyMdcContext.Scope ignored = EasyMdcContext.scope()) {

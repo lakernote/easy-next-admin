@@ -116,7 +116,8 @@ public class ScheduleJobManager implements CommandLineRunner {
     private void executeJvmJob(ScheduleJobDefinition registeredDefinition, Map<String, Object> param) {
         ScheduleJobDefinition currentDefinition = registeredDefinition;
         EasyLocker lock = null;
-        boolean callbackStarted = false;
+        Throwable executionFailure = null;
+        List<ScheduleJobCallback> startedCallbacks = new ArrayList<>(jobCallbacks.size());
         ScheduleJobRunContext.set(ScheduleJobRunContext.builder()
                 .runId(EasyIdGenerator.uuid32())
                 .instanceId(instanceRegistry.getInstanceId())
@@ -140,27 +141,97 @@ public class ScheduleJobManager implements CommandLineRunner {
                 ScheduleJobRunContext.current().setLockToken(lock.getToken());
             }
             ScheduleJobDefinition definition = currentDefinition;
-            callbackStarted = true;
-            jobCallbacks.forEach(jobCallback -> jobCallback.start(definition));
+            for (ScheduleJobCallback jobCallback : jobCallbacks) {
+                // Register before invocation so a callback that partially initializes and then fails still receives
+                // end and can clear its own ThreadLocal or observation state. A diagnostics callback is auxiliary:
+                // its start failure must not skip the actual job or be reported as a business job failure.
+                startedCallbacks.add(jobCallback);
+                try {
+                    jobCallback.start(definition);
+                } catch (Throwable callbackFailure) {
+                    logCleanupFailure("start", jobCallback, definition, callbackFailure);
+                }
+            }
             EasyJobHandler jobHandler = findJobHandler(currentDefinition.getJobClassName());
             jobHandler.execute(param == null ? Map.of() : param);
-        } catch (Exception e) {
-            if (callbackStarted) {
-                ScheduleJobDefinition definition = currentDefinition;
-                jobCallbacks.forEach(jobCallback -> jobCallback.exception(definition, e));
+        } catch (Throwable failure) {
+            executionFailure = failure;
+            if (!startedCallbacks.isEmpty()) {
+                invokeExceptionCallbacksSafely(startedCallbacks, currentDefinition, failure);
             } else {
                 log.error("Schedule job failed before callback started, code={}",
-                        registeredDefinition.getJobCode(), e);
+                        registeredDefinition.getJobCode(), failure);
             }
+            // Scheduled business exceptions are recorded and isolated as before. Fatal JVM errors must still reach
+            // the executor after the failure callback and finally block have captured diagnostics and released locks.
+            if (failure instanceof Error error) throw error;
         } finally {
-            if (callbackStarted) {
-                ScheduleJobDefinition definition = currentDefinition;
-                jobCallbacks.forEach(jobCallback -> jobCallback.end(definition));
+            try {
+                invokeEndCallbacksSafely(startedCallbacks, currentDefinition);
+                if (lock != null) {
+                    releaseLock(lock, currentDefinition, executionFailure);
+                }
+            } finally {
+                ScheduleJobRunContext.clear();
             }
-            if (lock != null) {
-                easyLocker.release(lock);
+        }
+    }
+
+    private void invokeExceptionCallbacksSafely(List<ScheduleJobCallback> startedCallbacks,
+                                                ScheduleJobDefinition definition,
+                                                Throwable executionFailure) {
+        for (ScheduleJobCallback callback : startedCallbacks) {
+            try {
+                callback.exception(definition, executionFailure);
+            } catch (Throwable callbackFailure) {
+                logCleanupFailure("exception", callback, definition, callbackFailure);
             }
-            ScheduleJobRunContext.clear();
+        }
+    }
+
+    private void invokeEndCallbacksSafely(List<ScheduleJobCallback> startedCallbacks,
+                                          ScheduleJobDefinition definition) {
+        for (ScheduleJobCallback callback : startedCallbacks) {
+            try {
+                callback.end(definition);
+            } catch (Throwable callbackFailure) {
+                logCleanupFailure("end", callback, definition, callbackFailure);
+            }
+        }
+    }
+
+    private void releaseLock(EasyLocker lock, ScheduleJobDefinition definition, Throwable executionFailure) {
+        try {
+            easyLocker.release(lock);
+        } catch (Throwable releaseFailure) {
+            if (executionFailure != null) {
+                try {
+                    executionFailure.addSuppressed(releaseFailure);
+                } catch (Throwable ignored) {
+                    // Suppression can allocate. Keep the original execution failure even under memory pressure.
+                }
+                try {
+                    log.error("Schedule job lock release failed after execution failure, code={}, token={}",
+                            definition.getJobCode(), lock.getToken(), releaseFailure);
+                } catch (Throwable ignored) {
+                    // Logging can allocate. Never let cleanup replace the original execution failure.
+                }
+                return;
+            }
+            if (releaseFailure instanceof RuntimeException runtimeException) throw runtimeException;
+            if (releaseFailure instanceof Error error) throw error;
+            throw new IllegalStateException("Schedule job lock release failed, code=" + definition.getJobCode(),
+                    releaseFailure);
+        }
+    }
+
+    private void logCleanupFailure(String phase, ScheduleJobCallback callback,
+                                   ScheduleJobDefinition definition, Throwable callbackFailure) {
+        try {
+            log.error("Schedule job callback failed, phase={}, callback={}, code={}",
+                    phase, callback.getClass().getName(), definition.getJobCode(), callbackFailure);
+        } catch (Throwable ignored) {
+            // Logging can allocate. Never let a secondary monitoring failure replace the business failure.
         }
     }
 

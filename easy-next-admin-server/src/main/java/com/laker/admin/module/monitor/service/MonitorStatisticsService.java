@@ -3,8 +3,6 @@ package com.laker.admin.module.monitor.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.laker.admin.common.model.PageResponse;
-import com.laker.admin.infrastructure.observability.remote.entity.RemoteCallLog;
-import com.laker.admin.infrastructure.observability.remote.mapper.RemoteCallLogMapper;
 import com.laker.admin.infrastructure.security.service.EasyAuthService;
 import com.laker.admin.module.audit.entity.AuditApiLog;
 import com.laker.admin.module.audit.mapper.AuditApiLogMapper;
@@ -17,7 +15,6 @@ import com.laker.admin.module.system.dto.OnlineSessionView;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -45,7 +42,6 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
-@Slf4j
 public class MonitorStatisticsService {
     private static final int DEFAULT_DAYS = 7;
     private static final int DEFAULT_TOP_LIMIT = 10;
@@ -53,20 +49,17 @@ public class MonitorStatisticsService {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AuditApiLogMapper auditApiLogMapper;
-    private final RemoteCallLogMapper remoteCallLogMapper;
     private final ScheduleJobMapper scheduleJobMapper;
     private final ScheduleJobLogMapper scheduleJobLogMapper;
     private final EasyAuthService authService;
     private final MeterRegistry meterRegistry;
 
     public MonitorStatisticsService(AuditApiLogMapper auditApiLogMapper,
-                                    RemoteCallLogMapper remoteCallLogMapper,
                                     ScheduleJobMapper scheduleJobMapper,
                                     ScheduleJobLogMapper scheduleJobLogMapper,
                                     EasyAuthService authService,
                                     MeterRegistry meterRegistry) {
         this.auditApiLogMapper = auditApiLogMapper;
-        this.remoteCallLogMapper = remoteCallLogMapper;
         this.scheduleJobMapper = scheduleJobMapper;
         this.scheduleJobLogMapper = scheduleJobLogMapper;
         this.authService = authService;
@@ -115,10 +108,6 @@ public class MonitorStatisticsService {
     }
 
     public List<MonitorStatisticsOverview.RemoteCallStatistics> remoteCallStatistics() {
-        List<MonitorStatisticsOverview.RemoteCallStatistics> persisted = persistedRemoteCallStatistics();
-        if (!persisted.isEmpty()) {
-            return persisted;
-        }
         Map<String, RemoteCallAccumulator> accumulators = new HashMap<>();
         for (Meter meter : meterRegistry.getMeters()) {
             if (!(meter instanceof Timer timer) || !"easy.remote.calls".equals(meter.getId().getName())) {
@@ -137,44 +126,6 @@ public class MonitorStatisticsService {
                         .thenComparing(MonitorStatisticsOverview.RemoteCallStatistics::getTarget)
                         .thenComparing(MonitorStatisticsOverview.RemoteCallStatistics::getMethod))
                 .toList();
-    }
-
-    private List<MonitorStatisticsOverview.RemoteCallStatistics> persistedRemoteCallStatistics() {
-        LocalDateTime since = LocalDateTime.now().minusDays(DEFAULT_DAYS);
-        try {
-            List<Map<String, Object>> rows = remoteCallLogMapper.selectMaps(new QueryWrapper<RemoteCallLog>()
-                    .select(
-                            "COALESCE(target, '-') AS target",
-                            "COALESCE(method, '-') AS method",
-                            "COUNT(*) AS total_count",
-                            "SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) AS failure_count",
-                            "COALESCE(AVG(duration_ms), 0) AS avg_cost_ms",
-                            "COALESCE(MAX(duration_ms), 0) AS max_cost_ms")
-                    .eq("deleted", 0)
-                    .ge("create_time", since)
-                    .groupBy("target", "method")
-                    .orderByDesc("total_count")
-                    .last("LIMIT " + DEFAULT_TOP_LIMIT));
-            return rows.stream().map(row -> {
-                long totalCount = longValue(row, "total_count");
-                long failureCount = longValue(row, "failure_count");
-                long successCount = Math.max(totalCount - failureCount, 0);
-                return MonitorStatisticsOverview.RemoteCallStatistics.builder()
-                        .target(textOrDash(stringValue(row, "target")))
-                        .method(textOrDash(stringValue(row, "method")))
-                        .totalCount(totalCount)
-                        .successCount(successCount)
-                        .failureCount(failureCount)
-                        .avgCostMs(round(doubleValue(row, "avg_cost_ms")))
-                        .maxCostMs(round(doubleValue(row, "max_cost_ms")))
-                        .successRate(rate(successCount, totalCount))
-                        .build();
-            }).toList();
-        } catch (RuntimeException ex) {
-            // 老数据库未补建远程调用日志表时，页面仍可展示当前 JVM 内的 Micrometer 统计。
-            log.debug("读取远程调用持久化统计失败，退回 Micrometer 运行态统计", ex);
-            return List.of();
-        }
     }
 
     public MonitorStatisticsOverview.JobStatistics jobStatistics(int limit) {

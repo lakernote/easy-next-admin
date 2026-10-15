@@ -9,6 +9,7 @@ import com.laker.admin.infrastructure.ratelimit.RateLimitException;
 import com.laker.admin.infrastructure.security.exception.EasyAuthException;
 import com.laker.admin.infrastructure.security.exception.EasyForbiddenException;
 import com.laker.admin.infrastructure.web.context.EasyRequestContext;
+import com.laker.admin.infrastructure.web.context.EasyResolvedExceptionContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.ValidationException;
@@ -43,6 +44,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Response<Void>> handleRRException(BusinessException e, HttpServletRequest request) {
+        capture(request, e);
         // 业务拒绝（例如同会话并发 409）是受控协议结果，不应污染 ERROR 告警；未知异常仍由兜底处理器记 ERROR。
         log.warn("业务请求被拒绝, code:{}, uri:{}, method:{}, message:{}",
                 e.getCode(), requestUri(request), requestMethod(request), e.getMsg());
@@ -54,6 +56,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Response<Void>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("方法参数类型不匹配", e);
         return error(ErrorCode.PARAM_TYPE_MISMATCH);
@@ -64,6 +67,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<Response<Void>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("缺少请求参数", e);
         return error(ErrorCode.PARAM_MISSING);
@@ -74,6 +78,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Response<Void>> handleHttpMessageNotReadableException(HttpMessageNotReadableException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("参数解析失败", e);
         return error(ErrorCode.REQUEST_BODY_INVALID);
@@ -84,6 +89,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<Response<Void>> handleValidationException(ValidationException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("参数验证失败", e);
         return error(ErrorCode.VALIDATION_FAILED);
@@ -94,6 +100,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Response<Void>> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("不支持当前请求方法", e);
         return error(ErrorCode.METHOD_NOT_SUPPORTED);
@@ -104,6 +111,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Response<Void>> handleHttpMediaTypeNotSupportedException(Exception e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error("不支持当前媒体类型", e);
         return error(ErrorCode.MEDIA_TYPE_NOT_SUPPORTED);
@@ -111,6 +119,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<Response<Void>> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error(e.getMessage(), e);
         return error(ErrorCode.DUPLICATE_RESOURCE, "数据库中已存在该记录");
@@ -118,6 +127,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Response<Void>> handleMaxSizeException(MaxUploadSizeExceededException e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error(e.getMessage(), e);
         return error(ErrorCode.PAYLOAD_TOO_LARGE, "上传文件过大");
@@ -125,12 +135,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EasyAuthException.class)
     public ResponseEntity<Response<Void>> handleEasyAuthException(EasyAuthException e, HttpServletRequest request) {
+        capture(request, e);
         log.warn("uri:{}, httpMethod:{}, errMsg:{}", requestUri(request), requestMethod(request), e.getMessage());
         return error(e.getErrorCode(), e.getMessage());
     }
 
     @ExceptionHandler(EasyForbiddenException.class)
     public ResponseEntity<Response<Void>> handleEasyForbiddenException(EasyForbiddenException e, HttpServletRequest request) {
+        capture(request, e);
         log.warn("uri:{}, httpMethod:{}, errMsg:{}", requestUri(request), requestMethod(request), e.getMessage());
         return error(e.getErrorCode(), e.getMessage());
     }
@@ -141,6 +153,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Response<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException e,
                                                                                HttpServletRequest request) {
+        capture(request, e);
         log.warn("参数校验失败, uri:{}, method:{}, errorCount:{}",
                 requestUri(request),
                 requestMethod(request),
@@ -157,6 +170,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Response<Void>> handleConstraintViolationException(ConstraintViolationException e,
                                                                             HttpServletRequest request) {
+        capture(request, e);
         log.warn("参数约束校验失败, uri:{}, method:{}, errorCount:{}",
                 requestUri(request),
                 requestMethod(request),
@@ -172,26 +186,31 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<Response<Void>> handlerNoFoundException(Exception e) {
+    public ResponseEntity<Response<Void>> handlerNoFoundException(Exception e, HttpServletRequest request) {
+        capture(request, e);
         log.error(e.getMessage(), e);
         return error(ErrorCode.RESOURCE_NOT_FOUND, "路径不存在，请检查路径是否正确");
     }
 
     @ExceptionHandler(RateLimitException.class)
-    public ResponseEntity<Response<Void>> handleRateLimitException(RateLimitException e) {
+    public ResponseEntity<Response<Void>> handleRateLimitException(RateLimitException e, HttpServletRequest request) {
+        capture(request, e);
         log.error(e.getMessage(), e);
         return error(ErrorCode.TOO_MANY_REQUESTS, e.getMessage());
     }
 
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Response<Void>> handleNoResourceFoundException(NoResourceFoundException e) {
+    public ResponseEntity<Response<Void>> handleNoResourceFoundException(NoResourceFoundException e,
+                                                                         HttpServletRequest request) {
+        capture(request, e);
         log.error("uri:{}, method:{}, detail:{}", e.getResourcePath(), e.getHttpMethod(), e.getBody().getDetail());
         return error(ErrorCode.RESOURCE_NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Response<Void>> handleException(Exception e, HttpServletRequest request) {
+        capture(request, e);
         logRequestInfo(request);
         log.error(e.getMessage(), e);
         return error(ErrorCode.INTERNAL_ERROR);
@@ -206,6 +225,10 @@ public class GlobalExceptionHandler {
                 EasyRequestContext.remoteIp(request),
                 request.getMethod(),
                 requestUri(request));
+    }
+
+    private void capture(HttpServletRequest request, Throwable failure) {
+        EasyResolvedExceptionContext.capture(request, failure);
     }
 
     private String requestUri(HttpServletRequest request) {

@@ -8,8 +8,9 @@ final class Span {
     private final String tag;
     private final SpanType spanType;
     private final Span parent;
-    private final long startNanos;
-    private final List<Span> children = new ArrayList<>();
+    private long startNanos;
+    /** Most spans are leaves; allocate their child list only when a nested span is actually attached. */
+    private List<Span> children;
     private long endNanos;
 
     Span(String name, SpanType spanType) {
@@ -25,13 +26,28 @@ final class Span {
     }
 
     void addChild(Span child) {
+        if (children == null) children = new ArrayList<>();
         children.add(child);
     }
 
     void removeFromParent() {
-        if (parent != null) {
+        if (parent != null && parent.children != null) {
             parent.children.remove(this);
         }
+    }
+
+    Span parent() {
+        return parent;
+    }
+
+    int subtreeSize() {
+        int size = 1;
+        if (children != null) {
+            for (Span child : children) {
+                size += child.subtreeSize();
+            }
+        }
+        return size;
     }
 
     void stop() {
@@ -40,15 +56,22 @@ final class Span {
         }
     }
 
+    /** Resets timing after surrounding observation setup and immediately before application work begins. */
+    void beginBusinessBoundary() {
+        if (endNanos == 0) startNanos = System.nanoTime();
+    }
+
     long costMs() {
         long end = endNanos == 0 ? System.nanoTime() : endNanos;
         return (end - startNanos) / 1_000_000;
     }
 
-    void appendTree(StringBuilder builder, String prefix, boolean last) {
+    void appendTree(Trace.RenderBuffer builder, String prefix, boolean last) {
+        if (builder.truncated()) return;
         appendNode(builder, prefix, last);
+        if (children == null || builder.truncated()) return;
         String childPrefix = prefix + (last ? "   " : "|  ");
-        for (int i = 0; i < children.size(); ) {
+        for (int i = 0; i < children.size() && !builder.truncated(); ) {
             int end = aggregateEnd(i);
             boolean childLast = end >= children.size();
             if (end - i > 1) {
@@ -60,10 +83,10 @@ final class Span {
         }
     }
 
-    private void appendNode(StringBuilder builder, String prefix, boolean last) {
+    private void appendNode(Trace.RenderBuffer builder, String prefix, boolean last) {
         builder.append(prefix)
                 .append(last ? "`- " : "|- ")
-                .append('[').append(spanType).append("] ")
+                .append('[').append(spanType.name()).append("] ")
                 .append(name);
         if (!tag.isBlank()) {
             builder.append(" tag=\"").append(tag).append("\"");
@@ -87,7 +110,8 @@ final class Span {
         return end;
     }
 
-    private static void appendAggregatedLeaf(StringBuilder builder, List<Span> spans, String prefix, boolean last) {
+    private static void appendAggregatedLeaf(Trace.RenderBuffer builder, List<Span> spans, String prefix,
+                                             boolean last) {
         Span first = spans.get(0);
         long total = 0;
         long min = Long.MAX_VALUE;
@@ -100,7 +124,7 @@ final class Span {
         }
         builder.append(prefix)
                 .append(last ? "`- " : "|- ")
-                .append('[').append(first.spanType).append("] ")
+                .append('[').append(first.spanType.name()).append("] ")
                 .append(first.name);
         if (!first.tag.isBlank()) {
             builder.append(" tag=\"").append(first.tag).append("\"");
@@ -114,7 +138,7 @@ final class Span {
     }
 
     private boolean canAggregate() {
-        return children.isEmpty();
+        return children == null || children.isEmpty();
     }
 
     private boolean sameAggregateKey(Span other) {

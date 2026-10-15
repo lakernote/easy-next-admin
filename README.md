@@ -110,7 +110,7 @@ npm run dev
 - **工作台**：聚合个人待办、常用申请、系统能力和关键统计。入口：`/dashboard`
 - **系统管理**：用户、直属上级、用户导入导出、角色、菜单权限、部门负责人、组织架构和文件中心。入口：`/system/users`、`/system/roles`、`/system/menus`、`/system/departments`、`/system/files`
 - **报表中心**：组织人员台账和采购流程复核的 A4 纸质报表预览与打印。入口：`/reports/enterprise`
-- **运行监控**：应用运行状态、在线用户、缓存指标、缓存键值和在线请求日志。入口：`/monitor/server`、`/monitor/online`、`/monitor/cache`、`/monitor/cache-list`、`/monitor/weblog`
+- **运行监控**：应用运行状态、在线用户、缓存、实时日志，以及 Metrics、Slow、Errors 三类运行诊断。Actuator/Micrometer 指标写入本地 RRD4J 环形时序文件并提供 Table 与 Trend；正常成功的 HTTP、Job、Kafka、事务、SQL 和远程调用只进入聚合指标，发生慢调用或错误时才持久化关联 Trace，并可从 Slow 或 Errors 直接打开。JFR、线程、死锁、运行池和类直方图放在独立高级诊断页，JFR 默认关闭，可按需开启且单次最长 24 小时。入口：`/monitor/server`、`/monitor/diagnosis`、`/monitor/advanced-diagnosis`、`/monitor/online`、`/monitor/cache`、`/monitor/cache-list`、`/monitor/weblog`
 - **审计中心**：登录、操作、数据变更、错误和接口访问审计。入口：`/audit/behavior`
 - **任务调度**：动态任务定义、集群启停同步、实例心跳、单实例/广播执行和执行日志。入口：`/schedule/jobs`
 - **批处理任务**：查看长任务进度、失败明细、Worker 租约、取消状态和未完成项恢复；固定账期支持多实例动态领取分区。入口：`/batch/tasks`

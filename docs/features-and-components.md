@@ -16,6 +16,8 @@
 | 编号规则 | `/system/business-numbers` | `src/views/system/BusinessNumberRuleView.vue`、`src/features/business-number` | `module.business.number` | `business:number:list/edit/generate` |
 | 报表中心 | `/reports/enterprise` | `src/views/report/EnterpriseReportView.vue`、`src/features/report` | `module.report` | `report:view` |
 | 运行监控 | `/monitor/server` | `src/views/monitor/MonitorView.vue` | `module.monitor` | `monitor:server:view` |
+| 运行诊断 | `/monitor/diagnosis` | `src/views/monitor/RuntimeDiagnosisView.vue` | `module.monitor` | `monitor:diagnosis:view` |
+| 高级诊断 | `/monitor/advanced-diagnosis` | `src/views/monitor/AdvancedDiagnosisView.vue` | `module.monitor` | `monitor:diagnosis:advanced-view/capture/jfr-control/jfr-download` |
 | 在线用户 | `/monitor/online` | `src/views/monitor/OnlineUserView.vue` | `infrastructure.security` | `monitor:online:view`、`auth:session:revoke` |
 | 缓存监控 | `/monitor/cache` | `src/views/monitor/CacheMonitorView.vue` | `module.monitor` | `monitor:cache:view/clear` |
 | 缓存列表 | `/monitor/cache-list` | `src/views/monitor/CacheListView.vue` | `module.monitor` | `monitor:cache:view/clear` |
@@ -39,7 +41,7 @@
 | 文件中心 | 在 `/system/files` 上传、预览、下载和清理文件；图片、PDF 和文本类文件可直接预览。 | 业务模块通过文件 API 保存文件元数据，预览和下载复用鉴权下载接口，不在页面拼接裸地址。上传会校验大小、扩展名、MIME 和常见文件头签名，拒绝把可执行文件伪装成图片、PDF 或压缩包；病毒扫描和敏感内容检测应在企业网关或对象存储侧继续补齐。 |
 | 编号规则 | 在 `/system/business-numbers` 维护申请单号、工单号、采购单号等业务可读编号规则；业务代码通过 `BusinessNumberService#nextNumber(ruleCode)` 取号。 | 业务编号是应用内组件，不替代表主键或分布式 ID。规则表维护前缀、日期周期、分隔符、流水位数、递增步长和启停状态；计数器表按规则和日期段独立计数，通过数据库原子递增保证多实例并发取号不重复。 |
 | 报表中心 | 在 `/reports/enterprise` 查看组织人员台账和采购流程复核两张 A4 纸质报表，并可使用浏览器打印。 | 报表接口只读，走 `report:view` 权限和当前账号数据范围；页面用固定版式表格、签核栏和报表编号呈现，不做 BI 配置器或大屏图表。 |
-| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户和实时日志。 | 面向内网运维排障，默认展示实时状态和 logback 当前文件日志；缓存列表只展示脱敏后的 key/value 预览并支持精确清理单个 key；实时日志级别调整使用独立权限和审计。监控页是应用内排障入口，不替代 InfluxDB、OpenSearch、Grafana 或云厂商观测平台。 |
+| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户、实时日志、运行诊断和高级诊断。 | 运行诊断保留 Metrics、Slow、Errors 三个视图；Metrics 由 Actuator/Micrometer 采集并写入 RRD4J，Slow 与 Errors 直接打开关联 Trace。正常成功操作只进入聚合指标，慢或错误操作才持久化 Incident 与 Trace。高级诊断独立展示 JVM 线程、死锁、运行池、类直方图与 JFR；JFR 默认关闭，可在页面按需开启，单次最长 24 小时。容器部署应将 `EASY_DIAGNOSIS_STORAGE_DIR` 指向持久卷。 |
 | 审计中心 | 在 `/audit/behavior` 查询登录、操作、异常、接口访问和敏感数据变更记录。 | 关键接口用 `@EasyAudit` 或审计采集器记录；审计查询通过 `AuditVisibilitySupport` 按当前账号数据范围过滤操作者或登录用户，只有全部数据范围可看全局统计；敏感字段在入库前统一交给 `EasySensitiveDataMasker` 脱敏。 |
 | 任务调度 | 在 `/schedule/jobs` 查看和维护动态任务。 | 任务通过 `@EasyJob` 声明，数据库维护 Cron、锁租约、`SINGLETON / BROADCAST` 执行模式、启停状态和执行日志；多实例节点定期心跳并对齐数据库目标状态。单实例模式使用分布式锁互斥，广播模式让每个在线实例进入 Handler。 |
 | 批处理任务 | 在 `/batch/tasks` 查看长任务进度、失败明细、执行 Worker 和租约，对运行中任务请求取消，并可按日期触发采购流程状态对账。 | `EasyBatchRunner` 提供 PageReader / ItemDecoder / Processor、参数、失败策略和固定账期分布式模式；准备者只执行一次 Reader，Worker 直接消费持久化 `input_json`，通过 Claim/Lease 动态分工并接管失效实例。一次执行由 `businessKey + runNo` 标识，终态历史不原地重置。 |
@@ -92,7 +94,8 @@
 | 脱敏 | 审计参数、接口访问日志、实时日志 | `EasySensitiveDataMasker`、`@EasyMask` | DTO 输出用注解，Map/请求参数/日志文本用组件。 |
 | Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | `EasyTraceIdFilter`、`EasyTraceIdContext`、`EasyMdcContext`、`EasyNextAdminMdcThreadPoolExecutor`、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建，跨线程、Kafka 生产消费和远程调用透传，日志打印 `traceId` 和认证后的 `userId`。 |
 | API 访问日志 | 用户管理、审计、监控 Controller | `@EasyApiAccessLog`、`EasyApiAccessLogAspect` | 写入 `audit_api_log`，保存 traceId、请求摘要、响应摘要、状态和耗时；它是访问日志，不承担标准指标命名职责。 |
-| 标准业务指标 | API 访问、远程调用、限流、调度任务、Outbox | `EasyBusinessMetrics`、`RemoteCallMetricsAspect`、Micrometer、`micrometer-registry-influx` | 使用低基数标签输出 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`；当前指标后端可接 InfluxDB，应用侧保持 Micrometer 标准门面，后续可扩展 OTLP 或 Prometheus。 |
+| 标准业务指标 | API 访问、远程调用、限流、调度任务、Outbox | `EasyBusinessMetrics`、`RemoteCallMetricsAspect`、Micrometer、RRD4J、`micrometer-registry-influx` | 使用低基数标签输出 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`；默认由本地 RRD4J 保存固定容量的多精度历史，仍可选择 InfluxDB，应用埋点保持 Micrometer 标准门面。 |
+| 本地运行诊断 | HTTP、SQL、事务、定时任务、Kafka Consumer | `RuntimeDiagnosisController`、`RuntimeStatisticsService`、`JvmDiagnosticsService`、`JfrAnalysisService`、`RecentTraceStore`、`MetricsHistoryCollector`、`OperationObservation`、`LocalJfrRecorder` | Metrics 使用 RRD4J 本地环形时序文件；Slow、Errors 和对应 Trace 作为稀疏 Incident，经统一脱敏和长度限制后由有界异步队列写入滚动 JSONL。正常成功操作不保存 Trace，慢/错误操作触发时才抓取锁、线程栈和调用树。JFR 属于独立高级诊断，默认关闭，可按需录制并受会话时长、文件轮转和磁盘预算限制。 |
 | 前端观测事件 | Vue 全局错误、路由错误、Axios 失败 | `src/features/observability/events.ts`、`src/api/request.ts`、`src/main.ts` | 记录白屏类错误、未处理 Promise、路由加载失败和 API 失败；本地有界缓冲，保留 traceId，不保留完整 query 参数，后续再接事件上报通道。 |
 | 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | `TraceContext`、`@EasyTrace`、`TraceCodeBlock`、`EasyHttpSlowRequestInterceptor`、`EasyMybatisTraceInterceptor` | 不依赖外部 tracing；入口超出阈值或异常时打印本地调用树，MyBatis 层 tag 只保留 `SqlCommandType`，连续重复叶子节点聚合为 `count/total/min/max`。 |
 | 定时任务 | 本地消息恢复、固定账期批处理 | `@EasyJob`、`JobExecutionMode`、`ScheduleJobManager`、`schedule_instance` | 默认 `SINGLETON` 通过分布式锁互斥；`BROADCAST` 可唤醒 Batch Worker，也可让每个实例直接从源队列表 Claim。 |
@@ -664,6 +667,26 @@ infrastructure/observability
 ```
 
 服务监控读取 JVM、CPU、内存、线程、磁盘和 GC 水位，并用图表展示资源压力、内存结构、磁盘容量和 GC 状态；实时日志读取 logback 当前文件日志的尾部快照，支持关键词、级别和行数过滤。服务监控页面不展示 Actuator 明细清单。
+
+`/monitor/diagnosis` 是面向单个应用实例的内嵌排障入口，三个视图各自承担不同问题：
+
+- **Metrics** 从 Spring Boot Actuator 使用的 Micrometer `MeterRegistry` 读取当前 JVM、线程池、连接池和业务指标，并写入 RRD4J 本地环形时序文件；Table 与 Trend 查询同一份数据。
+- **Slow** 按 HTTP、SQL、事务、Remote、Job、Kafka 各自阈值筛选慢操作；有 traceId 时可继续查看同链路记录，没有 traceId 的操作仍可打开执行现场。
+- **Errors** 是 canonical incident 的错误投影，覆盖 HTTP、SQL、事务、Remote、Job 和 Kafka；Trace 详情仍会按 traceId 补充关联的异常审计证据。
+
+Slow 和 Errors 直接打开 Trace 详情。Trace 关联同一 traceId 下的 HTTP、SQL、事务、Job/Kafka 操作、错误和慢记录；同一次操作既慢又失败时只保存一条 Incident，并同时出现在对应筛选视图。已有入口 trace 激活时，模块 `@Service` 公共方法和 Feign、`client`、`remote` 调用会自动形成 Service/Remote span；显式 `@EasyTrace` 仍可用于需要自定义名称的边界。
+
+单次操作在内存中采集耗时；HTTP、Job、Kafka、事务和远程调用还采集当前线程 CPU 与线程分配内存。SQL 是更高频的热路径，默认不为每条语句读取这些线程计数，慢 SQL、错误 SQL 仍会保留线程栈和锁现场；显式开启 `EASY_DIAGNOSIS_SQL_RESOURCE_SAMPLING_ENABLED` 后才采集逐条 SQL 资源差值。正常计数读取不抓栈。活跃列表刷新会按线程去重后批量读取轻量线程状态、当前等待锁和有限堆栈，不主动扫描线程已持有的 Monitor / Synchronizer；完整持有锁与诊断栈只在慢操作周期采样或慢/错结束采样且深采样预算允许时抓取，因此未显示持有锁不代表采样时一定没有持锁。CPU 与分配内存是绑定线程区间的累计差值，父 HTTP/Job/Kafka 包含其子事务、SQL 和远程调用，不能跨层相加；`EASY_DIAGNOSIS_CONTENTION_TIME_ENABLED` 默认关闭，此时 blocked/waited 次数与耗时均不可用，慢或失败操作仍会尝试在预算内保留一次线程栈与锁现场。正常成功操作只进入低基数 Micrometer 聚合，慢或失败时才把锁、线程栈、调用树和诊断资源持久化。长事务属于 Slow，事务 span 使用 `SpanType.Transaction` 并与入口 traceId 关联。
+
+单次资源值采用首尾差值：`wall = finishNano - startNano`，`cpu = Σ(threadCpuEnd - threadCpuStart)`，`allocated = Σ(threadAllocatedEnd - threadAllocatedStart)`，异步 handoff 时把各个已绑定线程区间相加。监控不会等待异步 worker：worker 早于 Servlet handoff 启动时，仍关联其 SQL/事务等子操作，但放弃该线程段的 CPU/分配量归因，因此异步资源值可能是下界。`allocated` 表示执行期间在线程上新分配的字节量，不等于请求结束后仍存活的堆内存，也不覆盖 native/direct memory；OOM 保留问题仍需结合类直方图、JFR 或 heap dump。为压低默认热路径成本，blocked/waited 区间差值默认关闭；设置 `EASY_DIAGNOSIS_CONTENTION_TIME_ENABLED=true` 后才读取 `ThreadInfo` 生命周期计数并开启 JVM contention time。慢或错误操作的栈和锁现场不依赖该开关，但仍受统一深采样预算限制。诊断栈抓取和延迟 SQL 文本解析发生在资源计数冻结之后，避免把排障本身的主要 CPU/分配量算进业务操作。
+
+`/monitor/advanced-diagnosis` 独立承载 JVM 现场与 JFR。JVM 现场接口提供全线程、死锁、Hikari/JDBC/Tomcat/执行器池状态；类直方图要求 `monitor:diagnosis:capture` 权限并在页面确认后按需触发。JFR 默认关闭，拥有 `monitor:diagnosis:jfr-control` 权限的用户可开启有界录制会话或提前停止；有效上限是配置值与 1440 分钟中的较小值，页面按服务端上限提供选项，应用重启后回到配置默认值。最长可达 24 小时的会话以 JDK `default.jfc` continuous 配置为基线，再显式固定页面分析需要的 20ms 执行采样、每秒最多 150 个分配样本、20ms 锁/Park 与慢 I/O 阈值、10 秒线程 CPU 负载、GC、`JavaErrorThrow` 和无调用栈的 `RuntimeOperation`；不使用面向短时深入分析的 `profile.jfc`。原始文件下载使用 `monitor:diagnosis:jfr-download`。JFR 默认保留 1 天，总容量目标 64 MiB、单段目标 16 MiB，每 30 分钟轮转；轮转时先启动下一段，再停止上一段。状态和文件列表只读取文件元数据，不在页面请求线程扫描完整录制；跨分段分析去除重叠事件，并共享文件数、事件数、扫描时间和并发上限。只有项目自定义 `RuntimeOperation` JFR 事件天然带 traceId，快速成功 SQL 的事件只保留 mapper/command 等廉价字段，慢或错误时才解析归一化 SQL；JDK JFR 的 CPU、分配、锁/Park、GC 与 I/O 事件仅作为同 JVM、同时间窗口内的堆栈旁证，不能视为对应 traceId 的精确资源归因。
+
+Metrics 的 RRD 文件在创建时确定归档行数并循环覆盖，默认保存 1 分钟、5 分钟和 30 分钟三档精度，保留目标默认至少 30 天，也可配置得更长。所有 datasource 保存 Micrometer 当前原始值，5 分钟和 30 分钟档使用 `LAST`，因此它们表示桶末快照，不承诺保留桶内的所有瞬时峰值；默认本地 MeterRegistry 的 `COUNT`、`TOTAL` 和 `TOTAL_TIME` 是本进程累计值，应用重启后从零开始。前端对长序列分桶保留 min/max 后最多绘制 600 点，减少浏览器抽样再次漏峰。容量或 series 上限会优先淘汰低优先级序列，因此可追溯跨度可能短于目标或存在缺口。Incident JSONL 按天和大小滚动，时间保留和目录容量任一条件先达到都会清理最旧关闭分段。JSONL 异步队列同时受条数与默认 16 MiB 待写内存预算约束，预算拒绝会单独计数。摘要接口提供待写条数、待写 bytes、拒绝和丢弃数量；精简页面平时只展示可追溯跨度，并在容量压力、拒绝或丢弃发生时告警，避免把容量淘汰后的数据误报为完整 30 天。
+
+远程调用总量、成功率和平均耗时始终来自全量 Micrometer Timer，并由 RRD4J 保存趋势；只含慢/错样本的 Incident 不参与全量统计。旧版 `observability_remote_call_log` 兼容写入默认关闭，只有设置 `EASY_DIAGNOSIS_REMOTE_LOG_PERSISTENCE_ENABLED=true` 才异步写业务 MySQL。
+
+设计参考了 JavaMelody 的请求统计、JVM 现场和应用内排障体验。JavaMelody 对 HTTP 请求同样用 wall clock、当前线程 CPU 时间和当前线程分配字节的首尾差值，再按 request name 聚合 count、sum/mean、max 和 errors；样本标准差为 `sqrt((Σx² - (Σx)²/n) / (n-1))`。它默认用全局 `mean + σ` 和 `mean + 2σ` 作为 warning/severe 阈值，再比较每个 request name 聚合组的平均耗时，并不是逐次保存每一个超时执行；官方 TODO 仍列有“保留最近 100 条 slow requests”。它的 JDBC 计数器只记录 SQL wall duration，CPU 和 allocated 传 `-1`，锁与 I/O 也不是精确的逐请求差值。这里因此默认跳过逐条 SQL 资源计数，并保留慢/错 SQL 的现场；同时保持 Spring Boot Actuator/Micrometer 作为指标门面，增加业务 traceId、事务/Job/Kafka 语义、稀疏 Incident 与应用内 JFR 时间窗关联。当前实现不引入 JavaMelody agent 或独立服务；数据属于当前实例，多实例不会自动汇总，跨实例趋势与告警仍应接 InfluxDB、Prometheus/Grafana 或企业观测平台。边界和有界队列只能说明默认设计偏低开销，不能承诺零影响或固定百分比；生产硬指标需要在目标 JDK、真实流量和实际标签基数下做开启/关闭 A/B 压测。计算实现可对照 JavaMelody 的 [HTTP filter](https://github.com/javamelody/javamelody/blob/8981a44838880fdb7905f0fb9f7d2e31b632d717/javamelody-core/src/main/java/net/bull/javamelody/MonitoringFilter.java#L216-L313)、[thread counters](https://github.com/javamelody/javamelody/blob/8981a44838880fdb7905f0fb9f7d2e31b632d717/javamelody-core/src/main/java/net/bull/javamelody/internal/model/ThreadInformations.java#L74-L123)、[JDBC wrapper](https://github.com/javamelody/javamelody/blob/8981a44838880fdb7905f0fb9f7d2e31b632d717/javamelody-core/src/main/java/net/bull/javamelody/JdbcWrapper.java#L395-L444)、[慢组聚合](https://github.com/javamelody/javamelody/blob/8981a44838880fdb7905f0fb9f7d2e31b632d717/javamelody-core/src/main/java/net/bull/javamelody/internal/model/CounterRequestAggregation.java#L72-L95) 和 [slow request TODO](https://github.com/javamelody/javamelody/wiki/TODO#and)。
 
 ### 动态定时任务
 

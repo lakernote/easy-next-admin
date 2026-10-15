@@ -15,11 +15,11 @@ public final class TraceCodeBlock {
     }
 
     public static <T> T trace(String spanName, SpanType spanType, String tag, Supplier<T> supplier) {
-        TraceContext.addSpan(spanName, spanType, tag);
+        boolean spanStarted = startSpan(spanName, spanType, tag);
         try {
             return supplier.get();
         } finally {
-            TraceContext.stopSpan();
+            stopSpan(spanStarted);
         }
     }
 
@@ -32,11 +32,30 @@ public final class TraceCodeBlock {
     }
 
     public static void trace(String spanName, SpanType spanType, String tag, Runnable runnable) {
-        TraceContext.addSpan(spanName, spanType, tag);
+        boolean spanStarted = startSpan(spanName, spanType, tag);
         try {
             runnable.run();
         } finally {
+            stopSpan(spanStarted);
+        }
+    }
+
+    private static boolean startSpan(String spanName, SpanType spanType, String tag) {
+        try {
+            TraceContext.addSpan(spanName, spanType, tag);
+            return true;
+        } catch (Throwable monitoringFailure) {
+            TraceContext.clear();
+            return false;
+        }
+    }
+
+    private static void stopSpan(boolean spanStarted) {
+        if (!spanStarted) return;
+        try {
             TraceContext.stopSpan();
+        } catch (Throwable monitoringFailure) {
+            TraceContext.clear();
         }
     }
 }

@@ -46,6 +46,15 @@ public class EasyNextAdminConfig {
 
     private Trace trace = new Trace();
 
+    private Monitor monitor = new Monitor();
+
+    private Features features = new Features();
+
+    @Data
+    public static class Features {
+        private boolean monitor = true;
+    }
+
     @Data
     public static class Waf {
         private boolean xssEnabled = true;
@@ -167,5 +176,52 @@ public class EasyNextAdminConfig {
          * Kafka Consumer 入口慢消费阈值。小于等于 0 表示关闭。
          */
         private long kafkaConsumerSlowThresholdMs = 30_000L;
+
+        /** Long-transaction sample threshold. */
+        private long transactionSlowThresholdMs = 1_000L;
+
+        /** MyBatis SQL sample threshold. Parameters are never recorded. */
+        private long sqlSlowThresholdMs = 500L;
+
+        /** Remote-call sample threshold. Fast successful calls remain aggregate metrics only. */
+        private long remoteSlowThresholdMs = 3_000L;
+    }
+
+    @Data
+    public static class Monitor {
+        private Diagnosis diagnosis = new Diagnosis();
+
+        @Data
+        public static class Diagnosis {
+            /** Master switch for local diagnosis storage and per-operation resource sampling. */
+            private boolean enabled = true;
+            /** Continuous local JFR recording can be disabled independently. */
+            private boolean jfrEnabled = false;
+            /** CPU/allocation/lock/stack sampling for individual operations. */
+            private boolean detailSamplingEnabled = true;
+            /** Hard cap for in-flight operation entries retained by the local diagnosis registry. */
+            private int activeMaxEntries = 4_096;
+            /** SQL admission cap inside activeMaxEntries, reserving capacity for request/job/message roots. */
+            private int activeMaxSqlEntries = 1_024;
+            /** Maximum distinct threads inspected with deep stack/lock sampling in one scheduled pass. */
+            private int activeMaxSamplesPerCycle = 32;
+            /** Cadence shared by scheduled and finishing-path deep-diagnostic budgets. */
+            private long activeSampleIntervalMs = 500L;
+            /**
+             * Enables CPU/allocation/contention counter deltas for every SQL execution. Slow/error SQL still keeps
+             * its stack and lock evidence when this is disabled.
+             */
+            private boolean sqlResourceSamplingEnabled = false;
+            /**
+             * Optional compatibility table for slow/error remote calls. Canonical details are kept in bounded
+             * local incident JSONL, so production defaults to no writes against the business database.
+             */
+            private boolean remoteLogPersistenceEnabled = false;
+            /**
+             * Enables per-operation blocked/waited counter deltas and JVM-wide contention time accounting.
+             * Slow/error stack and lock snapshots remain available when this higher-cost option is disabled.
+             */
+            private boolean contentionTimeEnabled = false;
+        }
     }
 }

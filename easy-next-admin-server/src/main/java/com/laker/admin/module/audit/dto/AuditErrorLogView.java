@@ -15,6 +15,7 @@ import java.util.List;
 @Builder
 public class AuditErrorLogView {
     private Long id;
+    private String traceId;
     private String requestUri;
     private String requestMethod;
     private String errorType;
@@ -31,6 +32,7 @@ public class AuditErrorLogView {
         }
         return AuditErrorLogView.builder()
                 .id(log.getId())
+                .traceId(log.getTraceId())
                 .requestUri(log.getRequestUri())
                 .requestMethod(log.getRequestMethod())
                 .errorType(log.getErrorType())

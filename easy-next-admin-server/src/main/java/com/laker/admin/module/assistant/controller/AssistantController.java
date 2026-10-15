@@ -3,6 +3,7 @@ package com.laker.admin.module.assistant.controller;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
+import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
@@ -39,16 +40,19 @@ public class AssistantController {
     private final TaskExecutor streamExecutor;
     private final TaskScheduler heartbeatScheduler;
     private final AssistantRuntimeProperties runtimeProperties;
+    private final OperationObservation operationObservation;
 
     public AssistantController(
             AgentTurnService agentTurnService,
             @Qualifier(AssistantRuntimeConfiguration.STREAM_EXECUTOR_BEAN) TaskExecutor streamExecutor,
             @Qualifier(AssistantRuntimeConfiguration.HEARTBEAT_SCHEDULER_BEAN) TaskScheduler heartbeatScheduler,
-            AssistantRuntimeProperties runtimeProperties) {
+            AssistantRuntimeProperties runtimeProperties,
+            OperationObservation operationObservation) {
         this.agentTurnService = agentTurnService;
         this.streamExecutor = streamExecutor;
         this.heartbeatScheduler = heartbeatScheduler;
         this.runtimeProperties = runtimeProperties;
+        this.operationObservation = operationObservation;
     }
 
     @PostMapping("/messages")
@@ -67,14 +71,18 @@ public class AssistantController {
         SseEmitter emitter = new SseEmitter(runtimeProperties.getStreamTimeout().toMillis());
         AuthPrincipal principal = EasySecurityContext.getPrincipal();
         String traceId = EasyTraceIdContext.getOrCreateTraceId();
+        OperationObservation.ContextSnapshot observationContext = operationObservation.captureContext();
         AssistantChatSseEventSink eventSink = new AssistantChatSseEventSink(emitter, traceId);
         AssistantUserStreamEventAdapter userEventAdapter = new AssistantUserStreamEventAdapter(eventSink);
         streamExecutor.execute(() -> {
             EasyTraceIdContext.putTraceId(traceId);
             EasySecurityContext.setPrincipal(principal);
             try {
-                agentTurnService.run(request, userEventAdapter);
+                try (OperationObservation.ContextBinding ignored = observationContext.bind()) {
+                    agentTurnService.run(request, userEventAdapter);
+                }
                 // AgentTurnService 已通过安全适配器发送 done 事件；这里只负责关闭连接。
+                // 先释放 worker 监控上下文，再触发 Servlet 异步完成分派，避免两个线程同时绑定根操作。
                 eventSink.complete();
             } catch (RuntimeException ex) {
                 log.warn("Assistant user stream execution failed, traceId={}, failureType={}",

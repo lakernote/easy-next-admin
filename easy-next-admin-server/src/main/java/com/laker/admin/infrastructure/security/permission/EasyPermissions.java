@@ -64,6 +64,11 @@ public final class EasyPermissions {
         public static final String CACHE_CLEAR = "monitor:cache:clear";
         public static final String WEBLOG_VIEW = "monitor:weblog:view";
         public static final String WEBLOG_LEVEL = "monitor:weblog:level";
+        public static final String DIAGNOSIS_VIEW = "monitor:diagnosis:view";
+        public static final String DIAGNOSIS_ADVANCED_VIEW = "monitor:diagnosis:advanced-view";
+        public static final String DIAGNOSIS_CAPTURE = "monitor:diagnosis:capture";
+        public static final String DIAGNOSIS_JFR_CONTROL = "monitor:diagnosis:jfr-control";
+        public static final String DIAGNOSIS_JFR_DOWNLOAD = "monitor:diagnosis:jfr-download";
 
         private Monitor() {
         }

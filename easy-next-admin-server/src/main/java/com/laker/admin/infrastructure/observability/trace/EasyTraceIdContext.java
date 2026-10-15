@@ -14,6 +14,12 @@ import org.springframework.util.StringUtils;
  */
 public final class EasyTraceIdContext {
 
+    /**
+     * W3C trace id 为 32 位十六进制，Brave/B3 常见 16 或 32 位，UUID 为 36 位。
+     * 预留业务前缀后将上限定为 64，避免外部输入无限放大日志、JSONL 与 JFR 事件。
+     */
+    public static final int MAX_TRACE_ID_LENGTH = 64;
+
     private EasyTraceIdContext() {
     }
 
@@ -23,7 +29,7 @@ public final class EasyTraceIdContext {
 
     public static String getOrCreateTraceId() {
         String traceId = currentTraceId();
-        if (!StringUtils.hasText(traceId)) {
+        if (!isValidTraceId(traceId)) {
             traceId = EasyIdGenerator.uuid32();
             putTraceId(traceId);
         }
@@ -31,11 +37,13 @@ public final class EasyTraceIdContext {
     }
 
     public static String putOrCreateTraceId(String traceId) {
-        if (StringUtils.hasText(traceId)) {
+        if (isValidTraceId(traceId)) {
             putTraceId(traceId);
             return traceId;
         }
-        return getOrCreateTraceId();
+        String generatedTraceId = EasyIdGenerator.uuid32();
+        putTraceId(generatedTraceId);
+        return generatedTraceId;
     }
 
     public static void putTraceId(String traceId) {
@@ -50,6 +58,35 @@ public final class EasyTraceIdContext {
 
     public static String resolveFromRequest(HttpServletRequest request) {
         String traceId = request.getHeader(EasyNextAdminConstants.TRACE_ID_HEADER);
-        return StringUtils.hasText(traceId) ? traceId : EasyIdGenerator.uuid32();
+        return isValidTraceId(traceId) ? traceId : EasyIdGenerator.uuid32();
+    }
+
+    /**
+     * 只接收可安全写入日志、JSONL 和 JFR 字符串字段的短 ASCII 标识。
+     * 支持十六进制 trace id、UUID，以及带 {@code . _ : -} 分隔符的网关业务链路号。
+     */
+    public static boolean isValidTraceId(String traceId) {
+        if (!StringUtils.hasText(traceId)
+                || traceId.length() > MAX_TRACE_ID_LENGTH
+                || !isAsciiLetterOrDigit(traceId.charAt(0))) {
+            return false;
+        }
+        for (int i = 1; i < traceId.length(); i++) {
+            char character = traceId.charAt(i);
+            if (!isAsciiLetterOrDigit(character)
+                    && character != '.'
+                    && character != '_'
+                    && character != ':'
+                    && character != '-') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAsciiLetterOrDigit(char character) {
+        return character >= '0' && character <= '9'
+                || character >= 'A' && character <= 'Z'
+                || character >= 'a' && character <= 'z';
     }
 }

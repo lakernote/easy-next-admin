@@ -49,4 +49,23 @@ class EasyTraceIdFilterTest {
         assertThat(response.getHeader(EasyNextAdminConstants.TRACE_ID_HEADER)).hasSize(32);
         assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
     }
+
+    @Test
+    void shouldReplaceInvalidRequestTraceIdBeforeMdcAndResponsePropagation() throws Exception {
+        String invalidTraceId = "trace-id\r\nforged-header";
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/system/users");
+        request.addHeader(EasyNextAdminConstants.TRACE_ID_HEADER, invalidTraceId);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = (servletRequest, servletResponse) -> {
+            String traceId = MDC.get(EasyNextAdminConstants.TRACE_ID);
+            assertThat(traceId).hasSize(32).isNotEqualTo(invalidTraceId);
+        };
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getHeader(EasyNextAdminConstants.TRACE_ID_HEADER))
+                .hasSize(32)
+                .isNotEqualTo(invalidTraceId);
+        assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
+    }
 }

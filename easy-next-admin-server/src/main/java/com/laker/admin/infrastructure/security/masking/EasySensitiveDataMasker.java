@@ -370,6 +370,9 @@ public class EasySensitiveDataMasker {
 
     private String maskTextValue(String text, String key) {
         String result = text.replaceAll("(?i)(\"" + key + "\"\\s*:\\s*\")([^\"]*)(\")", "$1" + EasyMaskingSupport.MASK + "$3");
-        return result.replaceAll("(?i)(\\b" + key + "\\b\\s*=\\s*)([^&\\s,;]+)", "$1" + EasyMaskingSupport.MASK);
+        result = result.replaceAll("(?i)(\\b" + key + "\\b\\s*=\\s*)([^&\\s,;]+)",
+                "$1" + EasyMaskingSupport.MASK);
+        return result.replaceAll("(?i)(\\b" + key + "\\b\\s*:\\s*)([^\\r\\n,;]+)",
+                "$1" + EasyMaskingSupport.MASK);
     }
 }

@@ -63,7 +63,12 @@ export const PermissionCodes = {
     cacheView: 'monitor:cache:view',
     cacheClear: 'monitor:cache:clear',
     weblogView: 'monitor:weblog:view',
-    weblogLevel: 'monitor:weblog:level'
+    weblogLevel: 'monitor:weblog:level',
+    diagnosisView: 'monitor:diagnosis:view',
+    diagnosisAdvancedView: 'monitor:diagnosis:advanced-view',
+    diagnosisCapture: 'monitor:diagnosis:capture',
+    diagnosisJfrDownload: 'monitor:diagnosis:jfr-download',
+    diagnosisJfrControl: 'monitor:diagnosis:jfr-control'
   },
   audit: {
     behaviorView: 'audit:behavior:view'

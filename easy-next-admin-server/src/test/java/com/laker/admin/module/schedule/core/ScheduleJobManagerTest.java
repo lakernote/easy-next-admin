@@ -22,8 +22,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -116,6 +119,115 @@ class ScheduleJobManagerTest {
         verify(easyLocker, never()).tryAcquire(any(), any(Duration.class));
     }
 
+    @Test
+    void fatalJobErrorIsReportedReleasedAndRethrown() throws Exception {
+        CapturingTaskScheduler scheduler = new CapturingTaskScheduler();
+        ScheduleJobStore store = jobStore(FatalJobHandler.class.getName(), JobExecutionMode.SINGLETON);
+        FatalJobHandler handler = new FatalJobHandler();
+        ScheduleJobCallback callback = mock(ScheduleJobCallback.class);
+        IEasyLocker easyLocker = mock(IEasyLocker.class);
+        EasyLocker lock = EasyLocker.builder().key("schedule:job:sample_job").token("token-fatal").build();
+        when(easyLocker.tryAcquire(eq("schedule:job:sample_job"), any(Duration.class))).thenReturn(lock);
+        ScheduleJobManager manager = new ScheduleJobManager(scheduler, store, List.of(callback),
+                mock(IScheduleJobService.class), Map.of("fatalJob", handler), easyLocker, instanceRegistry);
+
+        manager.run();
+
+        assertThatThrownBy(scheduler::runCapturedTask)
+                .isInstanceOf(OutOfMemoryError.class)
+                .hasMessage("simulated job allocation failure");
+        verify(callback).start(any());
+        verify(callback).exception(any(), any(OutOfMemoryError.class));
+        verify(callback).end(any());
+        verify(easyLocker).release(lock);
+    }
+
+    @Test
+    void callbackCleanupFailuresDoNotReplaceFatalJobError() throws Exception {
+        CapturingTaskScheduler scheduler = new CapturingTaskScheduler();
+        OutOfMemoryError failure = new OutOfMemoryError("original job allocation failure");
+        FatalJobHandler handler = new FatalJobHandler(failure);
+        ScheduleJobStore store = jobStore(FatalJobHandler.class.getName(), JobExecutionMode.SINGLETON);
+        ScheduleJobCallback exceptionFailureCallback = mock(ScheduleJobCallback.class);
+        ScheduleJobCallback endFailureCallback = mock(ScheduleJobCallback.class);
+        ScheduleJobCallback healthyCallback = mock(ScheduleJobCallback.class);
+        doThrow(new IllegalStateException("exception callback failed"))
+                .when(exceptionFailureCallback).exception(any(), same(failure));
+        doThrow(new AssertionError("end callback failed"))
+                .when(endFailureCallback).end(any());
+        IEasyLocker easyLocker = mock(IEasyLocker.class);
+        EasyLocker lock = EasyLocker.builder().key("schedule:job:sample_job").token("token-callback-failure").build();
+        when(easyLocker.tryAcquire(eq("schedule:job:sample_job"), any(Duration.class))).thenReturn(lock);
+        IllegalStateException releaseFailure = new IllegalStateException("lock release failed after OOM");
+        doThrow(releaseFailure).when(easyLocker).release(lock);
+        ScheduleJobManager manager = new ScheduleJobManager(scheduler, store,
+                List.of(exceptionFailureCallback, endFailureCallback, healthyCallback),
+                mock(IScheduleJobService.class), Map.of("fatalJob", handler), easyLocker, instanceRegistry);
+
+        manager.run();
+
+        assertThatThrownBy(scheduler::runCapturedTask).isSameAs(failure);
+        assertThat(failure.getSuppressed()).containsExactly(releaseFailure);
+        verify(endFailureCallback).exception(any(), same(failure));
+        verify(healthyCallback).exception(any(), same(failure));
+        verify(exceptionFailureCallback).end(any());
+        verify(healthyCallback).end(any());
+        verify(easyLocker).release(lock);
+    }
+
+    @Test
+    void lockReleaseFailureAfterSuccessfulJobIsPropagated() throws Exception {
+        CapturingTaskScheduler scheduler = new CapturingTaskScheduler();
+        ScheduleJobStore store = singleJobStore();
+        RecordingJobHandler handler = new RecordingJobHandler();
+        ScheduleJobCallback callback = mock(ScheduleJobCallback.class);
+        IEasyLocker easyLocker = mock(IEasyLocker.class);
+        EasyLocker lock = EasyLocker.builder().key("schedule:job:sample_job").token("token-release-failure").build();
+        when(easyLocker.tryAcquire(eq("schedule:job:sample_job"), any(Duration.class))).thenReturn(lock);
+        IllegalStateException releaseFailure = new IllegalStateException("lock release failed");
+        doThrow(releaseFailure).when(easyLocker).release(lock);
+        ScheduleJobManager manager = new ScheduleJobManager(scheduler, store, List.of(callback),
+                mock(IScheduleJobService.class), Map.of("sampleJob", handler), easyLocker, instanceRegistry);
+
+        manager.run();
+
+        assertThatThrownBy(scheduler::runCapturedTask).isSameAs(releaseFailure);
+        assertThat(handler.executeCount()).isOne();
+        verify(callback).end(any());
+        verify(easyLocker).release(lock);
+    }
+
+    @Test
+    void callbackStartFailureMustNotSkipTheBusinessJobOrRemainingCallbacks() throws Exception {
+        CapturingTaskScheduler scheduler = new CapturingTaskScheduler();
+        ScheduleJobStore store = singleJobStore();
+        RecordingJobHandler handler = new RecordingJobHandler();
+        ScheduleJobCallback startedCallback = mock(ScheduleJobCallback.class);
+        ScheduleJobCallback failingStartCallback = mock(ScheduleJobCallback.class);
+        ScheduleJobCallback untouchedCallback = mock(ScheduleJobCallback.class);
+        IllegalStateException startFailure = new IllegalStateException("callback start failed");
+        doThrow(startFailure).when(failingStartCallback).start(any());
+        IEasyLocker easyLocker = mock(IEasyLocker.class);
+        EasyLocker lock = EasyLocker.builder().key("schedule:job:sample_job").token("token-start-failure").build();
+        when(easyLocker.tryAcquire(eq("schedule:job:sample_job"), any(Duration.class))).thenReturn(lock);
+        ScheduleJobManager manager = new ScheduleJobManager(scheduler, store,
+                List.of(startedCallback, failingStartCallback, untouchedCallback),
+                mock(IScheduleJobService.class), Map.of("sampleJob", handler), easyLocker, instanceRegistry);
+
+        manager.run();
+        scheduler.runCapturedTask();
+
+        assertThat(handler.executeCount()).isOne();
+        verify(startedCallback, never()).exception(any(), any());
+        verify(failingStartCallback, never()).exception(any(), any());
+        verify(startedCallback).end(any());
+        verify(failingStartCallback).end(any());
+        verify(untouchedCallback).start(any());
+        verify(untouchedCallback, never()).exception(any(), any());
+        verify(untouchedCallback).end(any());
+        verify(easyLocker).release(lock);
+    }
+
     private ScheduleJobStore singleJobStore() {
         return jobStoreWithClassName(RecordingJobHandler.class.getName());
     }
@@ -166,6 +278,24 @@ class ScheduleJobManagerTest {
 
         int executeCount() {
             return executeCount.get();
+        }
+    }
+
+    @EasyJob(jobCode = "sample_job", jobName = "OOM 测试任务", cron = "0/1 * * * * ?")
+    static class FatalJobHandler implements EasyJobHandler {
+        private final OutOfMemoryError failure;
+
+        FatalJobHandler() {
+            this(new OutOfMemoryError("simulated job allocation failure"));
+        }
+
+        FatalJobHandler(OutOfMemoryError failure) {
+            this.failure = failure;
+        }
+
+        @Override
+        public void execute(Map<String, Object> params) {
+            throw failure;
         }
     }
 

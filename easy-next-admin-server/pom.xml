@@ -94,6 +94,13 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- 进程内固定容量时序文件，用于保存 Actuator/Micrometer 的 30 天 Metrics 历史。 -->
+        <dependency>
+            <groupId>org.rrd4j</groupId>
+            <artifactId>rrd4j</artifactId>
+            <version>3.10</version>
+        </dependency>
+
         <!-- Kafka 可选消息通道 -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
