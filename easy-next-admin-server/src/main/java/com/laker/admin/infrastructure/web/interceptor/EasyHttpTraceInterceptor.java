@@ -26,10 +26,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-public class EasyHttpSlowRequestInterceptor implements AsyncHandlerInterceptor {
+public class EasyHttpTraceInterceptor implements AsyncHandlerInterceptor {
     private static final int MAX_DEFERRED_TRACE_SEGMENTS = 8;
-    private static final String STATE_ATTRIBUTE = EasyHttpSlowRequestInterceptor.class.getName() + ".state";
-    private static final String SUPPRESSION_ATTRIBUTE = EasyHttpSlowRequestInterceptor.class.getName() + ".suppression";
+    private static final String STATE_ATTRIBUTE = EasyHttpTraceInterceptor.class.getName() + ".state";
+    private static final String SUPPRESSION_ATTRIBUTE = EasyHttpTraceInterceptor.class.getName() + ".suppression";
 
     private final boolean enabled;
     private final long slowThresholdMs;
@@ -40,8 +40,8 @@ public class EasyHttpSlowRequestInterceptor implements AsyncHandlerInterceptor {
     /** Callable workers are serialized per thread; keep one reusable slot instead of one ThreadLocal per request. */
     private final ThreadLocal<AsyncWorkerBinding> workerBinding = new ThreadLocal<>();
 
-    public EasyHttpSlowRequestInterceptor(boolean enabled, long slowThresholdMs, int maxDepth, long minNodeCostMs,
-                                          RecentTraceStore recentTraceStore, OperationObservation operationObservation) {
+    public EasyHttpTraceInterceptor(boolean enabled, long slowThresholdMs, int maxDepth, long minNodeCostMs,
+                                    RecentTraceStore recentTraceStore, OperationObservation operationObservation) {
         this.enabled = enabled;
         this.slowThresholdMs = slowThresholdMs;
         this.maxDepth = maxDepth;
@@ -138,7 +138,7 @@ public class EasyHttpSlowRequestInterceptor implements AsyncHandlerInterceptor {
      * Accounts for the thread that actually executes a Spring MVC {@link Callable}. DeferredResult remains on its
      * existing lifecycle because the application controls which thread completes it.
      */
-    public CallableProcessingInterceptor callableResourceObservationInterceptor() {
+    public CallableProcessingInterceptor callableTraceInterceptor() {
         return new CallableProcessingInterceptor() {
             @Override
             public <T> void preProcess(NativeWebRequest webRequest, Callable<T> task) {

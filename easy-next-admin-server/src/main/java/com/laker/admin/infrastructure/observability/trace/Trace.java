@@ -55,6 +55,7 @@ final class Trace {
         callDepth++;
         Span parent = currentSpan;
         if (parent == null || nextDepth > maxDepth) {
+            if (nextDepth > maxDepth) recordOmittedSpan();
             return;
         }
         if (recordedNodes >= maxNodes) {

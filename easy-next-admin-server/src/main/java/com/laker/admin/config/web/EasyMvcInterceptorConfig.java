@@ -2,7 +2,7 @@ package com.laker.admin.config.web;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.security.interceptor.EasyPermissionInterceptor;
-import com.laker.admin.infrastructure.web.interceptor.EasyHttpSlowRequestInterceptor;
+import com.laker.admin.infrastructure.web.interceptor.EasyHttpTraceInterceptor;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import lombok.RequiredArgsConstructor;
@@ -19,18 +19,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
 
     private static final String API_PATH_PATTERN = "/api/**";
-    private static final int HTTP_SLOW_INTERCEPTOR_ORDER = 0;
+    private static final int HTTP_TRACE_INTERCEPTOR_ORDER = 0;
     private static final int PERMISSION_INTERCEPTOR_ORDER = 1;
 
     private final EasyNextAdminConfig easyNextAdminConfig;
     private final EasyPermissionInterceptor easyPermissionInterceptor;
-    private final ObjectProvider<EasyHttpSlowRequestInterceptor> slowRequestInterceptorProvider;
+    private final ObjectProvider<EasyHttpTraceInterceptor> httpTraceInterceptorProvider;
 
     @Bean
     @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
-    public EasyHttpSlowRequestInterceptor easyHttpSlowRequestInterceptor(RecentTraceStore recentTraceStore,
-                                                                         OperationObservation operationObservation) {
-        return new EasyHttpSlowRequestInterceptor(
+    public EasyHttpTraceInterceptor easyHttpTraceInterceptor(
+            RecentTraceStore recentTraceStore, OperationObservation operationObservation) {
+        return new EasyHttpTraceInterceptor(
                 easyNextAdminConfig.getTrace().isEnabled(),
                 easyNextAdminConfig.getTrace().getHttpSlowThresholdMs(),
                 easyNextAdminConfig.getTrace().getMaxDepth(),
@@ -39,9 +39,9 @@ public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        slowRequestInterceptorProvider.ifAvailable(interceptor -> registry.addInterceptor(interceptor)
+        httpTraceInterceptorProvider.ifAvailable(interceptor -> registry.addInterceptor(interceptor)
                 .addPathPatterns(API_PATH_PATTERN)
-                .order(HTTP_SLOW_INTERCEPTOR_ORDER));
+                .order(HTTP_TRACE_INTERCEPTOR_ORDER));
         registry.addInterceptor(easyPermissionInterceptor)
                 .addPathPatterns(API_PATH_PATTERN)
                 .order(PERMISSION_INTERCEPTOR_ORDER);
@@ -49,7 +49,7 @@ public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
 
     @Override
     public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
-        slowRequestInterceptorProvider.ifAvailable(interceptor -> configurer.registerCallableInterceptors(
-                interceptor.callableResourceObservationInterceptor()));
+        httpTraceInterceptorProvider.ifAvailable(interceptor -> configurer.registerCallableInterceptors(
+                interceptor.callableTraceInterceptor()));
     }
 }

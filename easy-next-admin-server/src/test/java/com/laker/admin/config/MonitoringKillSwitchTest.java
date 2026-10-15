@@ -8,7 +8,6 @@ import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.config.web.EasyMvcInterceptorConfig;
 import com.laker.admin.infrastructure.mq.kafka.EasyKafkaConsumerSlowAspect;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.admin.infrastructure.observability.trace.AutomaticServiceTracingAspect;
 import com.laker.admin.infrastructure.observability.trace.EasyTracingAspect;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.trace.TransactionObservationBeanPostProcessor;
@@ -17,7 +16,7 @@ import com.laker.admin.infrastructure.persistence.mybatis.EasyMybatisTraceInterc
 import com.laker.admin.infrastructure.security.datascope.mybatis.EasyDataScopeInnerInterceptor;
 import com.laker.admin.infrastructure.security.datascope.resolver.DataScopeResolver;
 import com.laker.admin.infrastructure.security.interceptor.EasyPermissionInterceptor;
-import com.laker.admin.infrastructure.web.interceptor.EasyHttpSlowRequestInterceptor;
+import com.laker.admin.infrastructure.web.interceptor.EasyHttpTraceInterceptor;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -43,9 +42,8 @@ class MonitoringKillSwitchTest {
     void disabledMonitorDoesNotCreateHotPathInterceptorsOrAspects() {
         contextRunner.withPropertyValues("easy.features.monitor=false", "easy.features.kafka=true")
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(EasyHttpSlowRequestInterceptor.class);
+                    assertThat(context).doesNotHaveBean(EasyHttpTraceInterceptor.class);
                     assertThat(context).doesNotHaveBean(EasyKafkaConsumerSlowAspect.class);
-                    assertThat(context).doesNotHaveBean(AutomaticServiceTracingAspect.class);
                     assertThat(context).doesNotHaveBean(EasyTracingAspect.class);
                     assertThat(context).doesNotHaveBean(TransactionObservationListener.class);
                     assertThat(context).doesNotHaveBean(TransactionObservationBeanPostProcessor.class);
@@ -57,9 +55,8 @@ class MonitoringKillSwitchTest {
     void enabledMonitorCreatesHotPathInterceptorsAndAspects() {
         contextRunner.withPropertyValues("easy.features.monitor=true", "easy.features.kafka=true")
                 .run(context -> {
-                    assertThat(context).hasSingleBean(EasyHttpSlowRequestInterceptor.class);
+                    assertThat(context).hasSingleBean(EasyHttpTraceInterceptor.class);
                     assertThat(context).hasSingleBean(EasyKafkaConsumerSlowAspect.class);
-                    assertThat(context).hasSingleBean(AutomaticServiceTracingAspect.class);
                     assertThat(context).hasSingleBean(EasyTracingAspect.class);
                     assertThat(context).hasSingleBean(TransactionObservationListener.class);
                     assertThat(context).hasSingleBean(TransactionObservationBeanPostProcessor.class);
@@ -84,7 +81,7 @@ class MonitoringKillSwitchTest {
 
     @Configuration(proxyBeanMethods = false)
     @Import({EasyMvcInterceptorConfig.class, EasyKafkaConsumerSlowAspect.class,
-            AutomaticServiceTracingAspect.class, EasyTracingAspect.class,
+            EasyTracingAspect.class,
             TransactionObservationListener.class, TransactionObservationBeanPostProcessor.class})
     static class MonitoringComponents {
         @Bean

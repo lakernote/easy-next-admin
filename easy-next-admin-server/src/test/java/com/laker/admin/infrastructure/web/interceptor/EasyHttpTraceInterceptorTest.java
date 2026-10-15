@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-class EasyHttpSlowRequestInterceptorTest {
+class EasyHttpTraceInterceptorTest {
 
     @AfterEach
     void clearTraceId() {
@@ -47,7 +47,7 @@ class EasyHttpSlowRequestInterceptorTest {
 
     @Test
     void shouldReleaseDiagnosisSuppressionWhenRequestSwitchesToAsync() {
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 true, 3_000, 64, 1, mock(RecentTraceStore.class), mock(OperationObservation.class));
         Map<String, Object> attributes = new HashMap<>();
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -75,7 +75,7 @@ class EasyHttpSlowRequestInterceptorTest {
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.start("HTTP", "Object")).thenReturn(scope);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -120,7 +120,7 @@ class EasyHttpSlowRequestInterceptorTest {
             resourceReleased.set(true);
             return null;
         }).when(scope).releaseAsyncBinding(true);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 true, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -138,7 +138,7 @@ class EasyHttpSlowRequestInterceptorTest {
         NativeWebRequest webRequest = mock(NativeWebRequest.class);
         when(webRequest.getNativeRequest(HttpServletRequest.class)).thenReturn(request);
         Callable<Object> task = () -> null;
-        CallableProcessingInterceptor callableInterceptor = interceptor.callableResourceObservationInterceptor();
+        CallableProcessingInterceptor callableInterceptor = interceptor.callableTraceInterceptor();
         callableInterceptor.preProcess(webRequest, task);
         org.assertj.core.api.Assertions.assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID))
                 .isEqualTo("trace-callable");
@@ -157,7 +157,7 @@ class EasyHttpSlowRequestInterceptorTest {
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.start("HTTP", "Object")).thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(false);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -175,7 +175,7 @@ class EasyHttpSlowRequestInterceptorTest {
         NativeWebRequest webRequest = mock(NativeWebRequest.class);
         when(webRequest.getNativeRequest(HttpServletRequest.class)).thenReturn(request);
         Callable<Object> task = () -> null;
-        CallableProcessingInterceptor callableInterceptor = interceptor.callableResourceObservationInterceptor();
+        CallableProcessingInterceptor callableInterceptor = interceptor.callableTraceInterceptor();
         callableInterceptor.preProcess(webRequest, task);
         callableInterceptor.postProcess(webRequest, task, null);
 
@@ -191,7 +191,7 @@ class EasyHttpSlowRequestInterceptorTest {
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.start("HTTP", "Object")).thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(true);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -211,9 +211,9 @@ class EasyHttpSlowRequestInterceptorTest {
         NativeWebRequest webRequest = mock(NativeWebRequest.class);
         when(webRequest.getNativeRequest(HttpServletRequest.class)).thenReturn(request);
         Callable<Object> task = () -> null;
-        CallableProcessingInterceptor callableInterceptor = interceptor.callableResourceObservationInterceptor();
+        CallableProcessingInterceptor callableInterceptor = interceptor.callableTraceInterceptor();
         callableInterceptor.preProcess(webRequest, task);
-        request.removeAttribute(EasyHttpSlowRequestInterceptor.class.getName() + ".state");
+        request.removeAttribute(EasyHttpTraceInterceptor.class.getName() + ".state");
 
         callableInterceptor.postProcess(webRequest, task, null);
 
@@ -227,7 +227,7 @@ class EasyHttpSlowRequestInterceptorTest {
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.start("HTTP", "Object")).thenReturn(scope);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -264,7 +264,7 @@ class EasyHttpSlowRequestInterceptorTest {
         IllegalStateException businessFailure = new IllegalStateException("handler failed");
         doThrow(new AssertionError("monitoring finalizer failed"))
                 .when(scope).finish("failure", businessFailure);
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();
@@ -298,7 +298,7 @@ class EasyHttpSlowRequestInterceptorTest {
             resourceFrozen.set(true);
             return null;
         }).when(scope).finish(eq("failure"), any(Throwable.class));
-        EasyHttpSlowRequestInterceptor interceptor = new EasyHttpSlowRequestInterceptor(
+        EasyHttpTraceInterceptor interceptor = new EasyHttpTraceInterceptor(
                 true, 3_000, 64, 1, store, observation);
 
         Map<String, Object> attributes = new HashMap<>();

@@ -20,7 +20,8 @@ class TraceTest {
 
         assertThat(tree).contains("[Http] HTTP tag=\"GET /api/users\"");
         assertThat(tree).contains("[Service] service tag=\"userId=1\"");
-        assertThat(tree).doesNotContain("mapper");
+        assertThat(tree).doesNotContain("mapper").contains("TRACE_TRUNCATED omitted=1");
+        assertThat(trace.incidentReasons()).containsExactly("TRACE_TRUNCATED");
     }
 
     @Test
@@ -36,8 +37,9 @@ class TraceTest {
         trace.stopRoot();
 
         assertThat(trace.renderTree())
-                .contains("first", "second")
+                .contains("first", "second", "TRACE_TRUNCATED omitted=1")
                 .doesNotContain("too-deep");
+        assertThat(trace.incidentReasons()).containsExactly("TRACE_TRUNCATED");
     }
 
     @Test
