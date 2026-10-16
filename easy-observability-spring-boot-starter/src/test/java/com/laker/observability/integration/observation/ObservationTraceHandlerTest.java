@@ -69,4 +69,25 @@ class ObservationTraceHandlerTest {
         assertThat(history.recent(10)).singleElement()
                 .satisfies(trace -> assertThat(trace.name()).isEqualTo("GET"));
     }
+
+    @Test
+    void recordsHttpRouteAsBoundedRequestStatisticTags() {
+        EasyObservabilityProperties properties = new EasyObservabilityProperties();
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        TraceHistory history = new TraceHistory(10, 10);
+        OperationRecorder recorder = new OperationRecorder(meters, history, properties);
+        ObservationRegistry registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new ObservationTraceHandler(recorder, history, properties));
+
+        Observation.createNotStarted("http.server.requests", registry)
+                .lowCardinalityKeyValue("http.request.method", "GET")
+                .lowCardinalityKeyValue("http.route", "/orders/{id}")
+                .start().stop();
+
+        assertThat(meters.find("easy.operations.duration").timers()).singleElement()
+                .satisfies(timer -> {
+                    assertThat(timer.getId().getTag("source")).isEqualTo("HTTP");
+                    assertThat(timer.getId().getTag("operation")).isEqualTo("/orders/{id} · GET");
+                });
+    }
 }

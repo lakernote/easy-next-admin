@@ -103,7 +103,7 @@ Micrometer 当前指标每分钟写入 RRD4J。默认保留至少 30 天，使�
 
 慢操作和错误操作以有界 JSONL 持久化，事件包含操作名、Trace ID、线程 ID/名称、耗时、CPU 时间、线程分配字节数、阻塞/等待计数及错误摘要。慢/错 Trace 树单独落盘并保留关联操作资源信息；正常成功操作只保留在有界进程内列表，不写磁盘。默认文件位于 `./data/easy-observability/`，可用 `easy.observability.trace.history-file`、`archive-file` 和 `history-max-bytes` 调整。
 
-页面提供 Trace、Slow、Errors、当前 Metrics 和 RRD4J 指标趋势。Slow/Error 列表以完整入口 Trace 为一行，筛选范围是最近 500 条记录，可按 HTTP、Job、Kafka 消费等入口、关键词、时间范围、最短耗时筛选，并按最新或最慢排序；耗时分布图可直接打开对应 Trace。详情提供调用时间线、调用树和操作资源明细，数据库、Redis、远程调用和事务作为同一 Trace 的下游操作。慢错 Trace 在进程重启后仍可查询。数据按当前实例本地保存，不会自动汇总多个实例。
+独立页面优先展示 JavaMelody 式入口请求统计：HTTP、Job、Kafka 消费分别按操作汇总调用数、平均/最大耗时、失败数和失败率，并显示线程 CPU 时间和分配内存均值。计数从当前应用进程启动后累计；操作名作为 Micrometer 标签记录，并由基数上限保护。Slow/Error 列表仍以完整入口 Trace 为一行，可按入口、关键词、时间范围、最短耗时筛选，并按最新或最慢排序；详情提供调用时间线、调用树和操作资源明细，数据库、Redis、远程调用和事务作为同一 Trace 的下游操作。RRD4J 指标趋势独立保留，可选择多条指标和时间范围对比。慢错 Trace 在进程重启后仍可查询。数据按当前实例本地保存，不会自动汇总多个实例。
 
 页面资源可直接打开，但 `/api/easy-observability/**` 默认拒绝匿名读取，避免新接入的应用意外暴露 Trace、错误摘要和线程信息。推荐由宿主提供 `ObservabilityAccessPolicy` Bean 接入自己的登录/权限体系；页面同源请求会携带 Cookie，也支持 `window.EasyObservabilityAuth.token()` 宿主钩子传入 Bearer Token。只有在可信本地开发环境，才显式设置 `easy.observability.web.allow-anonymous=true` 开放匿名读取。
 

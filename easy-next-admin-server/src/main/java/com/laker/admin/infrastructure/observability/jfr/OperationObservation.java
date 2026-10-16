@@ -110,6 +110,14 @@ public class OperationObservation {
         return start(type, name, detail, null, false, false);
     }
 
+    /**
+     * Starts an HTTP request observation whose lifecycle is managed by the MVC adapter and whose aggregate metrics
+     * are recorded by the reusable observability starter.
+     */
+    public Scope startHttpRequest(String name, String detail) {
+        return start("HTTP", name, detail, null, false, true);
+    }
+
     private Scope start(String type, String name, String activeDetail, Supplier<String> incidentDetail,
                         boolean persistAll, boolean recordGeneric) {
         if (!config.getFeatures().isMonitor()

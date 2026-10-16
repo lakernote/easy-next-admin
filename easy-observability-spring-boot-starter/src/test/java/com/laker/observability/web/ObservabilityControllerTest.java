@@ -3,6 +3,8 @@ package com.laker.observability.web;
 import com.laker.observability.trace.TraceHistory;
 import com.laker.observability.trace.OperationRecord;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.DistributionSummary;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,5 +62,36 @@ class ObservabilityControllerTest {
         assertThat(httpSlow).extracting(TraceHistory.TraceRecord::traceId).containsExactly("http-slow");
         assertThat(errors).extracting(TraceHistory.TraceRecord::traceId).containsExactly("job-error");
         assertThat(httpSlow.get(0).sourceType()).isEqualTo("HTTP");
+    }
+
+    @Test
+    void aggregatesEntryOperationsLikeRequestStatistics() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        Timer.builder("easy.operations.duration").tags("source", "HTTP", "operation", "GET /orders",
+                        "type", "HTTP", "outcome", "success").register(registry)
+                .record(10, java.util.concurrent.TimeUnit.MILLISECONDS);
+        Timer.builder("easy.operations.duration").tags("source", "HTTP", "operation", "GET /orders",
+                        "type", "HTTP", "outcome", "failure").register(registry)
+                .record(5, java.util.concurrent.TimeUnit.MILLISECONDS);
+        DistributionSummary.builder("easy.operations.cpu.time").baseUnit("milliseconds")
+                .tags("source", "HTTP", "operation", "GET /orders", "type", "HTTP", "outcome", "success")
+                .register(registry).record(4);
+        DistributionSummary.builder("easy.operations.allocated").baseUnit("bytes")
+                .tags("source", "HTTP", "operation", "GET /orders", "type", "HTTP", "outcome", "success")
+                .register(registry).record(1_024);
+
+        ObservabilityController controller = new ObservabilityController(registry, new TraceHistory(10), () -> true);
+        var statistics = controller.requestStatistics("HTTP", 100);
+
+        assertThat(statistics).singleElement().satisfies(statistic -> {
+            assertThat(statistic.operation()).isEqualTo("GET /orders");
+            assertThat(statistic.count()).isEqualTo(2);
+            assertThat(statistic.errorCount()).isEqualTo(1);
+            assertThat(statistic.errorRate()).isEqualTo(50);
+            assertThat(statistic.meanDurationMs()).isEqualTo(7.5);
+            assertThat(statistic.maxDurationMs()).isEqualTo(10);
+            assertThat(statistic.meanCpuTimeMs()).isEqualTo(4);
+            assertThat(statistic.meanAllocatedBytes()).isEqualTo(1_024);
+        });
     }
 }

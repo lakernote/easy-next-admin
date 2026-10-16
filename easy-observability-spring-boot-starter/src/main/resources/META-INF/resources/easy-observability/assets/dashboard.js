@@ -5,6 +5,8 @@ const notice = document.querySelector('#notice')
 const dialog = document.querySelector('#trace-dialog')
 let metrics = []
 let traces = []
+let requestStatistics = []
+let selectedRequestSource = 'ALL'
 let slowTraces = []
 let errorTraces = []
 let metricSeries = []
@@ -19,7 +21,6 @@ const incidentSources = [
   { key: 'OTHER', label: '其他独立 Trace' }
 ]
 const selectedIncidentSource = { slow: 'ALL', error: 'ALL' }
-const distributionTraces = { slow: [], error: [] }
 const sourceLabels = {
   HTTP: 'HTTP', JOB: 'Job', KAFKA_CONSUMER: 'Kafka 消费', KAFKA_PRODUCER: 'Kafka 生产',
   KAFKA: 'Kafka', REDIS: 'Redis', TRANSACTION: '事务', REMOTE: '远程调用',
@@ -96,6 +97,73 @@ function renderTraces(items) {
   }
 }
 
+function renderRequestStatistics(items) {
+  requestStatistics = items
+  const visible = selectedRequestSource === 'ALL'
+    ? items : items.filter(item => item.source === selectedRequestSource)
+  const body = document.querySelector('#request-rows')
+  body.replaceChildren()
+  document.querySelector('#request-count').textContent = `${visible.length} 项`
+  document.querySelector('#request-empty').hidden = visible.length > 0
+  const summary = document.querySelector('#request-summary')
+  summary.replaceChildren()
+  const count = visible.reduce((total, item) => total + item.count, 0)
+  const errors = visible.reduce((total, item) => total + item.errorCount, 0)
+  const totalDuration = visible.reduce((total, item) => total + item.totalDurationMs, 0)
+  const maxDuration = Math.max(0, ...visible.map(item => item.maxDurationMs))
+  const summaryItems = [
+    ['调用总数', formatNumber(count)],
+    ['平均耗时', formatNumber(count ? totalDuration / count : 0, ' ms')],
+    ['最大耗时', formatNumber(maxDuration, ' ms')],
+    ['错误率', `${(count ? errors / count * 100 : 0).toFixed(2)}%`]
+  ]
+  for (const [label, value] of summaryItems) {
+    const card = document.createElement('div')
+    card.className = 'request-summary-item'
+    const title = document.createElement('span')
+    title.textContent = label
+    const number = document.createElement('strong')
+    number.textContent = value
+    card.append(title, number)
+    summary.append(card)
+  }
+  for (const item of visible) {
+    const row = document.createElement('tr')
+    const errorRate = `${Number(item.errorRate || 0).toFixed(2)}%`
+    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation), cell(formatNumber(item.count)),
+      cell(formatNumber(item.meanDurationMs, ' ms')), cell(formatNumber(item.maxDurationMs, ' ms')),
+      cell(formatNumber(item.errorCount)), cell(errorRate), cell(formatNumber(item.meanCpuTimeMs, ' ms')),
+      cell(formatBytes(item.meanAllocatedBytes)))
+    const trendCell = document.createElement('td')
+    const trendButton = document.createElement('button')
+    trendButton.className = 'trend-link'
+    trendButton.type = 'button'
+    trendButton.textContent = '查看'
+    trendButton.addEventListener('click', () => showRequestTrend(item))
+    trendCell.append(trendButton)
+    row.append(trendCell)
+    body.append(row)
+  }
+}
+
+async function showRequestTrend(item) {
+  const matching = metricSeries.filter(series => series.name === 'easy.operations.duration'
+    && series.tags?.source === item.source && series.tags?.operation === item.operation)
+  if (!matching.length) {
+    setNotice('这项操作的历史趋势尚未采集；等待下一个指标采集周期后再查看')
+    return
+  }
+  selectedSeriesKeys = matching.slice(0, MAX_SELECTED_SERIES).map(seriesKey)
+  document.querySelector('#history-search').value = 'easy.operations.duration'
+  renderSeries()
+  document.querySelector('[data-tab="history"]').click()
+  try {
+    await loadHistory()
+  } catch (error) {
+    setNotice(error.message || '读取请求趋势失败')
+  }
+}
+
 function renderIncidentRows(kind, items) {
   const prefix = kind === 'error' ? 'error' : 'slow'
   const body = document.querySelector(`#${prefix}-rows`)
@@ -113,7 +181,6 @@ function renderIncidentRows(kind, items) {
   const empty = document.querySelector(`#${prefix}-empty`)
   empty.hidden = visibleItems.length > 0
   empty.textContent = items.length ? '当前条件下没有匹配的 Trace。' : kind === 'error' ? '暂时没有错误 Trace。' : '暂时没有慢 Trace。'
-  drawIncidentDistribution(kind, visibleItems)
   for (const trace of visibleItems) {
     const row = document.createElement('tr')
     row.className = 'clickable'
@@ -159,66 +226,6 @@ function filterIncidentTraces(kind, items) {
     filtered.sort((left, right) => new Date(right.finishedAt) - new Date(left.finishedAt))
   }
   return filtered
-}
-
-function drawIncidentDistribution(kind, items) {
-  const canvas = document.querySelector(`#${kind}-distribution`)
-  const empty = document.querySelector(`#${kind}-distribution-empty`)
-  const context = canvas.getContext('2d')
-  const bounds = canvas.getBoundingClientRect()
-  const ratio = window.devicePixelRatio || 1
-  canvas.width = Math.max(1, Math.floor(bounds.width * ratio))
-  canvas.height = Math.max(1, Math.floor(bounds.height * ratio))
-  context.scale(ratio, ratio)
-  const width = bounds.width
-  const height = bounds.height
-  context.clearRect(0, 0, width, height)
-  distributionTraces[kind] = items
-  empty.hidden = items.length > 0
-  context.font = '11px sans-serif'
-  context.fillStyle = '#718096'
-  context.strokeStyle = '#e7ebf1'
-  const pad = { left: 64, right: 16, top: 12, bottom: 27 }
-  for (let row = 0; row <= 3; row++) {
-    const y = pad.top + (height - pad.top - pad.bottom) * row / 3
-    context.beginPath(); context.moveTo(pad.left, y); context.lineTo(width - pad.right, y); context.stroke()
-  }
-  if (!items.length) return
-  const timedItems = items.map(trace => ({ trace, finished: new Date(trace.finishedAt).getTime() }))
-    .filter(item => Number.isFinite(item.finished))
-  if (!timedItems.length) {
-    empty.hidden = false
-    return
-  }
-  const durations = timedItems.map(item => Number(item.trace.durationMs) || 0)
-  const maxDuration = Math.max(...durations, 1)
-  const minTime = Math.min(...timedItems.map(item => item.finished))
-  const maxTime = Math.max(...timedItems.map(item => item.finished))
-  const timeSpan = Math.max(1, maxTime - minTime)
-  const points = []
-  timedItems.forEach(({ trace, finished }) => {
-    const x = pad.left + (width - pad.left - pad.right) * ((finished - minTime) / timeSpan)
-    const y = pad.top + (height - pad.top - pad.bottom) * (1 - (Number(trace.durationMs) || 0) / maxDuration)
-    context.beginPath()
-    context.fillStyle = trace.error ? '#d84b46' : '#e0a42e'
-    context.arc(x, y, 4, 0, Math.PI * 2)
-    context.fill()
-    points.push({ x, y, trace })
-  })
-  context.fillStyle = '#718096'
-  context.fillText(`${maxDuration.toLocaleString()} ms`, 5, pad.top + 4)
-  context.fillText('0 ms', 26, height - pad.bottom + 4)
-  context.fillText(formatTime(new Date(minTime)), pad.left, height - 5)
-  const endLabel = formatTime(new Date(maxTime))
-  context.fillText(endLabel, Math.max(pad.left, width - context.measureText(endLabel).width - pad.right), height - 5)
-  canvas.onclick = event => {
-    const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    const nearest = points.map(point => ({ ...point, distance: Math.hypot(point.x - x, point.y - y) }))
-      .filter(point => point.distance <= 10).sort((left, right) => left.distance - right.distance)[0]
-    if (nearest) showTrace(nearest.trace)
-  }
 }
 
 function rootSource(trace) {
@@ -579,11 +586,12 @@ async function refresh() {
   setNotice('')
   document.querySelector('#refresh').disabled = true
   try {
-    const [tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult] = await Promise.allSettled([
-      getJson('/traces?limit=100'), getJson('/metrics?limit=500'),
+    const [requestsResult, tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult] = await Promise.allSettled([
+      getJson('/request-statistics?source=ALL&limit=500'), getJson('/traces?limit=100'), getJson('/metrics?limit=500'),
       getJson('/incidents?kind=slow&limit=500'), getJson('/incidents?kind=error&limit=500'),
       getJson('/metrics/series'), getJson('/metrics/storage')
     ])
+    if (requestsResult.status === 'fulfilled') renderRequestStatistics(requestsResult.value)
     if (tracesResult.status === 'fulfilled') renderTraces(tracesResult.value)
     if (metricsResult.status === 'fulfilled') {
       metrics = metricsResult.value
@@ -601,7 +609,17 @@ async function refresh() {
       const cachedHistory = new Map(metricSeries.map(series => [seriesKey(series), series.history]))
       metricSeries = seriesResult.value
       for (const series of metricSeries) series.history = cachedHistory.get(seriesKey(series))
+      if (!selectedSeriesKeys.length) {
+        const defaults = [
+          metricSeries.find(series => series.name === 'process.cpu.usage'),
+          metricSeries.find(series => series.name === 'jvm.memory.used' && series.tags?.area === 'heap'),
+          metricSeries.find(series => series.name === 'hikaricp.connections.active'),
+          metricSeries.find(series => series.name === 'http.server.requests' && series.tags?.uri !== 'UNKNOWN')
+        ].filter(Boolean)
+        selectedSeriesKeys = [...new Set(defaults.map(seriesKey))].slice(0, MAX_SELECTED_SERIES)
+      }
       renderSeries()
+      if (selectedSeriesKeys.length) loadHistory().catch(error => setNotice(error.message || '读取指标趋势失败'))
     }
     if (storageResult.status === 'fulfilled') {
       const storage = storageResult.value
@@ -609,7 +627,8 @@ async function refresh() {
         ? `${formatBytes(storage.storageBytes)} / ${formatBytes(storage.maxStorageBytes)} · ${storage.segmentCount} 个系列 · 保留 ${storage.retentionDays} 天`
         : '历史存储已关闭'
     }
-    const failures = [tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult].filter(result => result.status === 'rejected')
+    const failures = [requestsResult, tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult]
+      .filter(result => result.status === 'rejected')
     if (failures.length) setNotice(failures.map(result => result.reason?.message || '读取失败').join('；'))
   } finally {
     document.querySelector('#refresh').disabled = false
@@ -617,6 +636,11 @@ async function refresh() {
 }
 
 document.querySelector('#refresh').addEventListener('click', refresh)
+document.querySelectorAll('[data-request-source]').forEach(button => button.addEventListener('click', () => {
+  selectedRequestSource = button.dataset.requestSource
+  document.querySelectorAll('[data-request-source]').forEach(item => item.classList.toggle('active', item === button))
+  renderRequestStatistics(requestStatistics)
+}))
 document.querySelector('#metric-search').addEventListener('input', renderMetrics)
 document.querySelector('#history-search').addEventListener('input', renderSeries)
 document.querySelector('#history-window').addEventListener('change', renderHistoryCharts)
@@ -639,5 +663,6 @@ document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', (
   document.querySelectorAll('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== tab.dataset.tab })
   if (tab.dataset.tab === 'slow') renderIncidentRows('slow', slowTraces)
   if (tab.dataset.tab === 'errors') renderIncidentRows('error', errorTraces)
+  if (tab.dataset.tab === 'requests') renderRequestStatistics(requestStatistics)
 }))
 refresh()

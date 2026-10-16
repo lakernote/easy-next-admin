@@ -1,6 +1,9 @@
 package com.laker.admin.infrastructure.observability.jfr;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
+import com.laker.observability.config.EasyObservabilityProperties;
+import com.laker.observability.metrics.OperationRecorder;
+import com.laker.observability.trace.TraceHistory;
 import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
@@ -55,6 +58,31 @@ class OperationObservationTest {
         verify(store, never()).recordOperation(org.mockito.ArgumentMatchers.any());
         assertThat(meters.get("easy.operations.duration").tag("type", "HTTP")
                 .tag("outcome", "success").timer().count()).isEqualTo(1);
+    }
+
+    @Test
+    void recordsHttpRequestStatisticsThroughTheObservabilityStarter() {
+        RecentTraceStore store = mock(RecentTraceStore.class);
+        EasyNextAdminConfig config = new EasyNextAdminConfig();
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        ActiveOperationRegistry registry = new ActiveOperationRegistry(meters, config);
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<LocalJfrRecorder> recorderProvider =
+                mock(org.springframework.beans.factory.ObjectProvider.class);
+        OperationRecorder operationRecorder = new OperationRecorder(meters, new TraceHistory(10),
+                new EasyObservabilityProperties());
+        OperationObservation observation = new OperationObservation(store, config, registry, meters,
+                recorderProvider, operationRecorder);
+
+        observation.startHttpRequest("OrdersController#list", "GET /api/orders").finish("success");
+
+        assertThat(meters.find("easy.operations.duration").timers()).singleElement()
+                .satisfies(timer -> {
+                    assertThat(timer.getId().getTag("source")).isEqualTo("HTTP");
+                    assertThat(timer.getId().getTag("operation"))
+                            .isEqualTo("GET /api/orders · OrdersController#list");
+                    assertThat(timer.count()).isEqualTo(1);
+                });
     }
 
     @Test

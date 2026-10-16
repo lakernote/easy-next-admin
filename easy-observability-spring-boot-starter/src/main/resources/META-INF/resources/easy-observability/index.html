@@ -15,12 +15,25 @@
     </header>
     <div id="notice" class="notice" role="status" hidden></div>
     <nav class="tabs" aria-label="监控内容">
-      <button class="tab active" data-tab="traces" type="button">Trace</button>
+      <button class="tab active" data-tab="requests" type="button">请求统计</button>
+      <button class="tab" data-tab="traces" type="button">Trace</button>
       <button class="tab" data-tab="slow" type="button">Slow</button>
       <button class="tab" data-tab="errors" type="button">Errors</button>
       <button class="tab" data-tab="metrics" type="button">Metrics</button>
       <button class="tab" data-tab="history" type="button">指标趋势</button>
     </nav>
+    <section id="request-panel" class="panel" data-panel="requests">
+      <div class="section-heading"><div><h2>入口请求统计</h2><p>按请求入口和操作汇总 Micrometer 计时器数据；数值从当前应用进程启动后累计。选择入口查看 HTTP、Job 或 Kafka 消费。</p></div><span id="request-count" class="count"></span></div>
+      <div id="request-sources" class="source-filters" role="group" aria-label="请求类型筛选">
+        <button class="source-filter active" data-request-source="ALL" type="button">全部</button>
+        <button class="source-filter" data-request-source="HTTP" type="button">HTTP</button>
+        <button class="source-filter" data-request-source="JOB" type="button">Job</button>
+        <button class="source-filter" data-request-source="KAFKA_CONSUMER" type="button">Kafka 消费</button>
+      </div>
+      <div id="request-summary" class="request-summary"></div>
+      <div class="table-wrap"><table><thead><tr><th>类型</th><th>请求 / 操作</th><th>调用次数</th><th>平均耗时</th><th>最大耗时</th><th>错误数</th><th>错误率</th><th>平均 CPU</th><th>平均分配内存</th><th>趋势</th></tr></thead><tbody id="request-rows"></tbody></table></div>
+      <div id="request-empty" class="empty" hidden>暂无入口请求计时数据。产生请求或启用对应的 HTTP、Job、Kafka Observation 后会显示统计。</div>
+    </section>
     <section id="trace-panel" class="panel" data-panel="traces">
       <div class="section-heading"><div><h2>最近请求</h2><p>显示当前实例最近完成的请求。点击一行查看调用树。</p></div><span id="trace-count" class="count"></span></div>
       <div class="table-wrap"><table><thead><tr><th>结果</th><th>请求</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="trace-rows"></tbody></table></div>
@@ -35,7 +48,6 @@
         <label class="search"><span>最短耗时</span><input id="slow-min-duration" type="number" min="0" step="10" placeholder="不限 ms"></label>
         <label class="search"><span>排序</span><select id="slow-sort"><option value="recent">最新优先</option><option value="slowest">最慢优先</option></select></label>
       </div>
-      <div class="distribution-wrap"><canvas id="slow-distribution" aria-label="慢 Trace 完成时间和耗时散点图"></canvas><div id="slow-distribution-empty" class="distribution-empty" hidden>筛选后暂无可绘制的 Trace</div></div><p class="distribution-caption">横轴为完成时间，纵轴为入口 Trace 耗时；点击点查看详情。</p>
       <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="slow-rows"></tbody></table></div>
       <div id="slow-empty" class="empty" hidden>暂时没有慢 Trace。</div>
     </section>
@@ -48,7 +60,6 @@
         <label class="search"><span>最短耗时</span><input id="error-min-duration" type="number" min="0" step="10" placeholder="不限 ms"></label>
         <label class="search"><span>排序</span><select id="error-sort"><option value="recent">最新优先</option><option value="slowest">最慢优先</option></select></label>
       </div>
-      <div class="distribution-wrap"><canvas id="error-distribution" aria-label="错误 Trace 完成时间和耗时散点图"></canvas><div id="error-distribution-empty" class="distribution-empty" hidden>筛选后暂无可绘制的 Trace</div></div><p class="distribution-caption">横轴为完成时间，纵轴为入口 Trace 耗时；点击点查看详情。</p>
       <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>错误</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="error-rows"></tbody></table></div>
       <div id="error-empty" class="empty" hidden>暂时没有错误 Trace。</div>
     </section>

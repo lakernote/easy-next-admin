@@ -74,7 +74,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
                 false, 3_000, 64, 1, store, observation);
@@ -114,7 +114,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(true);
         AtomicBoolean resourceReleased = new AtomicBoolean();
@@ -157,7 +157,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(false);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
@@ -192,7 +192,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(true);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
@@ -230,7 +230,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
                 false, 3_000, 64, 1, store, observation);
@@ -265,7 +265,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         IllegalStateException businessFailure = new IllegalStateException("handler failed");
         doThrow(new AssertionError("monitoring finalizer failed"))
@@ -298,7 +298,7 @@ class EasyHttpDiagnosticInterceptorTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+        when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         AtomicBoolean resourceFrozen = new AtomicBoolean();
         doAnswer(invocation -> {

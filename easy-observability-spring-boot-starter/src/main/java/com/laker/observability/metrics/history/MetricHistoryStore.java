@@ -79,9 +79,10 @@ public class MetricHistoryStore {
     private static final int MIN_REJECTED_SERIES_CACHE_ENTRIES = 256;
     private static final int MAX_REJECTED_SERIES_CACHE_ENTRIES = 8_192;
     private static final int MAX_NEW_SERIES_ATTEMPTS_PER_BATCH = 512;
-    private static final int CORE_PRIORITY = 0;
-    private static final int PLATFORM_PRIORITY = 1;
-    private static final int OPTIONAL_PRIORITY = 2;
+    private static final int REQUEST_PRIORITY = 0;
+    private static final int CORE_PRIORITY = 1;
+    private static final int PLATFORM_PRIORITY = 2;
+    private static final int OPTIONAL_PRIORITY = 3;
 
     private static final int MAX_METRIC_NAME_LENGTH = 256;
     private static final int MAX_TAGS = 16;
@@ -183,7 +184,7 @@ public class MetricHistoryStore {
                 }
             }
             normalizedSamples.sort(Comparator.comparingInt(
-                            (NormalizedSample sample) -> metricPriority(sample.name()))
+                            (NormalizedSample sample) -> metricPriority(sample.name(), sample.tags()))
                     .thenComparing(NormalizedSample::name)
                     .thenComparing(sample -> sample.tags().toString()));
             if (requiresBatchMaintenanceLocked(normalizedSamples, timestamp)) {
@@ -457,7 +458,7 @@ public class MetricHistoryStore {
         byte[] metadataBytes = objectMapper.writeValueAsBytes(metadata);
         long required = definition.getEstimatedSize() + metadataBytes.length;
         if (definition.getEstimatedSize() > maxSeriesBytes
-                || !ensureAdmissionCapacityLocked(sample.name(), required, true, null)) return null;
+                || !ensureAdmissionCapacityLocked(sample.name(), sample.tags(), required, true, null)) return null;
 
         Path rrdTarget = rrdPath(id);
         Path metadataTarget = metadataPath(id);
@@ -520,7 +521,7 @@ public class MetricHistoryStore {
         long growth = Math.max(0, expandedDefinition.getEstimatedSize() - currentRrdBytes)
                 + Math.max(0, metadataBytes.length - currentMetadataBytes);
         if (expandedDefinition.getEstimatedSize() > maxSeriesBytes
-                || !ensureAdmissionCapacityLocked(metadata.name(), growth, false, metadata.id())) return null;
+                || !ensureAdmissionCapacityLocked(metadata.name(), metadata.tags(), growth, false, metadata.id())) return null;
 
         if (!additions.isEmpty()) {
             RrdToolkit.addDatasources(rrd.toString(), additions, false);
@@ -637,7 +638,8 @@ public class MetricHistoryStore {
             log.warn("扫描 Metrics RRD4J 元数据失败，目录 {}", storageDirectory, exception);
         }
         removeOrphanRrdFilesLocked(restoredIds);
-        seriesByKey.values().forEach(metadata -> seriesCountsByPriority[metricPriority(metadata.name())]++);
+        seriesByKey.values().forEach(metadata ->
+                seriesCountsByPriority[metricPriority(metadata.name(), metadata.tags())]++);
     }
 
     private boolean removeOversizedRrdLocked(String id) throws IOException {
@@ -914,11 +916,11 @@ public class MetricHistoryStore {
      * easy.operations series. A quarter of the configured series slots remains available for core meters;
      * higher-priority arrivals may evict lower-priority least-recently-written series.
      */
-    private boolean ensureAdmissionCapacityLocked(String incomingName, long requiredBytes, boolean needsSlot,
-                                                   String excludedId) {
+    private boolean ensureAdmissionCapacityLocked(String incomingName, Map<String, String> incomingTags,
+                                                   long requiredBytes, boolean needsSlot, String excludedId) {
         if (requiredBytes < 0 || requiredBytes > maxStorageBytes) return false;
-        int incomingPriority = metricPriority(incomingName);
-        if (needsSlot && incomingPriority > CORE_PRIORITY) {
+        int incomingPriority = metricPriority(incomingName, incomingTags);
+        if (needsSlot && incomingPriority > REQUEST_PRIORITY) {
             int nonCoreLimit = maxNonCoreSeries();
             while (nonCoreSeriesCount() >= nonCoreLimit) {
                 if (!hasLowerPrioritySeriesLocked(incomingPriority)) return false;
@@ -943,7 +945,11 @@ public class MetricHistoryStore {
     }
 
     private long nonCoreSeriesCount() {
-        return (long) seriesCountsByPriority[PLATFORM_PRIORITY] + seriesCountsByPriority[OPTIONAL_PRIORITY];
+        long count = 0;
+        for (int priority = PLATFORM_PRIORITY; priority <= OPTIONAL_PRIORITY; priority++) {
+            count += seriesCountsByPriority[priority];
+        }
+        return count;
     }
 
     private boolean hasLowerPrioritySeriesLocked(int incomingPriority) {
@@ -974,14 +980,14 @@ public class MetricHistoryStore {
     private void addSeriesLocked(String key, SeriesMetadata metadata) {
         SeriesMetadata previous = seriesByKey.put(key, metadata);
         if (previous == null) {
-            seriesCountsByPriority[metricPriority(metadata.name())]++;
+        seriesCountsByPriority[metricPriority(metadata.name(), metadata.tags())]++;
         }
     }
 
     private void removeSeriesLocked(SeriesMetadata metadata, String reason) {
         SeriesMetadata removed = seriesByKey.remove(seriesKey(metadata.name(), metadata.tags()));
         if (removed != null) {
-            int priority = metricPriority(removed.name());
+            int priority = metricPriority(removed.name(), removed.tags());
             seriesCountsByPriority[priority] = Math.max(0, seriesCountsByPriority[priority] - 1);
         }
         deleteFiles(metadata.id());
@@ -1178,6 +1184,15 @@ public class MetricHistoryStore {
             return PLATFORM_PRIORITY;
         }
         return OPTIONAL_PRIORITY;
+    }
+
+    /** Request duration histories keep their own route series ahead of detailed internal operation metrics. */
+    public static int metricPriority(String name, Map<String, String> tags) {
+        if ("easy.operations.duration".equals(name) && tags != null
+                && List.of("HTTP", "JOB", "KAFKA_CONSUMER").contains(tags.get("source"))) {
+            return REQUEST_PRIORITY;
+        }
+        return metricPriority(name);
     }
 
     private static String seriesKey(String name, Map<String, String> tags) {

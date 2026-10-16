@@ -25,24 +25,32 @@ public class MetricCardinalityConfiguration {
      */
     @Bean
     MeterFilter metricSeriesCardinalityLimit() {
-        return new RequiredTagsSeriesLimitFilter(Map.of(
-                SQL_QUERY_TIMER, new SeriesRule(1_000, Map.of("mapper", 500),
-                        "mapper", "command", "result"),
-                BusinessMetrics.API_ACCESS_TIMER,
-                new SeriesRule(BusinessMetrics.API_ACCESS_SERIES_LIMIT,
-                        "controller", "action", "result"),
-                BusinessMetrics.REMOTE_CALL_TIMER,
-                new SeriesRule(BusinessMetrics.REMOTE_CALL_SERIES_LIMIT,
-                        "target", "method", "result"),
-                BusinessMetrics.RATE_LIMIT_BLOCKED_COUNTER,
-                new SeriesRule(BusinessMetrics.RATE_LIMIT_SERIES_LIMIT, "rule", "type"),
-                BusinessMetrics.SCHEDULE_JOB_TIMER,
-                new SeriesRule(BusinessMetrics.SCHEDULE_JOB_SERIES_LIMIT, "job", "result"),
-                BusinessMetrics.OUTBOX_MESSAGE_COUNTER,
-                new SeriesRule(BusinessMetrics.OUTBOX_MESSAGE_SERIES_LIMIT, "operation", "status"),
-                BusinessMetrics.TRANSACTION_TIMER,
-                new SeriesRule(4, "result", "read_only")
+        return new RequiredTagsSeriesLimitFilter(Map.ofEntries(
+                Map.entry(SQL_QUERY_TIMER, new SeriesRule(1_000, Map.of("mapper", 500),
+                        "mapper", "command", "result")),
+                Map.entry(BusinessMetrics.API_ACCESS_TIMER,
+                        new SeriesRule(BusinessMetrics.API_ACCESS_SERIES_LIMIT, "controller", "action", "result")),
+                Map.entry(BusinessMetrics.REMOTE_CALL_TIMER,
+                        new SeriesRule(BusinessMetrics.REMOTE_CALL_SERIES_LIMIT, "target", "method", "result")),
+                Map.entry(BusinessMetrics.RATE_LIMIT_BLOCKED_COUNTER,
+                        new SeriesRule(BusinessMetrics.RATE_LIMIT_SERIES_LIMIT, "rule", "type")),
+                Map.entry(BusinessMetrics.SCHEDULE_JOB_TIMER,
+                        new SeriesRule(BusinessMetrics.SCHEDULE_JOB_SERIES_LIMIT, "job", "result")),
+                Map.entry(BusinessMetrics.OUTBOX_MESSAGE_COUNTER,
+                        new SeriesRule(BusinessMetrics.OUTBOX_MESSAGE_SERIES_LIMIT, "operation", "status")),
+                Map.entry(BusinessMetrics.TRANSACTION_TIMER, new SeriesRule(4, "result", "read_only")),
+                Map.entry("easy.operations.duration", operationSeriesRule()),
+                Map.entry("easy.operations.cpu.time", operationSeriesRule()),
+                Map.entry("easy.operations.allocated", operationSeriesRule()),
+                Map.entry("easy.operations.blocked.count", operationSeriesRule()),
+                Map.entry("easy.operations.blocked.time", operationSeriesRule()),
+                Map.entry("easy.operations.waited.count", operationSeriesRule()),
+                Map.entry("easy.operations.waited.time", operationSeriesRule())
         ));
+    }
+
+    private static SeriesRule operationSeriesRule() {
+        return new SeriesRule(512, Map.of("operation", 100), "source", "operation", "outcome");
     }
 
     private static final class RequiredTagsSeriesLimitFilter implements MeterFilter {

@@ -11,6 +11,8 @@ import com.laker.observability.metrics.history.MetricHistoryPoint;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Measurement;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.DistributionSummary;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,9 +23,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /** Read-only data API used by the bundled Easy Observability page. */
 @RestController
@@ -68,6 +72,58 @@ public class ObservabilityController {
     public List<TraceHistory.TraceRecord> traces(@RequestParam(defaultValue = "100") int limit) {
         requireAccess();
         return allTraces(limit);
+    }
+
+    @GetMapping("/request-statistics")
+    public List<RequestStatistic> requestStatistics(@RequestParam(defaultValue = "") String source,
+                                                    @RequestParam(defaultValue = "200") int limit) {
+        requireAccess();
+        Map<StatisticKey, MutableStatistic> statistics = new HashMap<>();
+        for (Meter meter : meterRegistry.getMeters()) {
+            Meter.Id id = meter.getId();
+            if (!(meter instanceof Timer timer) || !"easy.operations.duration".equals(id.getName())) continue;
+            String operationSource = id.getTag("source");
+            String operation = id.getTag("operation");
+            if (operationSource == null || operation == null || operation.isBlank()) continue;
+            if (!List.of("HTTP", "JOB", "KAFKA_CONSUMER").contains(operationSource)) continue;
+            if (!source.isBlank() && !"ALL".equalsIgnoreCase(source)
+                    && !source.equalsIgnoreCase(operationSource)) continue;
+            StatisticKey key = new StatisticKey(operationSource, operation);
+            MutableStatistic value = statistics.computeIfAbsent(key, ignored -> new MutableStatistic());
+            long count = timer.count();
+            value.count += count;
+            value.totalDurationMs += timer.totalTime(TimeUnit.MILLISECONDS);
+            value.maxDurationMs = Math.max(value.maxDurationMs, timer.max(TimeUnit.MILLISECONDS));
+            if ("failure".equalsIgnoreCase(id.getTag("outcome"))) value.errorCount += count;
+        }
+        addResourceStatistics(statistics, "easy.operations.cpu.time", true);
+        addResourceStatistics(statistics, "easy.operations.allocated", false);
+        return statistics.entrySet().stream()
+                .map(entry -> entry.getValue().toRecord(entry.getKey()))
+                .sorted(Comparator.comparingDouble(RequestStatistic::totalDurationMs).reversed())
+                .limit(Math.max(1, Math.min(limit, 500))).toList();
+    }
+
+    private void addResourceStatistics(Map<StatisticKey, MutableStatistic> statistics, String metricName,
+                                       boolean cpuTime) {
+        for (Meter meter : meterRegistry.getMeters()) {
+            Meter.Id id = meter.getId();
+            if (!(meter instanceof DistributionSummary summary) || !metricName.equals(id.getName())) continue;
+            String source = id.getTag("source");
+            String operation = id.getTag("operation");
+            if (source == null || operation == null || operation.isBlank()) continue;
+            MutableStatistic value = statistics.get(new StatisticKey(source, operation));
+            if (value == null) continue;
+            double total = summary.totalAmount();
+            long count = summary.count();
+            if (cpuTime) {
+                value.cpuTotal += total;
+                value.cpuCount += count;
+            } else {
+                value.allocatedTotal += total;
+                value.allocatedCount += count;
+            }
+        }
     }
 
     @GetMapping("/incidents")
@@ -164,4 +220,29 @@ public class ObservabilityController {
     }
 
     public record MetricRecord(String name, String type, Map<String, String> tags, Map<String, Double> values) { }
+
+    public record RequestStatistic(String source, String operation, long count, long errorCount,
+                                   double errorRate, double totalDurationMs, double meanDurationMs,
+                                   double maxDurationMs, double meanCpuTimeMs, double meanAllocatedBytes) { }
+
+    private record StatisticKey(String source, String operation) { }
+
+    private static final class MutableStatistic {
+        private long count;
+        private long errorCount;
+        private double totalDurationMs;
+        private double maxDurationMs;
+        private double cpuTotal;
+        private long cpuCount;
+        private double allocatedTotal;
+        private long allocatedCount;
+
+        private RequestStatistic toRecord(StatisticKey key) {
+            return new RequestStatistic(key.source(), key.operation(), count, errorCount,
+                    count == 0 ? 0 : (double) errorCount / count * 100, totalDurationMs,
+                    count == 0 ? 0 : totalDurationMs / count, maxDurationMs,
+                    cpuCount == 0 ? 0 : cpuTotal / cpuCount,
+                    allocatedCount == 0 ? 0 : allocatedTotal / allocatedCount);
+        }
+    }
 }

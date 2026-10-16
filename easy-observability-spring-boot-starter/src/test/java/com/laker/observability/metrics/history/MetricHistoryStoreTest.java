@@ -82,6 +82,25 @@ class MetricHistoryStoreTest {
     }
 
     @Test
+    void preservesEntryRequestDurationHistoryAheadOfInternalOperationSeries() {
+        MetricHistoryStore store = store(64 * MEBIBYTE, 8 * MEBIBYTE, 1);
+        store.restore();
+        store.recordMetricsSnapshot(List.of(new MetricSample("easy.operations.duration",
+                Map.of("source", "SQL", "operation", "Mapper#find", "outcome", "success"),
+                Map.of("COUNT", 1D))));
+
+        clock.advance(Duration.ofMinutes(1));
+        MetricSample request = new MetricSample("easy.operations.duration", Map.of("source", "HTTP",
+                "operation", "GET /orders", "outcome", "success"), Map.of("COUNT", 1D));
+        store.recordMetricsSnapshot(List.of(request));
+
+        assertThat(store.metricHistory("easy.operations.duration", request.tags(), 10)).isNotEmpty();
+        assertThat(store.seriesCatalog()).singleElement().satisfies(series ->
+                assertThat(series.tags()).isEqualTo(request.tags()));
+        assertThat(store.seriesCatalog()).noneMatch(series -> "SQL".equals(series.tags().get("source")));
+    }
+
+    @Test
     void createsFixedOneMinuteFiveMinuteAndThirtyMinuteArchives() throws Exception {
         MetricHistoryStore store = store(64 * MEBIBYTE, 8 * MEBIBYTE, 512);
         store.restore();

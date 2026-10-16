@@ -89,6 +89,20 @@ class MetricCardinalityConfigurationTest {
     }
 
     @Test
+    void boundsOperationNamesUsedByRequestStatistics() {
+        SimpleMeterRegistry registry = registryWithSeriesLimit();
+
+        for (int i = 0; i < 125; i++) {
+            Timer.builder("easy.operations.duration")
+                    .tags("type", "HTTP", "source", "HTTP", "operation", "GET /route-" + i,
+                            "outcome", "success")
+                    .register(registry);
+        }
+
+        assertThat(registry.find("easy.operations.duration").timers()).hasSize(100);
+    }
+
+    @Test
     void reservesSqlSeriesCapacityForEveryOverflowCommandAndOutcome() {
         SimpleMeterRegistry registry = registryWithSeriesLimit();
 

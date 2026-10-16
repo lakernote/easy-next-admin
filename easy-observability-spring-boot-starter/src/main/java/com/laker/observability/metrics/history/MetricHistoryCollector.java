@@ -52,7 +52,7 @@ public final class MetricHistoryCollector implements SmartLifecycle {
 
     public void collect() {
         Comparator<Meter> order = Comparator.comparingInt((Meter meter) ->
-                        MetricHistoryStore.metricPriority(meter.getId().getName()))
+                        MetricHistoryStore.metricPriority(meter.getId().getName(), tags(meter)))
                 .thenComparing(meter -> meter.getId().getName())
                 .thenComparing(meter -> meter.getId().getTags().toString());
         PriorityQueue<Meter> candidates = new PriorityQueue<>(MAX_METERS, order.reversed());
@@ -75,14 +75,18 @@ public final class MetricHistoryCollector implements SmartLifecycle {
     }
 
     private static MetricSample snapshot(Meter meter) {
-        Map<String, String> tags = new LinkedHashMap<>();
-        meter.getId().getTags().forEach(tag -> tags.put(tag.getKey(), tag.getValue()));
         Map<String, Double> values = new LinkedHashMap<>();
         for (Measurement measurement : meter.measure()) {
             double value = measurement.getValue();
             if (Double.isFinite(value)) values.put(measurement.getStatistic().name(), value);
         }
-        return new MetricSample(meter.getId().getName(), tags, values);
+        return new MetricSample(meter.getId().getName(), tags(meter), values);
+    }
+
+    private static Map<String, String> tags(Meter meter) {
+        Map<String, String> tags = new LinkedHashMap<>();
+        meter.getId().getTags().forEach(tag -> tags.put(tag.getKey(), tag.getValue()));
+        return tags;
     }
 
     private static boolean useful(String name) {
