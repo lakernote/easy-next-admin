@@ -10,20 +10,30 @@
 <body>
   <main class="page">
     <header class="topbar">
-      <div><p class="eyebrow">SPRING BOOT OBSERVABILITY</p><h1>Easy Observability</h1><p class="subtitle">当前应用的 Micrometer 指标与最近 Trace</p></div>
-      <button id="refresh" class="button" type="button">刷新</button>
+      <div><p class="eyebrow">应用监控</p><h1>Easy Observability</h1><p class="subtitle">当前实例 · Micrometer 指标、请求统计与 Trace</p></div>
+      <div class="topbar-actions"><span id="last-updated" class="last-updated">尚未更新</span><button id="refresh" class="button" type="button">刷新数据</button></div>
     </header>
     <div id="notice" class="notice" role="status" hidden></div>
     <nav class="tabs" aria-label="监控内容">
-      <button class="tab active" data-tab="requests" type="button">请求统计</button>
+      <button class="tab active" data-tab="overview" type="button">总览</button>
+      <button class="tab" data-tab="requests" type="button">请求统计</button>
       <button class="tab" data-tab="traces" type="button">Trace</button>
-      <button class="tab" data-tab="slow" type="button">Slow</button>
-      <button class="tab" data-tab="errors" type="button">Errors</button>
-      <button class="tab" data-tab="metrics" type="button">Metrics</button>
+      <button class="tab" data-tab="slow" type="button">慢调用</button>
+      <button class="tab" data-tab="errors" type="button">错误</button>
       <button class="tab" data-tab="history" type="button">指标趋势</button>
+      <button class="tab" data-tab="metrics" type="button">指标明细</button>
     </nav>
+    <section id="overview-panel" class="panel overview-panel" data-panel="overview">
+      <div class="section-heading"><div><h2>应用运行概览</h2><p>请求统计按当前进程启动以来累计；图表展示本地保存的指标历史。</p></div><label class="overview-period">趋势范围<select id="overview-window"><option value="1">1 小时</option><option value="6">6 小时</option><option value="24" selected>24 小时</option><option value="168">7 天</option><option value="720">30 天</option></select></label></div>
+      <div id="overview-summary" class="overview-summary"></div>
+      <div class="overview-charts-heading"><h3>关键指标趋势</h3><button class="text-button" data-open-tab="history" type="button">查看全部趋势 →</button></div>
+      <div id="overview-charts" class="overview-chart-grid"></div>
+      <div class="overview-table-heading"><div><h3>请求影响排行</h3><p>按累计耗时排序，优先定位对整体响应影响最大的入口。</p></div><button class="text-button" data-open-tab="requests" type="button">查看请求统计 →</button></div>
+      <div class="table-wrap"><table><thead><tr><th>类型</th><th>请求 / 操作</th><th>累计耗时占比</th><th>调用次数</th><th>平均耗时</th><th>最大耗时</th><th>错误率</th></tr></thead><tbody id="overview-request-rows"></tbody></table></div>
+      <div id="overview-request-empty" class="empty" hidden>暂时没有入口请求统计。</div>
+    </section>
     <section id="request-panel" class="panel" data-panel="requests">
-      <div class="section-heading"><div><h2>入口请求统计</h2><p>按请求入口和操作汇总 Micrometer 计时器数据；数值从当前应用进程启动后累计。选择入口查看 HTTP、Job 或 Kafka 消费。</p></div><span id="request-count" class="count"></span></div>
+      <div class="section-heading"><div><h2>请求统计</h2><p>按入口汇总 HTTP、Job 和 Kafka 消费。累计耗时占比可帮助判断优化优先级。</p></div><span id="request-count" class="count"></span></div>
       <div id="request-sources" class="source-filters" role="group" aria-label="请求类型筛选">
         <button class="source-filter active" data-request-source="ALL" type="button">全部</button>
         <button class="source-filter" data-request-source="HTTP" type="button">HTTP</button>
@@ -31,7 +41,7 @@
         <button class="source-filter" data-request-source="KAFKA_CONSUMER" type="button">Kafka 消费</button>
       </div>
       <div id="request-summary" class="request-summary"></div>
-      <div class="table-wrap"><table><thead><tr><th>类型</th><th>请求 / 操作</th><th>调用次数</th><th>平均耗时</th><th>最大耗时</th><th>错误数</th><th>错误率</th><th>平均 CPU</th><th>平均分配内存</th><th>趋势</th></tr></thead><tbody id="request-rows"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>类型</th><th>请求 / 操作</th><th>累计耗时占比</th><th>调用次数</th><th>平均耗时</th><th>最大耗时</th><th>错误数</th><th>错误率</th><th>平均 CPU</th><th>平均分配内存</th><th>趋势</th></tr></thead><tbody id="request-rows"></tbody></table></div>
       <div id="request-empty" class="empty" hidden>暂无入口请求计时数据。产生请求或启用对应的 HTTP、Job、Kafka Observation 后会显示统计。</div>
     </section>
     <section id="trace-panel" class="panel" data-panel="traces">

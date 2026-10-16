@@ -130,7 +130,8 @@ function renderRequestStatistics(items) {
   for (const item of visible) {
     const row = document.createElement('tr')
     const errorRate = `${Number(item.errorRate || 0).toFixed(2)}%`
-    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation), cell(formatNumber(item.count)),
+    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation),
+      cell(`${totalDuration ? (item.totalDurationMs / totalDuration * 100).toFixed(1) : '0.0'}%`), cell(formatNumber(item.count)),
       cell(formatNumber(item.meanDurationMs, ' ms')), cell(formatNumber(item.maxDurationMs, ' ms')),
       cell(formatNumber(item.errorCount)), cell(errorRate), cell(formatNumber(item.meanCpuTimeMs, ' ms')),
       cell(formatBytes(item.meanAllocatedBytes)))
@@ -144,6 +145,104 @@ function renderRequestStatistics(items) {
     row.append(trendCell)
     body.append(row)
   }
+  renderOverview(items)
+}
+
+function renderOverview(items) {
+  const count = items.reduce((total, item) => total + Number(item.count || 0), 0)
+  const duration = items.reduce((total, item) => total + Number(item.totalDurationMs || 0), 0)
+  const errors = items.reduce((total, item) => total + Number(item.errorCount || 0), 0)
+  const maxDuration = Math.max(0, ...items.map(item => Number(item.maxDurationMs || 0)))
+  const cards = [
+    ['请求总数', formatNumber(count), '进程启动以来'],
+    ['平均响应时间', formatNumber(count ? duration / count : 0, ' ms'), '按调用次数加权'],
+    ['最大响应时间', formatNumber(maxDuration, ' ms'), '已完成请求中的最大值'],
+    ['错误率', `${(count ? errors / count * 100 : 0).toFixed(2)}%`, `${formatNumber(errors)} 次失败`],
+    ['慢调用', `${slowTraces.length}`, '最近保留的慢 Trace'],
+    ['错误 Trace', `${errorTraces.length}`, '最近保留的错误 Trace']
+  ]
+  const summary = document.querySelector('#overview-summary')
+  summary.replaceChildren()
+  for (const [label, value, detail] of cards) {
+    const card = document.createElement('article')
+    card.className = 'overview-stat'
+    const name = document.createElement('span')
+    name.className = 'overview-stat-name'
+    name.textContent = label
+    const number = document.createElement('strong')
+    number.textContent = value
+    const note = document.createElement('small')
+    note.textContent = detail
+    card.append(name, number, note)
+    summary.append(card)
+  }
+
+  const body = document.querySelector('#overview-request-rows')
+  body.replaceChildren()
+  document.querySelector('#overview-request-empty').hidden = items.length > 0
+  for (const item of items.slice(0, 8)) {
+    const share = duration ? item.totalDurationMs / duration * 100 : 0
+    const row = document.createElement('tr')
+    const shareCell = document.createElement('td')
+    const shareValue = document.createElement('span')
+    shareValue.className = 'share-value'
+    shareValue.textContent = `${share.toFixed(1)}%`
+    const shareTrack = document.createElement('span')
+    shareTrack.className = 'share-track'
+    const shareFill = document.createElement('span')
+    shareFill.className = 'share-fill'
+    shareFill.style.width = `${Math.max(0, Math.min(100, share))}%`
+    shareTrack.append(shareFill)
+    shareCell.append(shareValue, shareTrack)
+    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation), shareCell,
+      cell(formatNumber(item.count)), cell(formatNumber(item.meanDurationMs, ' ms')),
+      cell(formatNumber(item.maxDurationMs, ' ms')), cell(`${Number(item.errorRate || 0).toFixed(2)}%`))
+    body.append(row)
+  }
+  renderOverviewCharts()
+}
+
+function renderOverviewCharts() {
+  const root = document.querySelector('#overview-charts')
+  root.replaceChildren()
+  const selected = metricSeries.filter(series => selectedSeriesKeys.includes(seriesKey(series))).slice(0, 4)
+  document.querySelector('#overview-window').value = document.querySelector('#history-window').value
+  for (const series of selected) {
+    const card = document.createElement('article')
+    card.className = 'overview-chart-card'
+    const title = document.createElement('div')
+    title.className = 'overview-chart-title'
+    title.textContent = metricDisplayName(series.name, series.tags)
+    const canvas = document.createElement('canvas')
+    canvas.height = 172
+    canvas.setAttribute('aria-label', `${title.textContent} 趋势`)
+    const measurement = (series.measurements || [])[0]
+    card.append(title, canvas)
+    root.append(card)
+    if (measurement && series.history) drawHistory(canvas, series.history, measurement)
+    else {
+      const context = canvas.getContext('2d')
+      context.fillStyle = '#778397'
+      context.font = '13px sans-serif'
+      context.fillText('等待首个历史采集点', 14, 26)
+    }
+  }
+  if (!selected.length) {
+    const empty = document.createElement('div')
+    empty.className = 'overview-chart-empty'
+    empty.textContent = metricSeries.length ? '暂无默认趋势系列，请在“指标趋势”中选择要关注的指标。' : '历史指标尚未采集。'
+    root.append(empty)
+  }
+}
+
+function metricDisplayName(name, tags = {}) {
+  const names = {
+    'process.cpu.usage': '进程 CPU 使用率', 'system.cpu.usage': '系统 CPU 使用率',
+    'jvm.memory.used': tags.area === 'heap' ? '堆内存使用量' : '非堆内存使用量',
+    'hikaricp.connections.active': '活动数据库连接', 'http.server.requests': 'HTTP 请求耗时',
+    'easy.operations.duration': tags.type === 'HTTP' ? `HTTP 请求耗时 · ${tags.operation || '入口'}` : name
+  }
+  return names[name] || name
 }
 
 async function showRequestTrend(item) {
@@ -456,7 +555,7 @@ function renderSeries() {
     })
     const name = document.createElement('span')
     name.className = 'history-series-name mono'
-    name.textContent = series.name
+    name.textContent = metricDisplayName(series.name, series.tags)
     const tags = document.createElement('span')
     tags.className = 'history-series-tags muted'
     tags.textContent = Object.entries(series.tags || {}).map(([tag, value]) => `${tag}=${value}`).join(', ') || '无标签'
@@ -580,6 +679,7 @@ async function loadHistory() {
     if (version !== historyRequestVersion) return
   }
   renderHistoryCharts()
+  renderOverviewCharts()
 }
 
 async function refresh() {
@@ -605,6 +705,7 @@ async function refresh() {
       errorTraces = errorsResult.value
       renderIncidentRows('error', errorTraces)
     }
+    renderOverview(requestStatistics)
     if (seriesResult.status === 'fulfilled') {
       const cachedHistory = new Map(metricSeries.map(series => [seriesKey(series), series.history]))
       metricSeries = seriesResult.value
@@ -615,6 +716,7 @@ async function refresh() {
           metricSeries.find(series => series.name === 'jvm.memory.used' && series.tags?.area === 'heap'),
           metricSeries.find(series => series.name === 'hikaricp.connections.active'),
           metricSeries.find(series => series.name === 'http.server.requests' && series.tags?.uri !== 'UNKNOWN')
+            || metricSeries.find(series => series.name === 'easy.operations.duration' && series.tags?.type === 'HTTP')
         ].filter(Boolean)
         selectedSeriesKeys = [...new Set(defaults.map(seriesKey))].slice(0, MAX_SELECTED_SERIES)
       }
@@ -630,6 +732,7 @@ async function refresh() {
     const failures = [requestsResult, tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult]
       .filter(result => result.status === 'rejected')
     if (failures.length) setNotice(failures.map(result => result.reason?.message || '读取失败').join('；'))
+    document.querySelector('#last-updated').textContent = `更新于 ${new Date().toLocaleTimeString()}`
   } finally {
     document.querySelector('#refresh').disabled = false
   }
@@ -644,6 +747,14 @@ document.querySelectorAll('[data-request-source]').forEach(button => button.addE
 document.querySelector('#metric-search').addEventListener('input', renderMetrics)
 document.querySelector('#history-search').addEventListener('input', renderSeries)
 document.querySelector('#history-window').addEventListener('change', renderHistoryCharts)
+document.querySelector('#overview-window').addEventListener('change', event => {
+  document.querySelector('#history-window').value = event.target.value
+  renderHistoryCharts()
+  renderOverviewCharts()
+})
+document.querySelectorAll('[data-open-tab]').forEach(button => button.addEventListener('click', () => {
+  document.querySelector(`[data-tab="${button.dataset.openTab}"]`).click()
+}))
 document.querySelectorAll('.incident-toolbar input, .incident-toolbar select').forEach(control => {
   control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', () => {
     const kind = control.id.startsWith('error-') ? 'error' : 'slow'
@@ -654,6 +765,7 @@ document.querySelectorAll('.trace-view').forEach(button => button.addEventListen
   setTraceView(button.dataset.traceView)))
 window.addEventListener('resize', () => {
   renderHistoryCharts()
+  renderOverviewCharts()
   const activePanel = document.querySelector('[data-panel]:not([hidden])')?.dataset.panel
   if (activePanel === 'slow') renderIncidentRows('slow', slowTraces)
   if (activePanel === 'errors') renderIncidentRows('error', errorTraces)
@@ -664,5 +776,7 @@ document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', (
   if (tab.dataset.tab === 'slow') renderIncidentRows('slow', slowTraces)
   if (tab.dataset.tab === 'errors') renderIncidentRows('error', errorTraces)
   if (tab.dataset.tab === 'requests') renderRequestStatistics(requestStatistics)
+  if (tab.dataset.tab === 'overview') renderOverview(requestStatistics)
+  if (tab.dataset.tab === 'history') renderHistoryCharts()
 }))
 refresh()
