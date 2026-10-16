@@ -104,7 +104,7 @@ class EasyKafkaConsumerSlowAspectTest {
         RecentTraceStore store = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.start("KAFKA", "KafkaListener")).thenReturn(scope);
+        when(observation.startDiagnosticOnly("KAFKA", "KafkaListener", "Kafka -")).thenReturn(scope);
         doAnswer(invocation -> {
             resourceFrozen.set(true);
             return null;
@@ -118,7 +118,7 @@ class EasyKafkaConsumerSlowAspectTest {
                 .isSameAs(failure);
 
         verify(store).recordIncident(eq("KAFKA"), eq("trace-fatal-kafka"), eq("KafkaListener"), eq("-"),
-                eq(500), contains("KafkaListener"), any(Long.class), eq(false), eq(true), any(),
+                eq(500), eq(""), any(Long.class), eq(false), eq(true), any(),
                 eq(failure.getClass().getName()), eq("simulated kafka allocation failure"),
                 contains("OutOfMemoryError"), isNull(), isNull(), isNull(), isNull());
         assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
@@ -133,7 +133,7 @@ class EasyKafkaConsumerSlowAspectTest {
         when(joinPoint.proceed()).thenThrow(businessFailure);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
-        when(observation.start("KAFKA", "KafkaListener")).thenReturn(scope);
+        when(observation.startDiagnosticOnly("KAFKA", "KafkaListener", "Kafka -")).thenReturn(scope);
         doThrow(new AssertionError("monitoring finalizer failed"))
                 .when(scope).finish("failure", businessFailure);
         EasyKafkaConsumerSlowAspect aspect = new EasyKafkaConsumerSlowAspect(

@@ -1,7 +1,7 @@
 package com.laker.admin.module.workflow.purchase.batch;
 
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.module.batch.dto.BatchTaskView;
 import com.laker.admin.module.batch.dto.BatchTaskSubmitRequest;
 import com.laker.admin.module.batch.entity.BatchTask;
@@ -67,7 +67,7 @@ public class PurchaseStatusReconciliationService {
                         .runNo(runNo)
                         .triggerType(triggerType)
                         .triggerRefId(triggerRefId)
-                        .traceId(EasyTraceIdContext.currentTraceId())
+                        .traceId(TraceIdContext.currentTraceId())
                         .batchParams(EasyBatchParams.builder()
                                 .distributed(true)
                                 .pageSize(PARTITION_COUNT)
@@ -109,7 +109,7 @@ public class PurchaseStatusReconciliationService {
         request.setTriggerType(BatchTriggerType.MANUAL.code());
         request.setTriggerRefId("batch-console");
         request.setParamsJson(jsonCodec.toJson(new ReconciliationParams(businessDate, PARTITION_COUNT)));
-        request.setTraceId(EasyTraceIdContext.currentTraceId());
+        request.setTraceId(TraceIdContext.currentTraceId());
         request.setRemark("核对采购业务状态与工作流实例状态，发现漂移后按流程状态修复");
         return request;
     }

@@ -52,6 +52,7 @@ public class EasyProducerConfig {
     @Bean
     public KafkaTemplate<String, String> kafkaProducerTemplate() {
         KafkaTemplate<String, String> kafkaTemplate = new KafkaTemplate<>(producerFactory());
+        kafkaTemplate.setObservationEnabled(true);
 
         kafkaTemplate.setProducerListener(new ProducerListener<>() {
             @Override

@@ -1,10 +1,12 @@
 package com.laker.admin.infrastructure.observability.jfr;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.admin.infrastructure.observability.trace.BoundedThrowableFormatter;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.BoundedThrowableFormatter;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
-import com.laker.admin.infrastructure.observability.trace.TraceContext;
+import com.laker.observability.trace.TraceContext;
+import com.laker.observability.metrics.OperationRecorder;
+import com.laker.observability.trace.OperationRecord;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -38,6 +40,7 @@ public class OperationObservation {
     /** Resolved once at construction; checking JFR state must stay a volatile read on the per-operation hot path. */
     private final LocalJfrRecorder jfrRecorder;
     private final boolean configurationOnlyJfrFallback;
+    private final OperationRecorder operationRecorder;
     /** One lazily registered meter set for each bounded type/outcome pair. */
     private final AtomicReferenceArray<OperationMeters> operationMeters;
     /** Root ownership follows the executing thread so a client-reused trace id cannot merge concurrent requests. */
@@ -46,15 +49,23 @@ public class OperationObservation {
     @Autowired
     public OperationObservation(RecentTraceStore store, EasyNextAdminConfig config,
                                 ActiveOperationRegistry activeOperations, MeterRegistry meterRegistry,
-                                ObjectProvider<LocalJfrRecorder> jfrRecorderProvider) {
+                                ObjectProvider<LocalJfrRecorder> jfrRecorderProvider,
+                                OperationRecorder operationRecorder) {
         this.store = store;
         this.config = config;
         this.activeOperations = activeOperations;
         this.meterRegistry = meterRegistry;
         this.jfrRecorder = jfrRecorderProvider.getIfAvailable();
         this.configurationOnlyJfrFallback = false;
+        this.operationRecorder = operationRecorder;
         this.operationMeters = meterRegistry == null ? null
                 : new AtomicReferenceArray<>(METRIC_TYPES.size() * METRIC_OUTCOMES.size());
+    }
+
+    public OperationObservation(RecentTraceStore store, EasyNextAdminConfig config,
+                                ActiveOperationRegistry activeOperations, MeterRegistry meterRegistry,
+                                ObjectProvider<LocalJfrRecorder> jfrRecorderProvider) {
+        this(store, config, activeOperations, meterRegistry, jfrRecorderProvider, null);
     }
 
     OperationObservation(RecentTraceStore store, EasyNextAdminConfig config,
@@ -65,6 +76,7 @@ public class OperationObservation {
         this.meterRegistry = null;
         this.jfrRecorder = null;
         this.configurationOnlyJfrFallback = true;
+        this.operationRecorder = null;
         this.operationMeters = null;
     }
 
@@ -90,13 +102,23 @@ public class OperationObservation {
      */
     public Scope start(String type, String name, String activeDetail, Supplier<String> incidentDetail,
                        boolean persistAll) {
+        return start(type, name, activeDetail, incidentDetail, persistAll, true);
+    }
+
+    /** Starts local JFR/diagnostic capture while leaving metrics and trace recording to the reusable starter. */
+    public Scope startDiagnosticOnly(String type, String name, String detail) {
+        return start(type, name, detail, null, false, false);
+    }
+
+    private Scope start(String type, String name, String activeDetail, Supplier<String> incidentDetail,
+                        boolean persistAll, boolean recordGeneric) {
         if (!config.getFeatures().isMonitor()
                 || !config.getMonitor().getDiagnosis().isEnabled()) {
             return new Scope();
         }
-        String currentTraceId = EasyTraceIdContext.currentTraceId();
+        String currentTraceId = TraceIdContext.currentTraceId();
         boolean ownsTraceId = currentTraceId == null || currentTraceId.isBlank();
-        String traceId = ownsTraceId ? EasyTraceIdContext.getOrCreateTraceId() : currentTraceId;
+        String traceId = ownsTraceId ? TraceIdContext.getOrCreateTraceId() : currentTraceId;
         RuntimeOperationJfrEvent event = null;
         ActiveOperationRegistry.Scope activeScope = null;
         Scope scope = null;
@@ -117,7 +139,7 @@ public class OperationObservation {
             Scope parentRoot = aggregateRoot ? null : aggregateRootContext.get();
             scope = new Scope(type, name, Thread.currentThread().getName(), System.nanoTime(), event,
                     activeScope, traceId, activeDetail, incidentDetail, persistAll, aggregateRoot, parentRoot,
-                    previousRoot, ownsTraceId);
+                    previousRoot, ownsTraceId, recordGeneric);
             if (aggregateRoot) aggregateRootContext.set(scope);
             return scope;
         } catch (Throwable exception) {
@@ -127,8 +149,8 @@ public class OperationObservation {
                 try { if (activeScope != null) activeScope.discard(); } catch (Throwable ignored) { }
                 try { if (event != null) event.end(); } catch (Throwable ignored) { }
             }
-            if (ownsTraceId && java.util.Objects.equals(traceId, EasyTraceIdContext.currentTraceId())) {
-                EasyTraceIdContext.clear();
+            if (ownsTraceId && java.util.Objects.equals(traceId, TraceIdContext.currentTraceId())) {
+                TraceIdContext.clear();
             }
             safeStartFailure(type, name, exception);
             return new Scope();
@@ -169,8 +191,15 @@ public class OperationObservation {
         Scope parentRoot = aggregateRootContext.get();
         if (parentRoot != null) parentRoot.recordChild(type, safeDuration, result, failure);
         try {
-            recordResourceMetrics(type, "failure", safeDuration,
-                    new ActiveOperationRegistry.ResourceUsage(-1, -1, -1, -1, -1, -1));
+            if (operationRecorder != null) {
+                operationRecorder.record(new OperationRecord(type, traceId, name, Thread.currentThread().getName(),
+                        Thread.currentThread().getId(), "failure", safeDuration, -1, -1, -1, -1, -1, -1,
+                        safeDetail, "", stackTrace, false, true, result.reasons(), errorType, errorMessage,
+                        Map.of(), java.time.Instant.now()));
+            } else {
+                recordResourceMetrics(type, "failure", safeDuration,
+                        new ActiveOperationRegistry.ResourceUsage(-1, -1, -1, -1, -1, -1));
+            }
             store.recordOperation(new RecentTraceStore.OperationSample(type, traceId, name,
                     Thread.currentThread().getName(), "failure", safeDuration, -1, -1, -1, -1, -1, -1,
                     safeDetail, "", stackTrace, Map.of(), java.time.LocalDateTime.now()));
@@ -236,6 +265,7 @@ public class OperationObservation {
         private final String type;
         private final String name;
         private final String threadName;
+        private final long threadId;
         private volatile long startNanos;
         private final RuntimeOperationJfrEvent jfrEvent;
         private final ActiveOperationRegistry.Scope activeScope;
@@ -247,6 +277,7 @@ public class OperationObservation {
         private final Scope parentRoot;
         private final Scope previousRoot;
         private final boolean ownsTraceId;
+        private final boolean recordGeneric;
         /** Root-only aggregation state. Ordinary SQL/remote/transaction scopes never allocate these collections. */
         private Map<String, MutableChildSummary> childSummaries;
         /** Allocated only after this scope or one of its children becomes slow or fails. */
@@ -278,6 +309,7 @@ public class OperationObservation {
             this.type = "";
             this.name = "";
             this.threadName = "";
+            this.threadId = -1;
             this.startNanos = System.nanoTime();
             this.jfrEvent = null;
             this.activeScope = null;
@@ -289,6 +321,7 @@ public class OperationObservation {
             this.parentRoot = null;
             this.previousRoot = null;
             this.ownsTraceId = false;
+            this.recordGeneric = false;
             this.initialAsyncHandoffReleased = true;
             this.resourceSegmentBound = false;
         }
@@ -297,10 +330,11 @@ public class OperationObservation {
                       RuntimeOperationJfrEvent jfrEvent,
                       ActiveOperationRegistry.Scope activeScope, String traceId, String detail,
                       Supplier<String> incidentDetail, boolean persistAll, boolean aggregateRoot,
-                      Scope parentRoot, Scope previousRoot, boolean ownsTraceId) {
+                      Scope parentRoot, Scope previousRoot, boolean ownsTraceId, boolean recordGeneric) {
             this.type = type;
             this.name = name;
             this.threadName = threadName;
+            this.threadId = Thread.currentThread().getId();
             this.startNanos = startNanos;
             this.jfrEvent = jfrEvent;
             this.activeScope = activeScope;
@@ -312,6 +346,7 @@ public class OperationObservation {
             this.parentRoot = parentRoot;
             this.previousRoot = previousRoot;
             this.ownsTraceId = ownsTraceId;
+            this.recordGeneric = recordGeneric;
             this.initialAsyncHandoffReleased = !aggregateRoot;
             this.resourceSegmentBound = activeScope != null;
         }
@@ -383,8 +418,8 @@ public class OperationObservation {
                 // Preserve the business result even when the JVM is already under resource pressure.
             }
             if (aggregateRoot && aggregateRootContext.get() == this) aggregateRootContext.remove();
-            if (ownsTraceId && java.util.Objects.equals(traceId, EasyTraceIdContext.currentTraceId())) {
-                EasyTraceIdContext.clear();
+            if (ownsTraceId && java.util.Objects.equals(traceId, TraceIdContext.currentTraceId())) {
+                TraceIdContext.clear();
             }
         }
 
@@ -495,11 +530,23 @@ public class OperationObservation {
             long blockedTime = resources.blockedTimeMs();
             long waitedCount = resources.waitedCount();
             long waitedTime = resources.waitedTimeMs();
-            recordResourceMetrics(type, outcome, durationMs, resources);
             if (parentRoot != null) parentRoot.recordChild(type, durationMs, completion, failure);
             String lockInfo = detailed ? diagnostic.lockInfo() : "";
             String stack = !detailed ? "" : failure == null ? diagnostic.stackTrace()
                     : failureEvidence.stackTrace();
+            if (recordGeneric && operationRecorder != null) {
+                Map<String, OperationRecord.OperationSummary> summaries = new LinkedHashMap<>();
+                snapshotChildSummaries().forEach((key, summary) -> summaries.put(key,
+                        new OperationRecord.OperationSummary(summary.count(), summary.errorCount(),
+                                summary.totalDurationMs(), summary.maxDurationMs())));
+                java.time.Instant finishedInstant = finishedAt.atZone(java.time.ZoneId.systemDefault()).toInstant();
+                operationRecorder.record(new OperationRecord(type, traceId, name, threadName, threadId, outcome,
+                        durationMs, cpuMs, allocated, blockedCount, blockedTime, waitedCount, waitedTime,
+                        completedDetail, lockInfo, stack, completion.slow(), completion.error(), completion.reasons(),
+                        completion.errorType(), completion.errorMessage(), summaries, finishedInstant));
+            } else if (recordGeneric) {
+                recordResourceMetrics(type, outcome, durationMs, resources);
+            }
             try {
                 if (jfrEvent != null) {
                     jfrEvent.detail = completedDetail;
@@ -532,8 +579,8 @@ public class OperationObservation {
                 try {
                     activeScope.close();
                 } finally {
-                    if (ownsTraceId && java.util.Objects.equals(traceId, EasyTraceIdContext.currentTraceId())) {
-                        EasyTraceIdContext.clear();
+                    if (ownsTraceId && java.util.Objects.equals(traceId, TraceIdContext.currentTraceId())) {
+                        TraceIdContext.clear();
                     }
                 }
             }

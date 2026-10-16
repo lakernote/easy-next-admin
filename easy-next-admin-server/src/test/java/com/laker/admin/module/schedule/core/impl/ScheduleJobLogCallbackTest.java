@@ -3,7 +3,7 @@ package com.laker.admin.module.schedule.core.impl;
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
+import com.laker.observability.metrics.BusinessMetrics;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;
@@ -73,7 +73,7 @@ class ScheduleJobLogCallbackTest {
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         config.getTrace().setEnabled(true);
         config.getTrace().setScheduleSlowThresholdMs(60_000);
-        EasyBusinessMetrics metrics = mock(EasyBusinessMetrics.class);
+        BusinessMetrics metrics = mock(BusinessMetrics.class);
         RecentTraceStore traceStore = mock(RecentTraceStore.class);
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
@@ -130,7 +130,7 @@ class ScheduleJobLogCallbackTest {
                 .build();
     }
 
-    private EasyBusinessMetrics businessMetrics() {
-        return new EasyBusinessMetrics(new SimpleMeterRegistry());
+    private BusinessMetrics businessMetrics() {
+        return new BusinessMetrics(new SimpleMeterRegistry());
     }
 }

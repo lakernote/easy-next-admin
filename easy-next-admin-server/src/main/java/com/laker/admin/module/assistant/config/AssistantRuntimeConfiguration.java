@@ -1,6 +1,6 @@
 package com.laker.admin.module.assistant.config;
 
-import com.laker.admin.infrastructure.observability.trace.EasyMdcContext;
+import com.laker.observability.trace.MdcContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +27,7 @@ public class AssistantRuntimeConfiguration {
         taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
         taskExecutor.setAwaitTerminationSeconds(executor.getAwaitTerminationSeconds());
         taskExecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        taskExecutor.setTaskDecorator(runnable -> EasyMdcContext.wrap(runnable, EasyMdcContext.copy()));
+        taskExecutor.setTaskDecorator(runnable -> MdcContext.wrap(runnable, MdcContext.copy()));
         return taskExecutor;
     }
 

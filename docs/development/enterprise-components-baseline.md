@@ -109,9 +109,9 @@ EasyNextAdmin 是企业后台脚手架，不是中间件平台。组件取舍遵
 | 业务事件 | 领域事件、业务状态变更、事件发布、事件订阅、事件审计 | 部分具备 | 工作流事件、本地消息、Kafka 基础设施 | P1：沉淀统一业务事件模型，区分审计事件、消息事件和集成事件 |
 | 报表 | 固定纸质报表、打印 | 已具备 | `module.report` | 不建议内置 BI 或拖拽报表平台 |
 | 运行监控页 | JVM、CPU、内存、磁盘、缓存、在线用户、WebLog | 已具备 | `module.monitor`、Actuator、WebLog | 边界是应用内排障，不替代 Grafana/APM/日志平台 |
-| 业务指标 | API、远程调用、限流、调度、Outbox 指标 | 已具备 | `EasyBusinessMetrics`、Micrometer、Influx registry | P1：指标字典、面板模板、SLO 绑定 |
+| 业务指标 | API、远程调用、限流、调度、Outbox 指标 | 已具备 | `BusinessMetrics`、Micrometer、Influx registry | P1：指标字典、面板模板、SLO 绑定 |
 | 前端观测 | Vue 错误、Promise rejection、路由错误、API 失败事件 | 部分具备 | `src/features/observability/events.ts` | P1：事件上报接口、RUM 性能指标、采样和隐私策略 |
-| Trace / MDC | `X-Trace-Id`、日志 MDC、Kafka/Feign/线程池透传、本地 Trace Tree | 部分具备 | `EasyTraceIdFilter`、`TraceContext`、`@EasyTrace` | P1：W3C Trace Context / OpenTelemetry 可选接入；当前按项目决策先不动 |
+| Trace / MDC | `X-Trace-Id`、日志 MDC、Kafka/Feign/线程池透传、本地 Trace Tree | 部分具备 | Starter `TraceIdFilter`、`TraceContext`、`@TraceSpan` | P1：W3C Trace Context / OpenTelemetry 可选接入；当前按项目决策先不动 |
 | 结构化日志 | 本地日志、集中检索字段、OpenSearch/SLS/Loki 采集 | 部分具备 | `logback.xml` 文本日志、MDC、WebLog | P1：生产 JSON appender 或采集器解析配置 |
 | 安全响应头和 CORS | CSP、HSTS、CORS 白名单、WAF 参数过滤 | 部分具备 | `WafFilter`、`EasyCorsFilter`、`easy.web.security-headers` | P1：CSRF、CSP 收紧、生产 Cookie 会话改造 |
 

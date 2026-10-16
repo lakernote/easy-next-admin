@@ -8,7 +8,7 @@ import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.infrastructure.security.service.EasyAuthService;
 import com.laker.admin.infrastructure.security.support.EasyAuthRequestAttributes;
 import com.laker.admin.infrastructure.security.support.EasySecurityHeaders;
-import com.laker.admin.infrastructure.observability.trace.EasyMdcContext;
+import com.laker.observability.trace.MdcContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,14 +45,14 @@ public class EasyAuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             // Servlet 容器会复用线程，请求结束必须清理，避免串用户。
-            EasyMdcContext.remove(EasyNextAdminConstants.USER_ID);
+            MdcContext.remove(EasyNextAdminConstants.USER_ID);
             EasySecurityContext.clear();
         }
     }
 
     private void authenticateIfPresent(HttpServletRequest request) {
         try {
-            EasyMdcContext.remove(EasyNextAdminConstants.USER_ID);
+            MdcContext.remove(EasyNextAdminConstants.USER_ID);
             String accessToken = resolveAccessToken(request);
             if (!StringUtils.hasText(accessToken)) {
                 return;
@@ -60,7 +60,7 @@ public class EasyAuthFilter extends OncePerRequestFilter {
             AuthPrincipal principal = authService.authenticate(accessToken);
             EasySecurityContext.setPrincipal(principal);
             EasySecurityContext.setAccessToken(accessToken);
-            EasyMdcContext.putOrRemove(EasyNextAdminConstants.USER_ID,
+            MdcContext.putOrRemove(EasyNextAdminConstants.USER_ID,
                     principal.getUserId() == null ? null : String.valueOf(principal.getUserId()));
         } catch (EasyAuthException | EasyForbiddenException ex) {
             request.setAttribute(EasyAuthRequestAttributes.AUTH_FAILURE, ex);

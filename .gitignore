@@ -36,6 +36,7 @@ hs_err_pid*
 .playwright-mcp/
 .worktrees/
 easy-next-admin-server/target/
+easy-observability-spring-boot-starter/target/
 easy-next-admin-web/node_modules/
 easy-next-admin-web/dist/
 .env

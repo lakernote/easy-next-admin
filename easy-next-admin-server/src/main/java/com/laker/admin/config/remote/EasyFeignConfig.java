@@ -1,7 +1,5 @@
 package com.laker.admin.config.remote;
 
-import com.laker.admin.common.constant.EasyNextAdminConstants;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
 import feign.*;
 import feign.codec.ErrorDecoder;
 import lombok.extern.slf4j.Slf4j;
@@ -25,17 +23,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class EasyFeignConfig {
 
-    /**
-     * 拦截器可以有多个
-     */
     @Order(1)
-    @Bean
-    RequestInterceptor traceIdRequestInterceptor() {
-        return requestTemplate ->
-                requestTemplate.header(EasyNextAdminConstants.TRACE_ID_HEADER, EasyTraceIdContext.getOrCreateTraceId());
-    }
-
-    @Order(2)
     @Bean
     RequestInterceptor viaRequestInterceptor() {
         return requestTemplate -> requestTemplate.header("via", "easy-feign");

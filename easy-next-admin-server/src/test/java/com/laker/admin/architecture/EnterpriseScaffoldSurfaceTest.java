@@ -158,7 +158,7 @@ class EnterpriseScaffoldSurfaceTest {
         String circuitBreakerConfig = Files.readString(
                 Path.of("src/main/java/com/laker/admin/config/remote/EasyCircuitBreakerConfig.java"));
         String remoteMetricsAspect = Files.readString(
-                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/RemoteCallMetricsAspect.java"));
+                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/RemoteCallDiagnosticAspect.java"));
         String applicationYaml = Files.readString(Path.of("src/main/resources/application.yaml"));
 
         assertThat(treeUtil).doesNotContain("module.system.dto.MenuVo");
@@ -222,7 +222,7 @@ class EnterpriseScaffoldSurfaceTest {
         String apiAccessLogAspect = Files.readString(
                 Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"));
         String businessMetrics = Files.readString(
-                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyBusinessMetrics.java"));
+                Path.of("../easy-observability-spring-boot-starter/src/main/java/com/laker/observability/metrics/BusinessMetrics.java"));
 
         assertThat(moduleControllers)
                 .contains("@EasyApiAccessLog")

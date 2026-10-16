@@ -8,7 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.jfr.ActiveOperationRegistry;
 import com.laker.admin.infrastructure.observability.jfr.LocalJfrRecorder;
-import com.laker.admin.infrastructure.observability.metrics.LocalMetricTimeSeriesStore;
+import com.laker.observability.metrics.history.MetricHistoryStore;
+import com.laker.observability.metrics.history.MetricHistoryPoint;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -125,9 +126,9 @@ class RuntimeDiagnosisControllerTest {
 
     @Test
     void metricsShouldExposePersistedRrdSeriesAfterRestartBeforeMeterReregistration() {
-        LocalMetricTimeSeriesStore metricStore = mock(LocalMetricTimeSeriesStore.class);
+        MetricHistoryStore metricStore = mock(MetricHistoryStore.class);
         when(metricStore.seriesCatalog()).thenReturn(List.of(
-                new LocalMetricTimeSeriesStore.MetricSeriesDescriptor(
+                new MetricHistoryStore.MetricSeriesDescriptor(
                         "http.server.requests", java.util.Map.of("uri", "/retired"), List.of("COUNT"))));
         RuntimeDiagnosisController controller = controller(mock(RecentTraceStore.class),
                 mock(LocalJfrRecorder.class), new EasyNextAdminConfig(), new SimpleMeterRegistry(), metricStore);
@@ -142,15 +143,15 @@ class RuntimeDiagnosisControllerTest {
     @Test
     void metricHistoryShouldNotRescanLegacyJsonlWhenRrdHasTheSeries() {
         RecentTraceStore traceStore = mock(RecentTraceStore.class);
-        LocalMetricTimeSeriesStore metricStore = mock(LocalMetricTimeSeriesStore.class);
-        RecentTraceStore.MetricHistoryPoint point = new RecentTraceStore.MetricHistoryPoint(
+        MetricHistoryStore metricStore = mock(MetricHistoryStore.class);
+        MetricHistoryPoint point = new MetricHistoryPoint(
                 "2026-10-15T12:00:00", Map.of("area", "heap"), Map.of("VALUE", 42D));
         when(metricStore.metricHistory("jvm.memory.used", Map.of("area", "heap"), 100))
                 .thenReturn(List.of(point));
         RuntimeDiagnosisController controller = controller(traceStore, mock(LocalJfrRecorder.class),
                 new EasyNextAdminConfig(), new SimpleMeterRegistry(), metricStore);
 
-        List<RecentTraceStore.MetricHistoryPoint> result = controller.metricHistory(
+        List<MetricHistoryPoint> result = controller.metricHistory(
                 "jvm.memory.used", "{\"area\":\"heap\"}", 100).getData();
 
         assertThat(result).containsExactly(point);
@@ -267,7 +268,7 @@ class RuntimeDiagnosisControllerTest {
                 .thenReturn(List.of());
         when(visibilitySupport.visibleUserIds()).thenReturn(Optional.empty());
         RuntimeDiagnosisController controller = new RuntimeDiagnosisController(
-                mock(MeterRegistry.class), traceStore, mock(LocalMetricTimeSeriesStore.class), errorLogService,
+                mock(MeterRegistry.class), traceStore, mock(MetricHistoryStore.class), errorLogService,
                 visibilitySupport, new EasyNextAdminConfig(), mock(LocalJfrRecorder.class),
                 mock(ActiveOperationRegistry.class), new ObjectMapper());
 
@@ -294,7 +295,7 @@ class RuntimeDiagnosisControllerTest {
                 null, List.of(new RecentTraceStore.TransactionSample(
                         "missing-root", "orphan", false, 1, LocalDateTime.now())), List.of(), null));
         RuntimeDiagnosisController controller = new RuntimeDiagnosisController(
-                mock(MeterRegistry.class), traceStore, mock(LocalMetricTimeSeriesStore.class), errorLogService,
+                mock(MeterRegistry.class), traceStore, mock(MetricHistoryStore.class), errorLogService,
                 mock(AuditVisibilitySupport.class), new EasyNextAdminConfig(), mock(LocalJfrRecorder.class),
                 mock(ActiveOperationRegistry.class), new ObjectMapper());
 
@@ -559,14 +560,14 @@ class RuntimeDiagnosisControllerTest {
                                                          LocalJfrRecorder jfrRecorder,
                                                          EasyNextAdminConfig config) {
         return controller(traceStore, jfrRecorder, config, mock(MeterRegistry.class),
-                mock(LocalMetricTimeSeriesStore.class));
+                mock(MetricHistoryStore.class));
     }
 
     private static RuntimeDiagnosisController controller(RecentTraceStore traceStore,
                                                          LocalJfrRecorder jfrRecorder,
                                                          EasyNextAdminConfig config,
                                                          MeterRegistry meterRegistry,
-                                                         LocalMetricTimeSeriesStore metricStore) {
+                                                         MetricHistoryStore metricStore) {
         return new RuntimeDiagnosisController(meterRegistry, traceStore,
                 metricStore,
                 mock(IAuditErrorLogService.class), mock(AuditVisibilitySupport.class),

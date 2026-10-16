@@ -15,6 +15,11 @@
     <packaging>jar</packaging>
 
     <dependencies>
+        <dependency>
+            <groupId>com.laker.observability</groupId>
+            <artifactId>easy-observability-spring-boot-starter</artifactId>
+            <version>${observability.version}</version>
+        </dependency>
         <!-- 只使用 Spring AI 的模型与 Tool Calling 标准抽象；企业 Agent 循环由本项目控制。 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
@@ -92,13 +97,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <!-- 进程内固定容量时序文件，用于保存 Actuator/Micrometer 的 30 天 Metrics 历史。 -->
-        <dependency>
-            <groupId>org.rrd4j</groupId>
-            <artifactId>rrd4j</artifactId>
-            <version>3.10</version>
         </dependency>
 
         <!-- Kafka 可选消息通道 -->

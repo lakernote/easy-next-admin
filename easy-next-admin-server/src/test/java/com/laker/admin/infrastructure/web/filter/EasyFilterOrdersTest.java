@@ -11,10 +11,8 @@ class EasyFilterOrdersTest {
     void shouldExposeFilterRegistrationMetadataAsEnum() {
         assertThat(EasyFilterOrders.class.isEnum()).isTrue();
         assertThat(EasyFilterOrders.values())
-                .containsExactly(EasyFilterOrders.TRACE, EasyFilterOrders.WAF, EasyFilterOrders.CORS,
-                        EasyFilterOrders.AUTH);
+                .containsExactly(EasyFilterOrders.WAF, EasyFilterOrders.CORS, EasyFilterOrders.AUTH);
 
-        assertMetadata(EasyFilterOrders.TRACE, "easyTraceFilter", Ordered.HIGHEST_PRECEDENCE, "/*");
         assertMetadata(EasyFilterOrders.WAF, "easyWafFilter", Ordered.HIGHEST_PRECEDENCE + 10, "/*");
         assertMetadata(EasyFilterOrders.CORS, "easyCorsFilter", Ordered.HIGHEST_PRECEDENCE + 20, "/*");
         assertMetadata(EasyFilterOrders.AUTH, "easyAuthFilter", Ordered.HIGHEST_PRECEDENCE + 30, "/api/*");

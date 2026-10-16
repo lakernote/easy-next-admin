@@ -1,7 +1,7 @@
 package com.laker.admin.infrastructure.thread;
 
-import com.laker.admin.infrastructure.observability.trace.EasyMdcContext;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.MdcContext;
+import com.laker.observability.trace.TraceIdContext;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -39,9 +39,9 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
     public void execute(Runnable command) {
         if (command instanceof RunnableFuture) {
             // submit future
-            super.execute(new EasyNextAdminFuture((RunnableFuture) command, EasyMdcContext.copy()));
+            super.execute(new EasyNextAdminFuture((RunnableFuture) command, MdcContext.copy()));
         } else {
-            super.execute(wrapExecuteRunnable(command, EasyMdcContext.copy()));
+            super.execute(wrapExecuteRunnable(command, MdcContext.copy()));
         }
 
     }
@@ -94,8 +94,8 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
 
         @Override
         public void run() {
-            try (EasyMdcContext.Scope ignored = EasyMdcContext.withContext(threadContext)) {
-                EasyTraceIdContext.getOrCreateTraceId();
+            try (MdcContext.Scope ignored = MdcContext.withContext(threadContext)) {
+                TraceIdContext.getOrCreateTraceId();
                 future.run();
             }
 
@@ -104,8 +104,8 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
     }
 
     private static Runnable wrapWithTrace(Runnable runnable, Map<String, String> contextMap) {
-        return EasyMdcContext.wrap(() -> {
-            EasyTraceIdContext.getOrCreateTraceId();
+        return MdcContext.wrap(() -> {
+            TraceIdContext.getOrCreateTraceId();
             runnable.run();
         }, contextMap);
     }

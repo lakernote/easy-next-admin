@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.audit;
 
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
@@ -61,7 +61,7 @@ public class AuditLogCollector {
         loginLog.setIp(request == null ? EasyRequestContext.currentRemoteIp() : EasyRequestContext.remoteIp(request));
         loginLog.setUserAgent(masker.truncate(request == null ? null : request.getHeader("User-Agent"), MAX_USER_AGENT));
         loginLog.setClientType("web");
-        loginLog.setTraceId(EasyTraceIdContext.getOrCreateTraceId());
+        loginLog.setTraceId(TraceIdContext.getOrCreateTraceId());
         loginLog.setLoginTime(LocalDateTime.now());
         insertSafely("login", () -> loginLogMapper.insert(loginLog));
     }
@@ -71,7 +71,7 @@ public class AuditLogCollector {
             return;
         }
         fillOperator(operationLog);
-        operationLog.setTraceId(defaultText(operationLog.getTraceId(), EasyTraceIdContext.getOrCreateTraceId()));
+        operationLog.setTraceId(defaultText(operationLog.getTraceId(), TraceIdContext.getOrCreateTraceId()));
         operationLog.setRequestMethod(defaultText(operationLog.getRequestMethod(), EasyRequestContext.currentRequestMethod()));
         operationLog.setRequestUri(masker.truncate(masker.maskUri(defaultText(operationLog.getRequestUri(), EasyRequestContext.currentRequestUri())), MAX_SHORT_TEXT));
         operationLog.setRequestParams(masker.truncate(masker.sanitizeJsonText(operationLog.getRequestParams()), EasySensitiveDataMasker.DEFAULT_TEXT_LIMIT));
@@ -91,7 +91,7 @@ public class AuditLogCollector {
         if (dataChangeLog == null) {
             return;
         }
-        dataChangeLog.setTraceId(defaultText(dataChangeLog.getTraceId(), EasyTraceIdContext.getOrCreateTraceId()));
+        dataChangeLog.setTraceId(defaultText(dataChangeLog.getTraceId(), TraceIdContext.getOrCreateTraceId()));
         if (dataChangeLog.getOperatorId() == null) {
             dataChangeLog.setOperatorId(EasySecurityContext.getUserId());
         }
@@ -139,7 +139,7 @@ public class AuditLogCollector {
         if (errorLog == null) {
             return;
         }
-        errorLog.setTraceId(defaultText(errorLog.getTraceId(), EasyTraceIdContext.getOrCreateTraceId()));
+        errorLog.setTraceId(defaultText(errorLog.getTraceId(), TraceIdContext.getOrCreateTraceId()));
         errorLog.setRequestUri(masker.truncate(masker.maskUri(defaultText(errorLog.getRequestUri(), EasyRequestContext.currentRequestUri())), MAX_SHORT_TEXT));
         errorLog.setRequestMethod(defaultText(errorLog.getRequestMethod(), EasyRequestContext.currentRequestMethod()));
         errorLog.setErrorType(masker.truncate(errorLog.getErrorType(), MAX_SHORT_TEXT));

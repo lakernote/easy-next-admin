@@ -1,5 +1,6 @@
 package com.laker.admin.infrastructure.mq.kafka;
 
+import com.laker.observability.integration.kafka.TraceIdRecordInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -14,6 +15,7 @@ import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.BackOff;
 import org.springframework.util.backoff.FixedBackOff;
+import io.micrometer.observation.ObservationRegistry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,9 +26,12 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "easy.features", name = "kafka", havingValue = "true")
 public class EasyKafkaConsumerConfig {
     private final EasyKafkaConfig easyKafkaConfig;
+    private final TraceIdRecordInterceptor traceIdRecordInterceptor;
 
-    public EasyKafkaConsumerConfig(EasyKafkaConfig easyKafkaConfig) {
+    public EasyKafkaConsumerConfig(EasyKafkaConfig easyKafkaConfig,
+                                   TraceIdRecordInterceptor traceIdRecordInterceptor) {
         this.easyKafkaConfig = easyKafkaConfig;
+        this.traceIdRecordInterceptor = traceIdRecordInterceptor;
     }
 
     @Bean
@@ -53,11 +58,13 @@ public class EasyKafkaConsumerConfig {
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
+            ObservationRegistry observationRegistry) {
 
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        factory.setRecordInterceptor(traceIdRecordInterceptor);
 
         // 为监听器添加消息过滤器
 //        factory.setRecordFilterStrategy(
@@ -68,6 +75,8 @@ public class EasyKafkaConsumerConfig {
         // 设置为批量消费，每个批次数量在Kafka配置参数中设置ConsumerConfig.MAX_POLL_RECORDS_CONFIG
 //        factory.setBatchListener(true);
         factory.getContainerProperties().setPollTimeout(5000);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.getContainerProperties().setObservationRegistry(observationRegistry);
 
         // 设置手动提交offset
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);

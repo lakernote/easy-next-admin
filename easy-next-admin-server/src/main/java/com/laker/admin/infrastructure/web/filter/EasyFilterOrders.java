@@ -9,7 +9,6 @@ import org.springframework.core.Ordered;
  * @author laker
  */
 public enum EasyFilterOrders implements Ordered {
-    TRACE("easyTraceFilter", Ordered.HIGHEST_PRECEDENCE, "/*"),
     WAF("easyWafFilter", Ordered.HIGHEST_PRECEDENCE + 10, "/*"),
     CORS("easyCorsFilter", Ordered.HIGHEST_PRECEDENCE + 20, "/*"),
     AUTH("easyAuthFilter", Ordered.HIGHEST_PRECEDENCE + 30, "/api/*");

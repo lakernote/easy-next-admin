@@ -2,7 +2,7 @@ package com.laker.admin.module.assistant.controller;
 
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.module.assistant.config.AssistantRuntimeProperties;
@@ -37,7 +37,7 @@ class AssistantControllerTest {
     @AfterEach
     void clearContexts() {
         EasySecurityContext.clear();
-        EasyTraceIdContext.clear();
+        TraceIdContext.clear();
     }
 
     @Test
@@ -66,12 +66,12 @@ class AssistantControllerTest {
         CountDownLatch executionCompleted = new CountDownLatch(1);
         EasySecurityContext.setPrincipal(principal);
         EasySecurityContext.setAccessToken("token-for-test");
-        EasyTraceIdContext.putTraceId("trace-sse-test");
+        TraceIdContext.putTraceId("trace-sse-test");
         doAnswer(invocation -> {
             try {
                 workerPrincipal.set(EasySecurityContext.getPrincipal());
                 workerAccessToken.set(EasySecurityContext.getAccessToken());
-                workerTraceId.set(EasyTraceIdContext.currentTraceId());
+                workerTraceId.set(TraceIdContext.currentTraceId());
                 return expected;
             } finally {
                 executionCompleted.countDown();
@@ -99,7 +99,7 @@ class AssistantControllerTest {
             Future<?> contextCheck = executor.submit(() -> {
                 assertThat(EasySecurityContext.getPrincipal()).isNull();
                 assertThat(EasySecurityContext.getAccessToken()).isNull();
-                assertThat(EasyTraceIdContext.currentTraceId()).isNull();
+                assertThat(TraceIdContext.currentTraceId()).isNull();
             });
             contextCheck.get(2, TimeUnit.SECONDS);
         } finally {

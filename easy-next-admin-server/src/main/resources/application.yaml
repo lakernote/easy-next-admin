@@ -116,6 +116,28 @@ mybatis-plus:
     banner: false
 easy:
   log-file-path: ${EASY_LOG_FILE_PATH:logs/easy-next-admin.log}
+  observability:
+    # Keep the reusable starter aligned with the application's existing monitoring switch.
+    enabled: ${easy.features.monitor:true}
+    trace:
+      # Keep annotated spans aligned with the application's existing trace switch.
+      enabled: ${easy.trace.enabled:true}
+      # Starter keeps reusable Slow/Error operation history separately from app-specific JFR/thread diagnostics.
+      history-file: ${EASY_OBSERVABILITY_INCIDENT_FILE:./data/easy-observability/incidents.jsonl}
+      archive-file: ${EASY_OBSERVABILITY_TRACE_FILE:./data/easy-observability/traces.jsonl}
+    transaction:
+      # The starter owns transaction timing and trace capture; the server adds local JFR diagnostics only.
+      slow-threshold-ms: ${EASY_TRACE_TRANSACTION_SLOW_THRESHOLD_MS:1000}
+    metrics:
+      history:
+        enabled: ${easy.monitor.diagnosis.enabled:true}
+        # Keep the legacy directory as the default so existing RRD4J history survives the module move.
+        storage-dir: ${EASY_DIAGNOSIS_METRICS_STORAGE_DIR:./data/diagnosis/metrics}
+        retention-days: ${EASY_DIAGNOSIS_METRICS_RETENTION_DAYS:30}
+        interval-ms: ${EASY_DIAGNOSIS_METRICS_PERSIST_INTERVAL_MS:60000}
+        max-storage-bytes: ${EASY_DIAGNOSIS_METRICS_HISTORY_MAX_BYTES:67108864}
+        max-series-bytes: ${EASY_DIAGNOSIS_METRICS_SEGMENT_MAX_BYTES:8388608}
+        max-series: ${EASY_DIAGNOSIS_METRICS_MAX_SERIES:512}
   features:
     # 能力级开关集中在这里，避免 Redis/Kafka/OSS 等可选依赖被误装配。
     redis: ${EASY_FEATURE_REDIS:true}
@@ -153,15 +175,6 @@ easy:
       history-segment-max-bytes: ${EASY_DIAGNOSIS_HISTORY_SEGMENT_MAX_BYTES:8388608}
       # 异步 JSONL 队列同时按条数和估算内存限流，避免慢盘时大量诊断对象滞留堆内存。
       pending-max-bytes: ${EASY_DIAGNOSIS_PENDING_MAX_BYTES:16777216}
-      # RRD 固定归档：1 分钟/24 小时、5 分钟/7 天、30 分钟/至少 30 天。
-      # 快照周期限制在 60~120 秒，以匹配 60 秒 step 和 180 秒 heartbeat，避免产生 UNKNOWN 空洞。
-      metrics-persist-interval-ms: ${EASY_DIAGNOSIS_METRICS_PERSIST_INTERVAL_MS:60000}
-      metrics-storage-dir: ${EASY_DIAGNOSIS_METRICS_STORAGE_DIR:${easy.monitor.diagnosis.storage-dir}/metrics}
-      metrics-retention-days: ${EASY_DIAGNOSIS_METRICS_RETENTION_DAYS:${easy.monitor.diagnosis.retention-days}}
-      metrics-history-max-bytes: ${EASY_DIAGNOSIS_METRICS_HISTORY_MAX_BYTES:67108864}
-      # 同时限制 series 数和单个 RRD 文件，防止标签基数失控。
-      metrics-max-series: ${EASY_DIAGNOSIS_METRICS_MAX_SERIES:512}
-      metrics-segment-max-bytes: ${EASY_DIAGNOSIS_METRICS_SEGMENT_MAX_BYTES:8388608}
       # 监控采样、RRD 写入和清理使用独立调度池，避免慢磁盘让 500ms 活跃操作采样失去时效。
       scheduler-pool-size: ${EASY_DIAGNOSIS_SCHEDULER_POOL_SIZE:2}
       # 显式开启兼容 MySQL 明细后才使用该异步队列；队列满时丢明细，不反压业务线程。

@@ -6,7 +6,7 @@ import com.laker.admin.infrastructure.id.EasyIdGenerator;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.message.local.entity.LocalMessage;
 import com.laker.admin.infrastructure.message.local.mapper.LocalMessageMapper;
-import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
+import com.laker.observability.metrics.BusinessMetrics;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +39,7 @@ public class LocalMessageDeliveryService {
     private final LocalMessageMapper messageMapper;
     private final ApplicationContext applicationContext;
     private final EasyJsonCodec jsonCodec;
-    private final EasyBusinessMetrics businessMetrics;
+    private final BusinessMetrics businessMetrics;
     private final Map<String, OperationDefinition> operations = new HashMap<>();
 
     @PostConstruct

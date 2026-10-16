@@ -4,7 +4,7 @@ import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
@@ -70,12 +70,12 @@ public class AssistantController {
     public SseEmitter streamUserChat(@Valid @RequestBody AssistantMessageRequest request) {
         SseEmitter emitter = new SseEmitter(runtimeProperties.getStreamTimeout().toMillis());
         AuthPrincipal principal = EasySecurityContext.getPrincipal();
-        String traceId = EasyTraceIdContext.getOrCreateTraceId();
+        String traceId = TraceIdContext.getOrCreateTraceId();
         OperationObservation.ContextSnapshot observationContext = operationObservation.captureContext();
         AssistantChatSseEventSink eventSink = new AssistantChatSseEventSink(emitter, traceId);
         AssistantUserStreamEventAdapter userEventAdapter = new AssistantUserStreamEventAdapter(eventSink);
         streamExecutor.execute(() -> {
-            EasyTraceIdContext.putTraceId(traceId);
+            TraceIdContext.putTraceId(traceId);
             EasySecurityContext.setPrincipal(principal);
             try {
                 try (OperationObservation.ContextBinding ignored = observationContext.bind()) {
@@ -94,7 +94,7 @@ public class AssistantController {
             } finally {
                 // 异步线程会复用，必须清理 ThreadLocal 上下文
                 EasySecurityContext.clear();
-                EasyTraceIdContext.clear();
+                TraceIdContext.clear();
             }
         });
         eventSink.startHeartbeat(heartbeatScheduler, runtimeProperties.getHeartbeatInterval());

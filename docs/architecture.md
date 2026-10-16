@@ -6,6 +6,7 @@ EasyNextAdmin 是单体优先的企业后台脚手架。后端按模块分层，
 
 ```text
 easy-next-admin
+├── easy-observability-spring-boot-starter  # 可独立发布的 Micrometer 指标与轻量 Trace
 ├── easy-next-admin-server
 │   ├── common          # 统一响应、异常、常量、工具
 │   ├── config          # Spring、MyBatis、WebMVC、OpenAPI、线程池等配置
@@ -340,7 +341,7 @@ Servlet 过滤器统一由 `EasyServletFilterConfig` 注册，过滤器类本身
 
 | 顺序 | 过滤器 | 作用 |
 | --- | --- | --- |
-| `TRACE` | `EasyTraceIdFilter` | 最先生成或接收 `X-Trace-Id`，写入响应头和 MDC |
+| `TRACE` | Starter `TraceIdFilter` | 最先生成或接收 `X-Trace-Id`，写入响应头和 MDC |
 | `WAF` | `WafFilter` | 写可配置安全响应头，并按配置处理 XSS / SQL 注入参数过滤 |
 | `CORS` | `EasyCorsFilter` | 按 `easy.web.cors` 白名单处理跨域和预检请求，避免认证过滤器拦截 OPTIONS |
 | `AUTH` | `EasyAuthFilter` | 仅对 `/api/*` 恢复认证上下文和用户 MDC |
@@ -507,7 +508,9 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 
 ## 轻量链路与慢入口
 
-项目只保留自研轻量 `X-Trace-Id` 和本地 Trace Tree，不内置 Micrometer/Brave tracing。HTTP 请求由 `EasyTraceIdFilter` 接收或生成链路号并写入响应头和 MDC；认证成功后 `EasyAuthFilter` 再把 `userId` 放入 MDC。异步线程池、Feign、RestClient 和 Kafka 生产端继续透传同一个链路号，Kafka 消费入口如果没有 traceId 会新建 traceId，日志通过 `logback.xml` 输出 `[user:%X{userId:-} trace:%X{traceId:-}]`。
+项目保留自研轻量 `X-Trace-Id` 和本地 Trace Tree；指标仍通过 Micrometer，框架 Observation 由 Starter 桥接进自研 Trace。Starter 的 `TraceIdFilter` 接收或生成链路号并写入响应头和 MDC；认证成功后 `EasyAuthFilter` 再把 `userId` 放入 MDC。异步线程池、Feign、RestClient 和 Kafka 生产端继续透传同一个链路号，Kafka 消费入口如果没有 traceId 会新建 traceId，日志通过 `logback.xml` 输出 `[user:%X{userId:-} trace:%X{traceId:-}]`。
+
+通用实现位于独立的 `easy-observability-spring-boot-starter`，发布坐标为 `com.laker.observability:easy-observability-spring-boot-starter`。它提供 `TraceContext`、`TraceIdContext`、`MdcContext`、`TraceBlock`、显式 `@TraceSpan`、`BusinessMetrics`、Micrometer Observation 桥接、RRD4J 指标历史、Slow/Error 与慢错 Trace JSONL 持久化，以及打包在 JAR 内的 `/easy-observability/` 独立监控页和只读 API。框架扩展点覆盖 HTTP Filter/Observation、MyBatis Interceptor、Kafka Producer/Consumer Interceptor、Redis/Lettuce Observation、Feign RequestInterceptor、Spring 事务监听器、Spring 6.2 `@Scheduled` Observation 和 Spring 线程池指标绑定。操作历史包含线程 ID、CPU 时间和线程分配字节数；宿主仅需保留 JFR、线程现场、脱敏策略及业务专用数据。页面及 API 应由宿主保护；EasyNextAdmin 使用 `ObservabilityAccessPolicy` 对接运行诊断权限。配置统一位于 `easy.observability.*` 前缀。
 
 慢入口、事务、SQL 和远程调用的阈值集中放在 `easy.trace`：
 
@@ -525,7 +528,7 @@ easy:
     remote-slow-threshold-ms: 3000
 ```
 
-`EasyHttpTraceInterceptor`、`ScheduleJobLogCallback` 和 `EasyKafkaConsumerSlowAspect` 负责创建入口 root span；Service 节点通过显式 `@EasyTrace` 或 `TraceCodeBlock` 接入，不再自动拦截所有 Service 方法；Mapper 节点由 MyBatis-Plus 插件统一采集。`EasyMybatisTraceInterceptor` 继承 MyBatis-Plus 插件链，数据权限、乐观锁和分页仍按 `InnerInterceptor` 配置顺序执行；它只在 Executor 查询和更新外层增加 `Mapper` span，tag 只保留 `SqlCommandType`。慢调用或错误的操作样本会额外保存移除字符串、数字字面量后的归一化 SQL，不记录绑定参数。span 支持 `tag`，适合区分同一个方法下的不同业务对象、路由、任务编码或消息 topic；连续重复的叶子节点会在渲染时聚合为 `count/total/min/max`，非连续重复节点保持原顺序。慢入口超过阈值时用 WARN 打印 incident 摘要；错误堆栈和 Trace Tree 保存在有界本地 incident 记录中，不重复写入应用日志。`max-depth` 限制树深度，root 深度为 1；达到深度或节点上限都会记录 `TRACE_TRUNCATED`，避免把不完整树当作完整结果。`min-node-cost-ms` 会在子节点结束时丢弃过小节点，只保留有排查价值的分支。入口慢阈值小于等于 0 表示关闭对应入口的慢日志和 Trace Tree 采集。
+Starter 的 `ObservationTraceHandler` 通过 Micrometer Observation 接入 HTTP、Kafka、HTTP client、JDBC 和事务请求，MyBatis 插件记录 Mapper 节点；线程池使用 `TraceContextTaskDecorator` 传播 Trace ID 与 MDC。Service 节点通过显式 `@TraceSpan` 或 `TraceBlock` 接入，不自动拦截所有 Service 方法。EasyNextAdmin 的 `EasyHttpDiagnosticInterceptor`、`EasyKafkaConsumerSlowAspect` 和 `EasyMybatisDiagnosticInterceptor` 只保留 JFR、异步 Servlet 生命周期和本地诊断存储，不重复记录通用指标；数据权限、乐观锁和分页仍由宿主 MyBatis-Plus 插件链负责。Starter 不保存 SQL 绑定参数、HTTP 请求体或 Kafka 消息体。连续重复的叶子节点会在渲染时聚合为 `count/total/min/max`，慢/错误样本和调用树通过有界本地记录保存。`max-depth` 限制树深度，达到深度或节点上限会记录 `TRACE_TRUNCATED`。
 `easy.trace.enabled=false` 会关闭轻量 Trace Tree 的采集和打印，但不影响 `X-Trace-Id` 响应头、MDC 和审计表中的链路号。
 
 ## API 访问日志和标准指标
@@ -533,8 +536,8 @@ easy:
 API 访问日志与指标分开维护：
 
 - `@EasyApiAccessLog` / `EasyApiAccessLogAspect` 只负责写入 `audit_api_log`，用于按单次请求排查“谁、何时、从哪里、请求了什么、耗时多少、是否失败”。该表属于审计和排障数据，不作为标准指标后端。
-- `EasyBusinessMetrics` 是业务指标统一入口，基于 Micrometer 记录 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用 `controller/action/result`、`target/method/result`、`job/result`、`operation/status` 这类低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
-- `RemoteCallMetricsAspect` 负责 Feign、client 和 remote 包装类的远程调用指标；全量调用进入 Micrometer/RRD4J 聚合，慢调用或失败调用进入有界本地 Incident。旧版远程调用 MySQL 明细默认关闭，显式兼容开启后才异步写入，且不参与全量统计。
+- `BusinessMetrics` 是业务指标统一入口，基于 Micrometer 记录 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用 `controller/action/result`、`target/method/result`、`job/result`、`operation/status` 这类低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
+- Starter 通过 HTTP client Observation 接入远程调用指标和 Trace；EasyNextAdmin 的 `RemoteCallDiagnosticAspect` 仅为兼容慢/失败调用 MySQL 明细，不再额外记一份 Micrometer 指标或 Trace span。明细默认关闭，显式开启后异步写入，不参与全量统计。
 - RRD4J 是默认的本地指标历史存储，按固定行数循环覆盖并保存多精度归档；InfluxDB 仍是可选外部指标后端。应用侧始终通过 Micrometer 建模，后续接入 Prometheus 或 OTLP 时只新增 registry/exporter，不改业务埋点。
 
 脱敏分层：

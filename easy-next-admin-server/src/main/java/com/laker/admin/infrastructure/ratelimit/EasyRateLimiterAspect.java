@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.ratelimit;
 
-import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
+import com.laker.observability.metrics.BusinessMetrics;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.web.context.EasyRequestContext;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class EasyRateLimiterAspect {
 
     private final EasyRateLimiterFactory easyRateLimiterFactory;
-    private final EasyBusinessMetrics businessMetrics;
+    private final BusinessMetrics businessMetrics;
 
     @Around("@annotation(rateLimit)")
     public Object handleRateLimit(ProceedingJoinPoint joinPoint, EasyRateLimit rateLimit) throws Throwable {

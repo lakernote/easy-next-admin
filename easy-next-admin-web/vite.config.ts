@@ -28,6 +28,10 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true
         },
+        '/easy-observability': {
+          target: apiProxyTarget,
+          changeOrigin: true
+        },
         '/swagger-ui.html': {
           target: apiProxyTarget,
           changeOrigin: true

@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -147,7 +147,7 @@ public class SysFileController {
 
     private void recordDownloadAudit(Long fileId, SysFile sysFile, boolean success, long costMs, String errorMessage) {
         AuditApiLog auditLog = new AuditApiLog();
-        auditLog.setTraceId(EasyTraceIdContext.getOrCreateTraceId());
+        auditLog.setTraceId(TraceIdContext.getOrCreateTraceId());
         auditLog.setUserId(EasySecurityContext.getUserId());
         auditLog.setIp(EasyRequestContext.currentRemoteIp());
         auditLog.setClient(EasyRequestContext.currentUserAgentSummary());

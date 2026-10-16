@@ -2,7 +2,7 @@ package com.laker.admin.module.assistant.context;
 
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.exception.EasyAuthException;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import org.junit.jupiter.api.AfterEach;
@@ -38,7 +38,7 @@ class AssistantContextBuilderTest {
 
     @Test
     void shouldBuildStableRequestContextFromPrincipalMessageAndClock() {
-        EasyTraceIdContext.putTraceId("trace-fixed-001");
+        TraceIdContext.putTraceId("trace-fixed-001");
         AssistantRequestContext context = contextBuilder.build(
                 principal(),
                 " \r\n请分别处理：\r\n  1. 查询待办\r\n  2. 今天下午请假\t ",

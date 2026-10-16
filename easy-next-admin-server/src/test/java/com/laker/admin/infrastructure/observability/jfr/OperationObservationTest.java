@@ -1,7 +1,7 @@
 package com.laker.admin.infrastructure.observability.jfr;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
 import io.micrometer.core.instrument.Meter;
@@ -36,7 +36,7 @@ class OperationObservationTest {
 
     @AfterEach
     void clearTraceId() {
-        EasyTraceIdContext.clear();
+        TraceIdContext.clear();
     }
 
     @Test
@@ -178,7 +178,7 @@ class OperationObservationTest {
         config.getTrace().setRemoteSlowThresholdMs(1);
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("slow-remote-jsonl");
+        TraceIdContext.putTraceId("slow-remote-jsonl");
 
         OperationObservation.Scope remote =
                 observation.start("REMOTE", "PaymentClient#query", "outbound", false);
@@ -212,12 +212,12 @@ class OperationObservationTest {
         OperationObservation observation = new OperationObservation(store, config, registry);
 
         OperationObservation.Scope sql = observation.start("SQL", "DemoMapper#query", "SELECT demo", false);
-        String generatedTraceId = EasyTraceIdContext.currentTraceId();
+        String generatedTraceId = TraceIdContext.currentTraceId();
         java.util.concurrent.locks.LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(5));
         sql.finish("success");
 
         assertThat(generatedTraceId).isNotBlank();
-        assertThat(EasyTraceIdContext.currentTraceId()).isNull();
+        assertThat(TraceIdContext.currentTraceId()).isNull();
         ArgumentCaptor<RecentTraceStore.OperationSample> operation =
                 ArgumentCaptor.forClass(RecentTraceStore.OperationSample.class);
         verify(store).recordOperation(operation.capture());
@@ -279,7 +279,7 @@ class OperationObservationTest {
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-summary");
+        TraceIdContext.putTraceId("trace-summary");
 
         OperationObservation.Scope root = observation.start("HTTP", "Demo#query", "GET /query", true);
         OperationObservation.Scope firstSql = observation.start("SQL", "DemoMapper#first", "SELECT", false);
@@ -309,7 +309,7 @@ class OperationObservationTest {
         config.getTrace().setTransactionSlowThresholdMs(1);
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-primary-cause");
+        TraceIdContext.putTraceId("trace-primary-cause");
 
         OperationObservation.Scope root = observation.start("HTTP", "OrderController#create", "POST /orders", true);
         OperationObservation.Scope transaction = observation.start(
@@ -339,7 +339,7 @@ class OperationObservationTest {
         config.getTrace().setTransactionSlowThresholdMs(1);
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-mixed-causes");
+        TraceIdContext.putTraceId("trace-mixed-causes");
 
         OperationObservation.Scope root = observation.start("HTTP", "OrderController#create", "POST /orders", true);
         OperationObservation.Scope transaction = observation.start("TRANSACTION", "OrderService#create", "", false);
@@ -362,7 +362,7 @@ class OperationObservationTest {
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-worker-context");
+        TraceIdContext.putTraceId("trace-worker-context");
 
         OperationObservation.Scope root = observation.start("HTTP", "AssistantController#streamUserChat",
                 "POST /api/assistant/chat/messages/stream", true);
@@ -371,14 +371,14 @@ class OperationObservationTest {
         CountDownLatch workerStarted = new CountDownLatch(1);
         try {
             Future<?> worker = executor.submit(() -> {
-                EasyTraceIdContext.putTraceId("trace-worker-context");
+                TraceIdContext.putTraceId("trace-worker-context");
                 workerStarted.countDown();
                 try (OperationObservation.ContextBinding ignored = context.bind()) {
                     burnCpu();
                     OperationObservation.Scope sql = observation.start("SQL", "AssistantMapper#load", "SELECT", false);
                     sql.finish("success");
                 } finally {
-                    EasyTraceIdContext.clear();
+                    TraceIdContext.clear();
                 }
             });
             assertThat(workerStarted.await(2, TimeUnit.SECONDS)).isTrue();
@@ -408,7 +408,7 @@ class OperationObservationTest {
         config.getTrace().setSqlSlowThresholdMs(60_000);
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-concurrent-children");
+        TraceIdContext.putTraceId("trace-concurrent-children");
 
         OperationObservation.Scope root = observation.start("HTTP", "Demo#parallel", "GET /parallel", true);
         OperationObservation.ContextSnapshot context = observation.captureContext();
@@ -422,7 +422,7 @@ class OperationObservationTest {
             for (int index = 0; index < workerCount; index++) {
                 int childIndex = index;
                 workers.add(executor.submit(() -> {
-                    EasyTraceIdContext.putTraceId("trace-concurrent-children");
+                    TraceIdContext.putTraceId("trace-concurrent-children");
                     workersReady.countDown();
                     try {
                         if (!startWorkers.await(2, TimeUnit.SECONDS)) throw new AssertionError("timed out");
@@ -432,7 +432,7 @@ class OperationObservationTest {
                             sql.finish("success");
                         }
                     } finally {
-                        EasyTraceIdContext.clear();
+                        TraceIdContext.clear();
                     }
                     return null;
                 }));
@@ -461,7 +461,7 @@ class OperationObservationTest {
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         ActiveOperationRegistry registry = new ActiveOperationRegistry(new SimpleMeterRegistry(), config);
         OperationObservation observation = new OperationObservation(store, config, registry);
-        EasyTraceIdContext.putTraceId("trace-parallel-resource");
+        TraceIdContext.putTraceId("trace-parallel-resource");
         OperationObservation.Scope root = observation.start(
                 "HTTP", "Demo#parallelResource", "GET /parallel-resource", true);
         OperationObservation.ContextSnapshot context = observation.captureContext();
@@ -506,7 +506,7 @@ class OperationObservationTest {
         CountDownLatch releaseChildren = new CountDownLatch(1);
 
         Runnable request = () -> {
-            EasyTraceIdContext.putTraceId("client-reused-trace");
+            TraceIdContext.putTraceId("client-reused-trace");
             OperationObservation.Scope root = observation.start("HTTP", Thread.currentThread().getName(), "GET /same", true);
             rootsStarted.countDown();
             try {
@@ -518,7 +518,7 @@ class OperationObservationTest {
                 Thread.currentThread().interrupt();
                 throw new AssertionError(exception);
             } finally {
-                EasyTraceIdContext.clear();
+                TraceIdContext.clear();
             }
         };
         Thread first = new Thread(request, "request-one");

@@ -5,7 +5,6 @@ import com.laker.admin.infrastructure.security.filter.EasyAuthFilter;
 import com.laker.admin.infrastructure.security.service.EasyAuthService;
 import com.laker.admin.infrastructure.web.filter.EasyCorsFilter;
 import com.laker.admin.infrastructure.web.filter.EasyFilterOrders;
-import com.laker.admin.infrastructure.web.filter.EasyTraceIdFilter;
 import com.laker.admin.infrastructure.web.waf.WafFilter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
@@ -20,11 +19,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class EasyServletFilterConfig {
-
-    @Bean
-    public FilterRegistrationBean<EasyTraceIdFilter> easyTraceFilterRegistration() {
-        return register(EasyFilterOrders.TRACE, new EasyTraceIdFilter());
-    }
 
     @Bean
     public FilterRegistrationBean<WafFilter> easyWafFilterRegistration(EasyNextAdminConfig easyNextAdminConfig) {

@@ -2,9 +2,13 @@ package com.laker.admin.config.web;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.security.interceptor.EasyPermissionInterceptor;
-import com.laker.admin.infrastructure.web.interceptor.EasyHttpTraceInterceptor;
+import com.laker.admin.infrastructure.web.interceptor.EasyHttpDiagnosticInterceptor;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
+import com.laker.observability.trace.TraceHistory;
+import com.laker.observability.web.ObservabilityAccessPolicy;
+import com.laker.admin.infrastructure.security.context.EasySecurityContext;
+import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,29 +23,38 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
 
     private static final String API_PATH_PATTERN = "/api/**";
-    private static final int HTTP_TRACE_INTERCEPTOR_ORDER = 0;
+    private static final int HTTP_DIAGNOSTIC_INTERCEPTOR_ORDER = 0;
     private static final int PERMISSION_INTERCEPTOR_ORDER = 1;
 
     private final EasyNextAdminConfig easyNextAdminConfig;
     private final EasyPermissionInterceptor easyPermissionInterceptor;
-    private final ObjectProvider<EasyHttpTraceInterceptor> httpTraceInterceptorProvider;
+    private final ObjectProvider<EasyHttpDiagnosticInterceptor> httpDiagnosticInterceptorProvider;
 
     @Bean
     @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
-    public EasyHttpTraceInterceptor easyHttpTraceInterceptor(
-            RecentTraceStore recentTraceStore, OperationObservation operationObservation) {
-        return new EasyHttpTraceInterceptor(
+    public EasyHttpDiagnosticInterceptor easyHttpDiagnosticInterceptor(
+            RecentTraceStore recentTraceStore, OperationObservation operationObservation, TraceHistory traceHistory) {
+        return new EasyHttpDiagnosticInterceptor(
                 easyNextAdminConfig.getTrace().isEnabled(),
                 easyNextAdminConfig.getTrace().getHttpSlowThresholdMs(),
                 easyNextAdminConfig.getTrace().getMaxDepth(),
-                easyNextAdminConfig.getTrace().getMinNodeCostMs(), recentTraceStore, operationObservation);
+                easyNextAdminConfig.getTrace().getMinNodeCostMs(), recentTraceStore, operationObservation, traceHistory);
+    }
+
+    @Bean
+    public ObservabilityAccessPolicy observabilityAccessPolicy() {
+        return () -> {
+            var principal = EasySecurityContext.getPrincipal();
+            return principal != null && (principal.isSuperAdmin()
+                    || principal.hasPermission(EasyPermissions.Monitor.DIAGNOSIS_VIEW));
+        };
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        httpTraceInterceptorProvider.ifAvailable(interceptor -> registry.addInterceptor(interceptor)
+        httpDiagnosticInterceptorProvider.ifAvailable(interceptor -> registry.addInterceptor(interceptor)
                 .addPathPatterns(API_PATH_PATTERN)
-                .order(HTTP_TRACE_INTERCEPTOR_ORDER));
+                .order(HTTP_DIAGNOSTIC_INTERCEPTOR_ORDER));
         registry.addInterceptor(easyPermissionInterceptor)
                 .addPathPatterns(API_PATH_PATTERN)
                 .order(PERMISSION_INTERCEPTOR_ORDER);
@@ -49,7 +62,7 @@ public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
 
     @Override
     public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
-        httpTraceInterceptorProvider.ifAvailable(interceptor -> configurer.registerCallableInterceptors(
+        httpDiagnosticInterceptorProvider.ifAvailable(interceptor -> configurer.registerCallableInterceptors(
                 interceptor.callableTraceInterceptor()));
     }
 }

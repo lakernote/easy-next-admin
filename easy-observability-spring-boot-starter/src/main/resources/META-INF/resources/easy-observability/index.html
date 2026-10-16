@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Easy Observability</title>
+  <link rel="stylesheet" href="/easy-observability/assets/dashboard.css">
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div><p class="eyebrow">SPRING BOOT OBSERVABILITY</p><h1>Easy Observability</h1><p class="subtitle">当前应用的 Micrometer 指标与最近 Trace</p></div>
+      <button id="refresh" class="button" type="button">刷新</button>
+    </header>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <nav class="tabs" aria-label="监控内容">
+      <button class="tab active" data-tab="traces" type="button">Trace</button>
+      <button class="tab" data-tab="slow" type="button">Slow</button>
+      <button class="tab" data-tab="errors" type="button">Errors</button>
+      <button class="tab" data-tab="metrics" type="button">Metrics</button>
+      <button class="tab" data-tab="history" type="button">指标趋势</button>
+    </nav>
+    <section id="trace-panel" class="panel" data-panel="traces">
+      <div class="section-heading"><div><h2>最近请求</h2><p>显示当前实例最近完成的请求。点击一行查看调用树。</p></div><span id="trace-count" class="count"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>结果</th><th>请求</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="trace-rows"></tbody></table></div>
+      <div id="trace-empty" class="empty" hidden>暂时没有 Trace。接入 HTTP Trace 扩展后，请求完成时会显示在这里。</div>
+    </section>
+    <section id="slow-panel" class="panel" data-panel="slow" hidden>
+      <div class="section-heading"><div><h2>慢 Trace</h2><p>每行是一条完整入口 Trace；点击后查看数据库、Redis、远程调用和事务等下游明细。</p></div><span id="slow-count" class="count"></span></div>
+      <div id="slow-sources" class="source-filters" role="group" aria-label="按 Trace 入口筛选"></div>
+      <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="slow-rows"></tbody></table></div>
+      <div id="slow-empty" class="empty" hidden>暂时没有慢 Trace。</div>
+    </section>
+    <section id="error-panel" class="panel" data-panel="errors" hidden>
+      <div class="section-heading"><div><h2>错误 Trace</h2><p>每行是一条失败入口 Trace；点击后查看根因和同一 Trace 下的完整调用明细。</p></div><span id="error-count" class="count"></span></div>
+      <div id="error-sources" class="source-filters" role="group" aria-label="按 Trace 入口筛选"></div>
+      <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>错误</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="error-rows"></tbody></table></div>
+      <div id="error-empty" class="empty" hidden>暂时没有错误 Trace。</div>
+    </section>
+    <section id="metric-panel" class="panel" data-panel="metrics" hidden>
+      <div class="section-heading"><div><h2>Micrometer 指标</h2><p>读取当前 MeterRegistry 中的指标及其标签。</p></div><span id="metric-count" class="count"></span></div>
+      <label class="search"><span>筛选</span><input id="metric-search" type="search" placeholder="输入指标名或标签"></label>
+      <div class="table-wrap"><table><thead><tr><th>指标</th><th>类型</th><th>标签</th><th>当前值</th></tr></thead><tbody id="metric-rows"></tbody></table></div>
+      <div id="metric-empty" class="empty" hidden>没有匹配的 Micrometer 指标。</div>
+    </section>
+    <section id="history-panel" class="panel" data-panel="history" hidden>
+      <div class="section-heading"><div><h2>指标历史趋势</h2><p>选择多条指标并排比较；每条曲线使用自己的刻度，避免不同单位相互干扰。</p></div><span id="history-storage" class="count"></span></div>
+      <div class="history-toolbar">
+        <label class="search history-search"><span>筛选指标</span><input id="history-search" type="search" placeholder="指标名称或标签"></label>
+        <label class="search"><span>时间范围</span><select id="history-window"><option value="1">最近 1 小时</option><option value="6">最近 6 小时</option><option value="24" selected>最近 24 小时</option><option value="168">最近 7 天</option><option value="720">最近 30 天</option></select></label>
+        <span id="history-selection-count" class="count">已选 0 / 4</span>
+      </div>
+      <div id="history-series-list" class="history-series-list" aria-label="可选指标系列"></div>
+      <div id="history-charts" class="history-chart-grid"></div>
+      <div id="history-empty" class="empty">勾选指标系列后查看历史趋势。首次采集需要等待一个采集周期。</div>
+    </section>
+  </main>
+  <dialog id="trace-dialog" class="dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">TRACE DETAIL</p><h2 id="dialog-title">Trace</h2></div><button class="icon-button" aria-label="关闭" value="close">×</button></div><pre id="trace-tree"></pre></form></dialog>
+  <script type="module" src="/easy-observability/assets/dashboard.js"></script>
+</body>
+</html>

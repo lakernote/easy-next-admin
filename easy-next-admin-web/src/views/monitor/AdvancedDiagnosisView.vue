@@ -7,6 +7,7 @@
       </div>
       <div class="advanced-hero-actions">
         <span>页面刷新 {{ refreshedTime }}</span>
+        <el-button plain @click="openStandaloneDashboard">独立监控页</el-button>
         <el-button type="primary" :icon="Refresh" :loading="loading" @click="refreshAdvanced">刷新</el-button>
       </div>
     </div>
@@ -255,6 +256,9 @@ const jfrAnalysis = ref<JfrAnalysis>()
 const jfrAnalysisTab = ref('operations')
 const traceJfrLoading = ref(false)
 const traceJfrContext = ref<TraceJfrContext>()
+function openStandaloneDashboard() {
+  window.open('/easy-observability/', '_blank', 'noopener,noreferrer')
+}
 const jvmThreads = ref<ThreadDump>()
 const jvmDeadlocks = ref<DeadlockReport>()
 const runtimePools = ref<PoolDiagnostics>()

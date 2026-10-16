@@ -1,7 +1,6 @@
 package com.laker.admin.config.thread;
 
-import com.laker.admin.infrastructure.observability.trace.EasyMdcContext;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
+import com.laker.observability.trace.TraceContextTaskDecorator;
 import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +10,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -51,7 +49,7 @@ public class EasyThreadPoolConfig {
         threadPoolTaskScheduler.setWaitForTasksToCompleteOnShutdown(scheduler.isWaitForTasksToCompleteOnShutdown());
         threadPoolTaskScheduler.setAwaitTerminationSeconds(scheduler.getAwaitTerminationSeconds());
         threadPoolTaskScheduler.setRejectedExecutionHandler(new CustomRejectedExecutionHandler());
-        threadPoolTaskScheduler.setTaskDecorator(runnable -> wrapWithTrace(runnable, EasyMdcContext.copy()));
+        threadPoolTaskScheduler.setTaskDecorator(new TraceContextTaskDecorator());
         return threadPoolTaskScheduler;
     }
 
@@ -69,7 +67,7 @@ public class EasyThreadPoolConfig {
         threadPoolTaskExecutor.setWaitForTasksToCompleteOnShutdown(business.isWaitForTasksToCompleteOnShutdown());
         threadPoolTaskExecutor.setAwaitTerminationSeconds(business.getAwaitTerminationSeconds());
         threadPoolTaskExecutor.setRejectedExecutionHandler(new CustomRejectedExecutionHandler());
-        threadPoolTaskExecutor.setTaskDecorator(runnable -> wrapWithTrace(runnable, EasyMdcContext.copy()));
+        threadPoolTaskExecutor.setTaskDecorator(new TraceContextTaskDecorator());
         return threadPoolTaskExecutor;
     }
 
@@ -91,10 +89,4 @@ public class EasyThreadPoolConfig {
         }
     }
 
-    private static Runnable wrapWithTrace(Runnable runnable, Map<String, String> contextMap) {
-        return EasyMdcContext.wrap(() -> {
-            EasyTraceIdContext.getOrCreateTraceId();
-            runnable.run();
-        }, contextMap);
-    }
 }

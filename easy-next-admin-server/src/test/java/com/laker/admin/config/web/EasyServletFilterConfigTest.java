@@ -4,7 +4,6 @@ import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.security.filter.EasyAuthFilter;
 import com.laker.admin.infrastructure.web.filter.EasyCorsFilter;
 import com.laker.admin.infrastructure.web.filter.EasyFilterOrders;
-import com.laker.admin.infrastructure.web.filter.EasyTraceIdFilter;
 import com.laker.admin.infrastructure.web.waf.WafFilter;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
@@ -20,7 +19,6 @@ class EasyServletFilterConfigTest {
     void shouldRegisterServletFiltersWithEnumMetadata() {
         EasyNextAdminConfig easyNextAdminConfig = new EasyNextAdminConfig();
 
-        assertRegistration(config.easyTraceFilterRegistration(), EasyFilterOrders.TRACE, EasyTraceIdFilter.class);
         assertRegistration(config.easyWafFilterRegistration(easyNextAdminConfig), EasyFilterOrders.WAF, WafFilter.class);
         assertRegistration(config.easyCorsFilterRegistration(easyNextAdminConfig), EasyFilterOrders.CORS, EasyCorsFilter.class);
         assertRegistration(config.easyAuthFilterRegistration(null), EasyFilterOrders.AUTH, EasyAuthFilter.class);

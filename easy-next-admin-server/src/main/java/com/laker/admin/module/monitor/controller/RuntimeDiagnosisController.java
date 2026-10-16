@@ -8,7 +8,8 @@ import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.LocalJfrRecorder;
 import com.laker.admin.infrastructure.observability.jfr.ActiveOperationRegistry;
-import com.laker.admin.infrastructure.observability.metrics.LocalMetricTimeSeriesStore;
+import com.laker.observability.metrics.history.MetricHistoryStore;
+import com.laker.observability.metrics.history.MetricHistoryPoint;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditErrorLogView;
@@ -50,7 +51,7 @@ public class RuntimeDiagnosisController {
     private static final int SUMMARY_SAMPLE_LIMIT = 50_000;
     private final MeterRegistry meterRegistry;
     private final RecentTraceStore recentTraceStore;
-    private final LocalMetricTimeSeriesStore metricTimeSeriesStore;
+    private final MetricHistoryStore metricTimeSeriesStore;
     private final IAuditErrorLogService errorLogService;
     private final AuditVisibilitySupport auditVisibilitySupport;
     private final long slowThresholdMs;
@@ -64,7 +65,7 @@ public class RuntimeDiagnosisController {
     private final ObjectMapper objectMapper;
 
     public RuntimeDiagnosisController(MeterRegistry meterRegistry, RecentTraceStore recentTraceStore,
-                                      LocalMetricTimeSeriesStore metricTimeSeriesStore,
+                                      MetricHistoryStore metricTimeSeriesStore,
                                       IAuditErrorLogService errorLogService,
                                       AuditVisibilitySupport auditVisibilitySupport,
                                       EasyNextAdminConfig config, LocalJfrRecorder jfrRecorder,
@@ -103,7 +104,7 @@ public class RuntimeDiagnosisController {
                 recentTraceStore.queueCapacity(), recentTraceStore.pendingBytes(), recentTraceStore.pendingMaxBytes(),
                 recentTraceStore.droppedWrites(), recentTraceStore.byteBudgetDroppedWrites(),
                 historyBytes >= Math.round(recentTraceStore.maxHistoryBytes() * 0.9));
-        LocalMetricTimeSeriesStore.StorageStatus metricsStorageStatus = metricTimeSeriesStore.status();
+        MetricHistoryStore.StorageStatus metricsStorageStatus = metricTimeSeriesStore.status();
         return Response.ok(new DiagnosisSummary(status, incidentSummary.sampledAt().toString(), 60, activeTotal, active,
                 incidentSummary.incidents(), slow, errors, recentTraceStore.retentionDays(), historyBytes,
                 jfrStatus.completedFiles(), jfrStatus.totalBytes(), Map.of(
@@ -142,20 +143,21 @@ public class RuntimeDiagnosisController {
 
     @GetMapping("/metrics/history")
     @Operation(summary = "Metrics 历史", description = "按本地落盘的 Micrometer 快照读取 30 天内历史样本。")
-    public Response<List<RecentTraceStore.MetricHistoryPoint>> metricHistory(@RequestParam String name,
+    public Response<List<MetricHistoryPoint>> metricHistory(@RequestParam String name,
                                                                              @RequestParam(required = false) String tags,
                                                                              @RequestParam(defaultValue = "50000") int limit) {
         Map<String, String> tagFilter = Map.of();
         try { if (tags != null && !tags.isBlank()) tagFilter = objectMapper.readValue(tags, new TypeReference<>() { }); }
         catch (Exception exception) { return Response.ok(List.of()); }
         int safeLimit = clamp(limit, 50000);
-        List<RecentTraceStore.MetricHistoryPoint> current = metricTimeSeriesStore.metricHistory(
+        List<MetricHistoryPoint> current = metricTimeSeriesStore.metricHistory(
                 name, tagFilter, safeLimit);
         // RRD4J is the canonical store. Avoid scanning the bounded incident JSONL whenever the requested series
         // already exists there; the fallback is only for data written by the pre-RRD local-history prototype.
         if (!current.isEmpty()) return Response.ok(current);
-        List<RecentTraceStore.MetricHistoryPoint> legacy = recentTraceStore.metricHistory(
-                name, tagFilter, safeLimit);
+        List<MetricHistoryPoint> legacy = recentTraceStore.metricHistory(name, tagFilter, safeLimit).stream()
+                .map(point -> new MetricHistoryPoint(point.capturedAt(), point.tags(), point.measurements()))
+                .toList();
         return Response.ok(legacy);
     }
 
@@ -868,7 +870,7 @@ public class RuntimeDiagnosisController {
                 meter.getId().getBaseUnit(), meter.getId().getDescription(), tags, measurements);
     }
 
-    private static MetricView historicalMetricView(LocalMetricTimeSeriesStore.MetricSeriesDescriptor series) {
+    private static MetricView historicalMetricView(MetricHistoryStore.MetricSeriesDescriptor series) {
         return new MetricView(series.name(), "RRD4J_HISTORY", null,
                 "本地 RRD4J 历史系列；当前进程尚未产生新样本", series.tags(), Map.of());
     }
@@ -891,7 +893,7 @@ public class RuntimeDiagnosisController {
                                    int retentionDays, long historyBytes, int jfrFiles, long jfrBytes,
                                    Map<String, Long> thresholdsMs, LocalJfrRecorder.RecorderStatus jfr,
                                    StorageStatus storage,
-                                   LocalMetricTimeSeriesStore.StorageStatus metricsStorage,
+                                   MetricHistoryStore.StorageStatus metricsStorage,
                                    boolean summaryTruncated, int summarySampleLimit) { }
     public record StorageStatus(String oldestSegmentDate, long coverageDays, int retentionDays,
                                 long historyBytes, long maxHistoryBytes, long pendingWrites, int queueCapacity,

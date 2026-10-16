@@ -2,13 +2,13 @@ package com.laker.admin.module.schedule.core.impl;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.admin.infrastructure.observability.metrics.EasyBusinessMetrics;
-import com.laker.admin.infrastructure.observability.trace.BoundedThrowableFormatter;
-import com.laker.admin.infrastructure.observability.trace.EasyTraceIdContext;
-import com.laker.admin.infrastructure.observability.trace.SpanType;
-import com.laker.admin.infrastructure.observability.trace.TraceContext;
+import com.laker.observability.metrics.BusinessMetrics;
+import com.laker.observability.trace.BoundedThrowableFormatter;
+import com.laker.observability.trace.TraceIdContext;
+import com.laker.observability.trace.SpanKind;
+import com.laker.observability.trace.TraceContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
-import com.laker.admin.infrastructure.observability.trace.ObservationSuppression;
+import com.laker.observability.trace.ObservationSuppression;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import com.laker.admin.module.schedule.core.ScheduleJobCallback;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
@@ -34,7 +34,7 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
     private final ThreadLocal<Throwable> exceptionThreadLocal = new ThreadLocal<>();
     private final IScheduleJobLogService scheduleJobLogService;
     private final EasyNextAdminConfig easyNextAdminConfig;
-    private final EasyBusinessMetrics businessMetrics;
+    private final BusinessMetrics businessMetrics;
     private final OperationObservation operationObservation;
     private final RecentTraceStore recentTraceStore;
     private final ThreadLocal<OperationObservation.Scope> operationScope = new ThreadLocal<>();
@@ -42,7 +42,7 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
     @Autowired
     public ScheduleJobLogCallback(IScheduleJobLogService scheduleJobLogService,
                                   EasyNextAdminConfig easyNextAdminConfig,
-                                  EasyBusinessMetrics businessMetrics,
+                                  BusinessMetrics businessMetrics,
                                   OperationObservation operationObservation,
                                   RecentTraceStore recentTraceStore) {
         this.scheduleJobLogService = scheduleJobLogService;
@@ -54,14 +54,14 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
 
     public ScheduleJobLogCallback(IScheduleJobLogService scheduleJobLogService,
                                   EasyNextAdminConfig easyNextAdminConfig,
-                                  EasyBusinessMetrics businessMetrics) {
+                                  BusinessMetrics businessMetrics) {
         this(scheduleJobLogService, easyNextAdminConfig, businessMetrics, null, null);
     }
 
     @Override
     public void start(ScheduleJobDefinition jobDefinition) {
         exceptionThreadLocal.remove();
-        String traceId = EasyTraceIdContext.getOrCreateTraceId();
+        String traceId = TraceIdContext.getOrCreateTraceId();
         // 每次执行先落一条日志，异常和结束回调基于 ThreadLocal 回填状态与耗时。
         ScheduleJobLog jobLog = new ScheduleJobLog();
         jobLog.setStartTime(LocalDateTime.now());
@@ -88,7 +88,7 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
         }
         if (monitoringEnabled && easyNextAdminConfig.getTrace().isEnabled()) {
             try {
-                TraceContext.startRoot("ScheduleJob", SpanType.Schedule,
+                TraceContext.startRoot("ScheduleJob", SpanKind.SCHEDULE,
                         "code=%s,name=%s".formatted(jobDefinition.getJobCode(), jobDefinition.getJobName()),
                         easyNextAdminConfig.getTrace().getMaxDepth(),
                         easyNextAdminConfig.getTrace().getMinNodeCostMs());

@@ -21,6 +21,7 @@
     <description>Spring Boot 3 + Vue 3 企业后台脚手架</description>
 
     <modules>
+        <module>easy-observability-spring-boot-starter</module>
         <module>easy-next-admin-server</module>
     </modules>
 
@@ -41,6 +42,7 @@
         <spring-ai.version>1.1.8</spring-ai.version>
         <lombok.version>1.18.30</lombok.version>
         <org.mapstruct.version>1.6.3</org.mapstruct.version>
+        <observability.version>0.1.0-alpha.0</observability.version>
     </properties>
 
     <dependencyManagement>

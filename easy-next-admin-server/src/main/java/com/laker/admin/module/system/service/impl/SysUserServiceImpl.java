@@ -7,8 +7,8 @@ import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.admin.infrastructure.observability.trace.EasyTrace;
-import com.laker.admin.infrastructure.observability.trace.SpanType;
+import com.laker.observability.trace.TraceSpan;
+import com.laker.observability.trace.SpanKind;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.datascope.context.EasyDataScopeContext;
 import com.laker.admin.infrastructure.security.service.PermissionVersionService;
@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
  * @since 2021-08-05
  */
 @Service
-@EasyTrace(spanType = SpanType.Service)
+@TraceSpan(kind = SpanKind.SERVICE)
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements ISysUserService {
     private static final String BUILT_IN_ADMIN_USER_NAME = "admin";
 
