@@ -19,6 +19,7 @@ const incidentSources = [
   { key: 'OTHER', label: '其他独立 Trace' }
 ]
 const selectedIncidentSource = { slow: 'ALL', error: 'ALL' }
+const distributionTraces = { slow: [], error: [] }
 const sourceLabels = {
   HTTP: 'HTTP', JOB: 'Job', KAFKA_CONSUMER: 'Kafka 消费', KAFKA_PRODUCER: 'Kafka 生产',
   KAFKA: 'Kafka', REDIS: 'Redis', TRANSACTION: '事务', REMOTE: '远程调用',
@@ -99,33 +100,124 @@ function renderIncidentRows(kind, items) {
   const prefix = kind === 'error' ? 'error' : 'slow'
   const body = document.querySelector(`#${prefix}-rows`)
   const selectedSource = selectedIncidentSource[kind]
+  const searchedItems = filterIncidentTraces(kind, items)
   const visibleItems = selectedSource === 'ALL'
-    ? items
+    ? searchedItems
     : selectedSource === 'OTHER'
-      ? items.filter(item => !['HTTP', 'JOB', 'KAFKA_CONSUMER'].includes(rootSource(item)))
-      : items.filter(item => rootSource(item) === selectedSource)
-  renderIncidentSources(kind, items)
+      ? searchedItems.filter(item => !['HTTP', 'JOB', 'KAFKA_CONSUMER'].includes(rootSource(item)))
+      : searchedItems.filter(item => rootSource(item) === selectedSource)
+  renderIncidentSources(kind, searchedItems)
   body.replaceChildren()
   document.querySelector(`#${prefix}-count`).textContent = selectedSource === 'ALL'
-    ? `${items.length} 条` : `${visibleItems.length} / ${items.length} 条`
+    ? `${visibleItems.length} / ${items.length} 条` : `${visibleItems.length} / ${searchedItems.length} 条`
   const empty = document.querySelector(`#${prefix}-empty`)
   empty.hidden = visibleItems.length > 0
-  empty.textContent = items.length ? '当前入口暂无匹配记录。' : kind === 'error' ? '暂时没有错误 Trace。' : '暂时没有慢 Trace。'
+  empty.textContent = items.length ? '当前条件下没有匹配的 Trace。' : kind === 'error' ? '暂时没有错误 Trace。' : '暂时没有慢 Trace。'
+  drawIncidentDistribution(kind, visibleItems)
   for (const trace of visibleItems) {
     const row = document.createElement('tr')
     row.className = 'clickable'
     const source = rootSource(trace)
-    const rootOperation = (trace.operations || []).find(operation => operation.type === source)
+    const operations = trace.operations || []
+    const rootOperation = [...operations].filter(operation => operation.type === source)
+      .sort((left, right) => Math.abs(new Date(left.finishedAt) - new Date(trace.finishedAt))
+        - Math.abs(new Date(right.finishedAt) - new Date(trace.finishedAt)))[0]
+    const errorOperation = operations.find(operation => operation.error) || rootOperation
     const cells = [cell(sourceLabels[source] || '其他'), cell(`${trace.method || ''} ${trace.name || ''}`.trim()),
       cell(String(trace.status)), cell(`${trace.durationMs} ms`), cell(formatNumber(trace.cpuTimeMs, ' ms')),
       cell(formatBytes(trace.allocatedBytes)), cell(formatNumber(trace.threadId))]
     if (kind === 'error') {
-      cells.push(cell(rootOperation?.errorType || rootOperation?.errorMessage || '执行失败'))
+      cells.push(cell(errorOperation?.errorType || errorOperation?.errorMessage || '执行失败'))
     }
     cells.push(cell(trace.traceId, 'mono'), cell(formatTime(trace.finishedAt), 'muted'))
     row.append(...cells)
     row.addEventListener('click', () => showTrace({ traceId: trace.traceId }))
     body.append(row)
+  }
+}
+
+function filterIncidentTraces(kind, items) {
+  const prefix = kind === 'error' ? 'error' : 'slow'
+  const keyword = document.querySelector(`#${prefix}-search`).value.trim().toLowerCase()
+  const windowMinutes = Number(document.querySelector(`#${prefix}-window`).value)
+  const minDuration = Number(document.querySelector(`#${prefix}-min-duration`).value)
+  const cutoff = windowMinutes > 0 ? Date.now() - windowMinutes * 60 * 1000 : 0
+  const filtered = items.filter(trace => {
+    const finished = new Date(trace.finishedAt).getTime()
+    if (cutoff && (!Number.isFinite(finished) || finished < cutoff)) return false
+    if (Number.isFinite(minDuration) && minDuration > 0 && Number(trace.durationMs) < minDuration) return false
+    if (!keyword) return true
+    const operationText = (trace.operations || []).map(operation =>
+      `${operation.name} ${operation.type} ${operation.errorType} ${operation.errorMessage} ${operation.detail}`
+    ).join(' ')
+    return `${trace.traceId} ${trace.name} ${trace.method} ${rootSource(trace)} ${operationText}`
+      .toLowerCase().includes(keyword)
+  })
+  if (document.querySelector(`#${prefix}-sort`).value === 'slowest') {
+    filtered.sort((left, right) => Number(right.durationMs) - Number(left.durationMs))
+  } else {
+    filtered.sort((left, right) => new Date(right.finishedAt) - new Date(left.finishedAt))
+  }
+  return filtered
+}
+
+function drawIncidentDistribution(kind, items) {
+  const canvas = document.querySelector(`#${kind}-distribution`)
+  const empty = document.querySelector(`#${kind}-distribution-empty`)
+  const context = canvas.getContext('2d')
+  const bounds = canvas.getBoundingClientRect()
+  const ratio = window.devicePixelRatio || 1
+  canvas.width = Math.max(1, Math.floor(bounds.width * ratio))
+  canvas.height = Math.max(1, Math.floor(bounds.height * ratio))
+  context.scale(ratio, ratio)
+  const width = bounds.width
+  const height = bounds.height
+  context.clearRect(0, 0, width, height)
+  distributionTraces[kind] = items
+  empty.hidden = items.length > 0
+  context.font = '11px sans-serif'
+  context.fillStyle = '#718096'
+  context.strokeStyle = '#e7ebf1'
+  const pad = { left: 64, right: 16, top: 12, bottom: 27 }
+  for (let row = 0; row <= 3; row++) {
+    const y = pad.top + (height - pad.top - pad.bottom) * row / 3
+    context.beginPath(); context.moveTo(pad.left, y); context.lineTo(width - pad.right, y); context.stroke()
+  }
+  if (!items.length) return
+  const timedItems = items.map(trace => ({ trace, finished: new Date(trace.finishedAt).getTime() }))
+    .filter(item => Number.isFinite(item.finished))
+  if (!timedItems.length) {
+    empty.hidden = false
+    return
+  }
+  const durations = timedItems.map(item => Number(item.trace.durationMs) || 0)
+  const maxDuration = Math.max(...durations, 1)
+  const minTime = Math.min(...timedItems.map(item => item.finished))
+  const maxTime = Math.max(...timedItems.map(item => item.finished))
+  const timeSpan = Math.max(1, maxTime - minTime)
+  const points = []
+  timedItems.forEach(({ trace, finished }) => {
+    const x = pad.left + (width - pad.left - pad.right) * ((finished - minTime) / timeSpan)
+    const y = pad.top + (height - pad.top - pad.bottom) * (1 - (Number(trace.durationMs) || 0) / maxDuration)
+    context.beginPath()
+    context.fillStyle = trace.error ? '#d84b46' : '#e0a42e'
+    context.arc(x, y, 4, 0, Math.PI * 2)
+    context.fill()
+    points.push({ x, y, trace })
+  })
+  context.fillStyle = '#718096'
+  context.fillText(`${maxDuration.toLocaleString()} ms`, 5, pad.top + 4)
+  context.fillText('0 ms', 26, height - pad.bottom + 4)
+  context.fillText(formatTime(new Date(minTime)), pad.left, height - 5)
+  const endLabel = formatTime(new Date(maxTime))
+  context.fillText(endLabel, Math.max(pad.left, width - context.measureText(endLabel).width - pad.right), height - 5)
+  canvas.onclick = event => {
+    const rect = canvas.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    const nearest = points.map(point => ({ ...point, distance: Math.hypot(point.x - x, point.y - y) }))
+      .filter(point => point.distance <= 10).sort((left, right) => left.distance - right.distance)[0]
+    if (nearest) showTrace(nearest.trace)
   }
 }
 
@@ -158,25 +250,159 @@ function renderIncidentSources(kind, items) {
 
 async function showTrace(trace) {
   document.querySelector('#dialog-title').textContent = trace.traceId || 'Trace 详情'
-  document.querySelector('#trace-tree').textContent = trace.tree || ''
+  document.querySelector('#trace-summary').replaceChildren()
+  document.querySelector('#trace-waterfall').replaceChildren()
+  document.querySelector('#trace-operations').replaceChildren()
+  document.querySelector('#trace-tree').textContent = ''
+  document.querySelector('#trace-operation-detail').hidden = true
+  setTraceView('timeline')
   dialog.showModal()
-  if (!trace.traceId) return
+  if (!trace.traceId) {
+    renderTraceDetails(trace)
+    return
+  }
   try {
     const latest = await getJson(`/traces/${encodeURIComponent(trace.traceId)}`)
-    const operations = latest?.operations || []
-    const operationDetails = operations.map(operation => {
-      const resources = `耗时=${formatNumber(operation.durationMs, ' ms')} CPU=${formatNumber(operation.cpuTimeMs, ' ms')} 分配内存=${formatBytes(operation.allocatedBytes)} 线程=${formatNumber(operation.threadId)}`
-      const detail = operation.detail ? `\n    ${operation.detail}` : ''
-      const failure = operation.errorMessage ? `\n    错误: ${operation.errorMessage}` : ''
-      const locks = operation.lockInfo ? `\n    锁: ${operation.lockInfo}` : ''
-      const stack = operation.stackTrace ? `\n${operation.stackTrace}` : ''
-      return `[${operation.type}] ${operation.name} (${operation.outcome}) ${resources}${detail}${failure}${locks}${stack}`
-    }).join('\n\n')
-    const tree = latest?.tree || ''
-    document.querySelector('#trace-tree').textContent = [tree, operationDetails && `操作资源明细\n${operationDetails}`].filter(Boolean).join('\n\n')
+    renderTraceDetails(latest || trace)
   } catch (error) {
+    renderTraceDetails(trace)
     setNotice(error.message || '读取 Trace 详情失败')
   }
+}
+
+function renderTraceDetails(trace) {
+  const source = rootSource(trace)
+  const summary = document.querySelector('#trace-summary')
+  const status = trace.error ? '错误' : trace.slow ? '慢' : '正常'
+  const entries = [
+    ['入口', sourceLabels[source] || '其他'],
+    ['结果', `${status} · ${trace.status ?? '-'}`],
+    ['总耗时', formatNumber(trace.durationMs, ' ms')],
+    ['CPU', formatNumber(trace.cpuTimeMs, ' ms')],
+    ['分配内存', formatBytes(trace.allocatedBytes)],
+    ['线程 ID', formatNumber(trace.threadId)],
+    ['完成时间', formatTime(trace.finishedAt)]
+  ]
+  for (const [label, value] of entries) {
+    const item = document.createElement('span')
+    item.className = 'trace-summary-item'
+    const strong = document.createElement('strong')
+    strong.textContent = `${label}：`
+    item.append(strong, document.createTextNode(value))
+    summary.append(item)
+  }
+  document.querySelector('#trace-tree').textContent = trace.tree || ''
+  renderTraceWaterfall(trace)
+  renderTraceOperations(trace)
+}
+
+function renderTraceWaterfall(trace) {
+  const root = document.querySelector('#trace-waterfall')
+  const operations = [...(trace.operations || [])]
+  const source = rootSource(trace)
+  const rootOperation = operations.filter(operation => operation.type === source)
+    .sort((left, right) => Math.abs(new Date(left.finishedAt) - new Date(trace.finishedAt))
+      - Math.abs(new Date(right.finishedAt) - new Date(trace.finishedAt)))[0]
+  if (rootOperation) operations.splice(operations.indexOf(rootOperation), 1)
+  const rootItem = {
+    type: source, name: `${trace.method || ''} ${trace.name || ''}`.trim(),
+    durationMs: trace.durationMs, finishedAt: trace.finishedAt, threadId: trace.threadId,
+    cpuTimeMs: trace.cpuTimeMs, allocatedBytes: trace.allocatedBytes,
+    slow: trace.slow, error: trace.error, outcome: trace.error ? 'failure' : 'success',
+    detail: '', errorType: '', errorMessage: '', lockInfo: '', stackTrace: ''
+  }
+  const ordered = [rootItem, ...operations.sort((left, right) =>
+    new Date(left.finishedAt) - new Date(right.finishedAt))]
+  const duration = Math.max(1, Number(trace.durationMs) || 0)
+  const traceEnd = new Date(trace.finishedAt).getTime()
+  const traceStart = traceEnd - duration
+  for (const operation of ordered) {
+    const row = document.createElement('div')
+    row.className = 'waterfall-row'
+    const name = document.createElement('div')
+    name.className = 'waterfall-name'
+    const type = document.createElement('strong')
+    type.textContent = operation === rootItem ? '入口' : (sourceLabels[operation.type] || operation.type)
+    const label = document.createElement('span')
+    label.textContent = operation.name || '-'
+    name.append(type, label)
+    name.title = `${operation.type}: ${operation.name || ''}`
+    const track = document.createElement('div')
+    track.className = 'waterfall-track'
+    const bar = document.createElement('div')
+    bar.className = `waterfall-bar${operation.error ? ' is-error' : operation.slow ? ' is-slow' : ''}`
+    const operationDuration = Math.max(0, Number(operation.durationMs) || 0)
+    const end = operation === rootItem ? traceEnd : new Date(operation.finishedAt).getTime()
+    const start = Number.isFinite(end) ? end - operationDuration : traceStart
+    const left = operation === rootItem ? 0 : Math.max(0, Math.min(100, (start - traceStart) / duration * 100))
+    const right = operation === rootItem ? 100 : Math.max(left + 0.6,
+      Math.min(100, (end - traceStart) / duration * 100))
+    bar.style.left = `${left}%`
+    bar.style.width = `${Math.max(0.6, right - left)}%`
+    track.append(bar)
+    const cost = document.createElement('div')
+    cost.className = 'waterfall-duration'
+    cost.textContent = formatNumber(operationDuration, ' ms')
+    row.append(name, track, cost)
+    row.addEventListener('click', () => showOperationDetail(operation))
+    root.append(row)
+  }
+}
+
+function showOperationDetail(operation) {
+  const detail = document.querySelector('#trace-operation-detail')
+  const resources = `耗时=${formatNumber(operation.durationMs, ' ms')} CPU=${formatNumber(operation.cpuTimeMs, ' ms')} 分配内存=${formatBytes(operation.allocatedBytes)} 线程=${formatNumber(operation.threadId)}`
+  const lines = [`[${operation.type}] ${operation.name || ''} (${operation.outcome || 'success'})`, resources]
+  if (operation.detail) lines.push(`明细：${operation.detail}`)
+  if (operation.errorType || operation.errorMessage) lines.push(`错误：${operation.errorType || ''} ${operation.errorMessage || ''}`)
+  if (operation.lockInfo) lines.push(`锁：${operation.lockInfo}`)
+  if (operation.stackTrace) lines.push(`堆栈：\n${operation.stackTrace}`)
+  detail.textContent = lines.join('\n')
+  detail.hidden = false
+}
+
+function renderTraceOperations(trace) {
+  const root = document.querySelector('#trace-operations')
+  for (const operation of trace.operations || []) {
+    const card = document.createElement('article')
+    card.className = 'trace-operation-card'
+    const heading = document.createElement('div')
+    heading.className = 'trace-operation-heading'
+    const title = document.createElement('strong')
+    title.textContent = `[${operation.type}] ${operation.name || '-'}`
+    const badge = document.createElement('span')
+    badge.className = `pill ${operation.error ? 'error' : operation.slow ? 'slow' : 'ok'}`
+    badge.textContent = operation.error ? '错误' : operation.slow ? '慢' : '正常'
+    const meta = document.createElement('span')
+    meta.className = 'trace-operation-meta'
+    meta.textContent = `${formatNumber(operation.durationMs, ' ms')} · CPU ${formatNumber(operation.cpuTimeMs, ' ms')} · ${formatBytes(operation.allocatedBytes)} · 线程 ${formatNumber(operation.threadId)}`
+    heading.append(title, badge, meta)
+    card.append(heading)
+    const description = [operation.detail, operation.errorType && `错误类型：${operation.errorType}`,
+      operation.errorMessage && `错误信息：${operation.errorMessage}`, operation.lockInfo && `锁：${operation.lockInfo}`]
+      .filter(Boolean).join('\n')
+    if (description) {
+      const text = document.createElement('pre')
+      text.textContent = description
+      card.append(text)
+    }
+    if (operation.stackTrace) {
+      const stack = document.createElement('pre')
+      stack.textContent = operation.stackTrace
+      card.append(stack)
+    }
+    root.append(card)
+  }
+  if (!trace.operations?.length) root.textContent = '没有保存操作明细。'
+}
+
+function setTraceView(view) {
+  document.querySelectorAll('.trace-view').forEach(button =>
+    button.classList.toggle('active', button.dataset.traceView === view))
+  document.querySelectorAll('.trace-view-panel').forEach(panel => {
+    panel.hidden = panel.id !== (view === 'timeline' ? 'trace-timeline'
+      : view === 'tree' ? 'trace-tree-panel' : 'trace-operations-panel')
+  })
 }
 
 function renderMetrics() {
@@ -394,9 +620,24 @@ document.querySelector('#refresh').addEventListener('click', refresh)
 document.querySelector('#metric-search').addEventListener('input', renderMetrics)
 document.querySelector('#history-search').addEventListener('input', renderSeries)
 document.querySelector('#history-window').addEventListener('change', renderHistoryCharts)
-window.addEventListener('resize', renderHistoryCharts)
+document.querySelectorAll('.incident-toolbar input, .incident-toolbar select').forEach(control => {
+  control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', () => {
+    const kind = control.id.startsWith('error-') ? 'error' : 'slow'
+    renderIncidentRows(kind, kind === 'error' ? errorTraces : slowTraces)
+  })
+})
+document.querySelectorAll('.trace-view').forEach(button => button.addEventListener('click', () =>
+  setTraceView(button.dataset.traceView)))
+window.addEventListener('resize', () => {
+  renderHistoryCharts()
+  const activePanel = document.querySelector('[data-panel]:not([hidden])')?.dataset.panel
+  if (activePanel === 'slow') renderIncidentRows('slow', slowTraces)
+  if (activePanel === 'errors') renderIncidentRows('error', errorTraces)
+})
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === tab))
   document.querySelectorAll('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== tab.dataset.tab })
+  if (tab.dataset.tab === 'slow') renderIncidentRows('slow', slowTraces)
+  if (tab.dataset.tab === 'errors') renderIncidentRows('error', errorTraces)
 }))
 refresh()

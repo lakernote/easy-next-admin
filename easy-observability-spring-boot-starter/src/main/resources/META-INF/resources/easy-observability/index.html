@@ -27,14 +27,28 @@
       <div id="trace-empty" class="empty" hidden>暂时没有 Trace。接入 HTTP Trace 扩展后，请求完成时会显示在这里。</div>
     </section>
     <section id="slow-panel" class="panel" data-panel="slow" hidden>
-      <div class="section-heading"><div><h2>慢 Trace</h2><p>每行是一条完整入口 Trace；点击后查看数据库、Redis、远程调用和事务等下游明细。</p></div><span id="slow-count" class="count"></span></div>
+      <div class="section-heading"><div><h2>慢 Trace</h2><p>在最近 500 条慢 Trace 中筛选。每行是一条完整入口 Trace；点击后查看数据库、Redis、远程调用和事务等下游明细。</p></div><span id="slow-count" class="count"></span></div>
       <div id="slow-sources" class="source-filters" role="group" aria-label="按 Trace 入口筛选"></div>
+      <div class="incident-toolbar">
+        <label class="search"><span>入口 / Trace ID</span><input id="slow-search" type="search" placeholder="搜索请求、任务或 Trace ID"></label>
+        <label class="search"><span>时间范围</span><select id="slow-window"><option value="0">全部时间</option><option value="15">最近 15 分钟</option><option value="60" selected>最近 1 小时</option><option value="360">最近 6 小时</option><option value="1440">最近 24 小时</option><option value="10080">最近 7 天</option></select></label>
+        <label class="search"><span>最短耗时</span><input id="slow-min-duration" type="number" min="0" step="10" placeholder="不限 ms"></label>
+        <label class="search"><span>排序</span><select id="slow-sort"><option value="recent">最新优先</option><option value="slowest">最慢优先</option></select></label>
+      </div>
+      <div class="distribution-wrap"><canvas id="slow-distribution" aria-label="慢 Trace 完成时间和耗时散点图"></canvas><div id="slow-distribution-empty" class="distribution-empty" hidden>筛选后暂无可绘制的 Trace</div></div><p class="distribution-caption">横轴为完成时间，纵轴为入口 Trace 耗时；点击点查看详情。</p>
       <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="slow-rows"></tbody></table></div>
       <div id="slow-empty" class="empty" hidden>暂时没有慢 Trace。</div>
     </section>
     <section id="error-panel" class="panel" data-panel="errors" hidden>
-      <div class="section-heading"><div><h2>错误 Trace</h2><p>每行是一条失败入口 Trace；点击后查看根因和同一 Trace 下的完整调用明细。</p></div><span id="error-count" class="count"></span></div>
+      <div class="section-heading"><div><h2>错误 Trace</h2><p>在最近 500 条错误 Trace 中筛选。每行是一条失败入口 Trace；点击后查看根因和同一 Trace 下的完整调用明细。</p></div><span id="error-count" class="count"></span></div>
       <div id="error-sources" class="source-filters" role="group" aria-label="按 Trace 入口筛选"></div>
+      <div class="incident-toolbar">
+        <label class="search"><span>入口 / Trace ID</span><input id="error-search" type="search" placeholder="搜索请求、任务或 Trace ID"></label>
+        <label class="search"><span>时间范围</span><select id="error-window"><option value="0">全部时间</option><option value="15">最近 15 分钟</option><option value="60" selected>最近 1 小时</option><option value="360">最近 6 小时</option><option value="1440">最近 24 小时</option><option value="10080">最近 7 天</option></select></label>
+        <label class="search"><span>最短耗时</span><input id="error-min-duration" type="number" min="0" step="10" placeholder="不限 ms"></label>
+        <label class="search"><span>排序</span><select id="error-sort"><option value="recent">最新优先</option><option value="slowest">最慢优先</option></select></label>
+      </div>
+      <div class="distribution-wrap"><canvas id="error-distribution" aria-label="错误 Trace 完成时间和耗时散点图"></canvas><div id="error-distribution-empty" class="distribution-empty" hidden>筛选后暂无可绘制的 Trace</div></div><p class="distribution-caption">横轴为完成时间，纵轴为入口 Trace 耗时；点击点查看详情。</p>
       <div class="table-wrap"><table><thead><tr><th>入口</th><th>请求 / 任务</th><th>状态</th><th>耗时</th><th>CPU</th><th>分配内存</th><th>线程 ID</th><th>错误</th><th>Trace ID</th><th>完成时间</th></tr></thead><tbody id="error-rows"></tbody></table></div>
       <div id="error-empty" class="empty" hidden>暂时没有错误 Trace。</div>
     </section>
@@ -56,7 +70,7 @@
       <div id="history-empty" class="empty">勾选指标系列后查看历史趋势。首次采集需要等待一个采集周期。</div>
     </section>
   </main>
-  <dialog id="trace-dialog" class="dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">TRACE DETAIL</p><h2 id="dialog-title">Trace</h2></div><button class="icon-button" aria-label="关闭" value="close">×</button></div><pre id="trace-tree"></pre></form></dialog>
+  <dialog id="trace-dialog" class="dialog"><form method="dialog"><div class="dialog-heading"><div><p class="eyebrow">TRACE DETAIL</p><h2 id="dialog-title">Trace</h2></div><button class="icon-button" aria-label="关闭" value="close">×</button></div><div id="trace-summary" class="trace-summary"></div><div class="trace-view-switch"><button class="trace-view active" data-trace-view="timeline" type="button">调用时间线</button><button class="trace-view" data-trace-view="tree" type="button">调用树</button><button class="trace-view" data-trace-view="operations" type="button">操作明细</button></div><section id="trace-timeline" class="trace-view-panel"><div id="trace-waterfall" class="trace-waterfall"></div><pre id="trace-operation-detail" class="trace-operation-detail" hidden></pre></section><section id="trace-tree-panel" class="trace-view-panel" hidden><pre id="trace-tree"></pre></section><section id="trace-operations-panel" class="trace-view-panel" hidden><div id="trace-operations" class="trace-operations"></div></section></form></dialog>
   <script type="module" src="/easy-observability/assets/dashboard.js"></script>
 </body>
 </html>
