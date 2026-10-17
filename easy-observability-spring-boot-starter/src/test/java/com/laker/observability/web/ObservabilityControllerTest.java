@@ -65,6 +65,22 @@ class ObservabilityControllerTest {
     }
 
     @Test
+    void traceListAndIncidentDrillDownNeverExposeDependencyOperationsAsRoots() {
+        TraceHistory history = new TraceHistory(10, 10);
+        history.add("http-1", "GET /orders", "GET", "HTTP", 200, 40, false, false, "http tree");
+        history.add("redis-1", "Redis get", "get", "REDIS", 200, 1, true, false, "redis tree");
+        history.add("transaction-1", "OrderService#create", "write", "TRANSACTION",
+                500, 100, false, true, "transaction tree");
+        ObservabilityController controller = new ObservabilityController(new SimpleMeterRegistry(), history, () -> true);
+
+        assertThat(controller.traces(100)).extracting(TraceHistory.TraceRecord::traceId).containsExactly("http-1");
+        assertThat(controller.incidents("slow", "", 100)).isEmpty();
+        assertThat(controller.incidents("error", "", 100)).isEmpty();
+        assertThat(controller.trace("redis-1")).isNull();
+        assertThat(controller.trace("transaction-1")).isNull();
+    }
+
+    @Test
     void aggregatesEntryOperationsLikeRequestStatistics() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         Timer.builder("easy.operations.duration").tags("source", "HTTP", "operation", "GET /orders",

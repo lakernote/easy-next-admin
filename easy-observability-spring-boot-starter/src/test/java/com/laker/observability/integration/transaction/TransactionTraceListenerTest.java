@@ -26,13 +26,13 @@ class TransactionTraceListenerTest {
 
     @Test
     void recordsLongTransactionAndActiveGaugeAtSpringTransactionBoundary() {
-        OperationRecorder recorder = mock(OperationRecorder.class);
         SimpleMeterRegistry meters = new SimpleMeterRegistry();
         EasyObservabilityProperties properties = new EasyObservabilityProperties();
         properties.getTransaction().setSlowThresholdMs(1_000);
         AtomicLong clock = new AtomicLong();
-        TransactionTraceListener listener = new TransactionTraceListener(recorder, new TraceHistory(10, 10),
-                meters, properties, clock::get);
+        TraceHistory history = new TraceHistory(10, 10);
+        OperationRecorder recorder = new OperationRecorder(meters, history, properties);
+        TransactionTraceListener listener = new TransactionTraceListener(recorder, meters, properties, clock::get);
         TransactionExecution execution = execution("OrderService#create", false);
 
         listener.beforeBegin(execution);
@@ -42,15 +42,17 @@ class TransactionTraceListenerTest {
         clock.addAndGet(1_200_000_000L);
         listener.afterCommit(execution, null);
 
-        org.mockito.ArgumentCaptor<OperationRecord> operation = org.mockito.ArgumentCaptor.forClass(OperationRecord.class);
-        verify(recorder).record(operation.capture());
-        assertThat(operation.getValue().type()).isEqualTo("TRANSACTION");
-        assertThat(operation.getValue().durationMs()).isEqualTo(1_200);
-        assertThat(operation.getValue().slow()).isTrue();
-        assertThat(operation.getValue().reasons()).contains("LONG_TRANSACTION");
+        assertThat(history.recentOperations(10, "slow")).singleElement()
+                .satisfies(operation -> {
+                    assertThat(operation.type()).isEqualTo("TRANSACTION");
+                    assertThat(operation.durationMs()).isEqualTo(1_200);
+                    assertThat(operation.slow()).isTrue();
+                    assertThat(operation.reasons()).contains("LONG_TRANSACTION");
+                });
         assertThat(meters.get("easy.transactions").tag("result", "success").tag("read_only", "false")
                 .timer().count()).isEqualTo(1);
         assertThat(meters.get("easy.transactions.active").gauge().value()).isZero();
+        assertThat(history.recent(10)).isEmpty();
     }
 
     @Test
@@ -59,8 +61,7 @@ class TransactionTraceListenerTest {
         SimpleMeterRegistry meters = new SimpleMeterRegistry();
         EasyObservabilityProperties properties = new EasyObservabilityProperties();
         AtomicLong clock = new AtomicLong();
-        TransactionTraceListener listener = new TransactionTraceListener(recorder, new TraceHistory(10, 10),
-                meters, properties, clock::get);
+        TransactionTraceListener listener = new TransactionTraceListener(recorder, meters, properties, clock::get);
         TransactionExecution execution = execution("OrderService#create", true);
         com.laker.observability.trace.TraceContext.startRoot("POST /orders",
                 com.laker.observability.trace.SpanKind.HTTP, "", 8, 0);

@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Consumer;
 
 /** Bounded JSONL history for slow and failed operations, including per-thread resource measurements. */
 public final class IncidentHistory {
@@ -21,14 +22,26 @@ public final class IncidentHistory {
     private final Path file;
     private final int capacity;
     private final long maxBytes;
+    private final Consumer<Runnable> writeExecutor;
     private final ConcurrentLinkedDeque<OperationRecord> records = new ConcurrentLinkedDeque<>();
     private final Object writeLock = new Object();
 
     public IncidentHistory(ObjectMapper mapper, String file, int capacity, long maxBytes) {
+        this(mapper, file, capacity, maxBytes, Runnable::run);
+    }
+
+    public IncidentHistory(ObjectMapper mapper, String file, int capacity, long maxBytes,
+                           BoundedHistoryWriter writer) {
+        this(mapper, file, capacity, maxBytes, writer::execute);
+    }
+
+    private IncidentHistory(ObjectMapper mapper, String file, int capacity, long maxBytes,
+                            Consumer<Runnable> writeExecutor) {
         this.mapper = mapper.copy();
         this.file = Path.of(file).toAbsolutePath().normalize();
         this.capacity = Math.max(100, capacity);
         this.maxBytes = Math.max(1024 * 1024, maxBytes);
+        this.writeExecutor = writeExecutor;
     }
 
     @PostConstruct
@@ -51,6 +64,10 @@ public final class IncidentHistory {
     public void record(OperationRecord operation) {
         if (operation == null || (!operation.slow() && !operation.error())) return;
         addInMemory(operation);
+        writeExecutor.accept(() -> append(operation));
+    }
+
+    private void append(OperationRecord operation) {
         synchronized (writeLock) {
             try {
                 Files.createDirectories(file.getParent());

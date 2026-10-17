@@ -101,6 +101,27 @@ class MetricHistoryStoreTest {
     }
 
     @Test
+    void keepsCoreJvmSeriesWhenOperationMetricsReachTheNonCoreCapacity() {
+        MetricHistoryStore store = store(64 * MEBIBYTE, 8 * MEBIBYTE, 2);
+        store.restore();
+        MetricSample jvm = metric("process.cpu.usage", 1, "VALUE");
+        MetricSample request = new MetricSample("easy.operations.duration", Map.of("source", "HTTP",
+                "operation", "GET /orders", "outcome", "success"), Map.of("COUNT", 1D));
+        MetricSample dependency = new MetricSample("easy.operations.allocated", Map.of("source", "DATABASE",
+                "operation", "OrderMapper#select", "outcome", "success"), Map.of("VALUE", 1D));
+        MetricSample anotherDependency = new MetricSample("easy.operations.allocated", Map.of("source", "REDIS",
+                "operation", "get", "outcome", "success"), Map.of("VALUE", 1D));
+
+        store.recordMetricsSnapshot(List.of(jvm, request, dependency, anotherDependency));
+
+        assertThat(store.seriesCatalog()).extracting(MetricHistoryStore.MetricSeriesDescriptor::name)
+                .contains("process.cpu.usage", "easy.operations.duration")
+                .doesNotContain("easy.operations.allocated");
+        assertThat(MetricHistoryStore.metricPriority("easy.operations.duration", request.tags()))
+                .isLessThan(MetricHistoryStore.metricPriority("easy.operations.allocated", dependency.tags()));
+    }
+
+    @Test
     void createsFixedOneMinuteFiveMinuteAndThirtyMinuteArchives() throws Exception {
         MetricHistoryStore store = store(64 * MEBIBYTE, 8 * MEBIBYTE, 512);
         store.restore();
@@ -285,6 +306,31 @@ class MetricHistoryStoreTest {
         assertThat(store.metricHistory("easy.api.access", defaultTags(), 10)).isEmpty();
         assertThat(store.status().rejectedSeries()).isEqualTo(1);
         assertThat(store.status().evictedSeries()).isEqualTo(1);
+    }
+
+    @Test
+    void replacesStaleCoreSeriesWhenTagsChangeAtTheSeriesLimit() {
+        MetricHistoryStore store = store(64 * MEBIBYTE, 8 * MEBIBYTE, 1);
+        store.restore();
+        MetricSample previous = new MetricSample("process.cpu.usage",
+                Map.of("application", "old-app", "environment", "local"), Map.of("VALUE", 0.1D));
+        MetricSample current = metric("process.cpu.usage", 2, "VALUE");
+        store.recordMetricsSnapshot(List.of(previous));
+        clock.advance(Duration.ofMinutes(1));
+
+        store.recordMetricsSnapshot(List.of(current));
+
+        assertThat(store.metricHistory("process.cpu.usage", current.tags(), 10)).singleElement()
+                .satisfies(point -> assertThat(point.measurements()).containsEntry("VALUE", 2.0D));
+        assertThat(store.metricHistory("process.cpu.usage", previous.tags(), 10)).isEmpty();
+        assertThat(store.status().segmentCount()).isEqualTo(1);
+        assertThat(store.status().evictedSeries()).isEqualTo(1);
+    }
+
+    @Test
+    void fallsBackToMeterPriorityWhenOperationSourceIsMissing() {
+        assertThat(MetricHistoryStore.metricPriority("easy.operations.duration", Map.of()))
+                .isEqualTo(MetricHistoryStore.metricPriority("easy.operations.duration"));
     }
 
     @Test

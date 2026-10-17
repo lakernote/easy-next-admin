@@ -3,6 +3,7 @@ package com.laker.observability.integration.observation;
 import com.laker.observability.config.EasyObservabilityProperties;
 import com.laker.observability.metrics.OperationRecorder;
 import com.laker.observability.trace.OperationRecord;
+import com.laker.observability.trace.BoundedThrowableFormatter;
 import com.laker.observability.trace.SpanKind;
 import com.laker.observability.trace.ThreadResourceSnapshot;
 import com.laker.observability.trace.TraceContext;
@@ -51,7 +52,9 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
         try {
             String type = resolveType(context);
             if (type == null) return;
-            boolean root = !TraceContext.active();
+            // Only inbound work starts a trace. Client calls, SQL, Redis and transactions are
+            // dependencies; without an active entry they remain operation metrics, not fake roots.
+            boolean root = isEntryType(type) && !TraceContext.active();
             boolean generatedTraceId = !TraceIdContext.isValidTraceId(TraceIdContext.currentTraceId());
             String traceId = TraceIdContext.getOrCreateTraceId();
             String name = operationName(context, type);
@@ -59,13 +62,19 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
             ThreadResourceSnapshot resources = ThreadResourceSnapshot.capture(threadId,
                     properties.getTrace().isResourceSamplingEnabled());
             TraceContext.DetachedSpan span = null;
+            String spanId;
+            String parentSpanId;
             if (root) {
-                TraceContext.startRoot(name, kind(type), safeTag(context), 8, 0);
+                spanId = TraceContext.startRootSpan(name, kind(type), safeTag(context), 8, 0);
+                parentSpanId = "";
             } else {
                 span = TraceContext.startDetachedSpan(name, kind(type), safeTag(context));
+                spanId = span.spanId();
+                parentSpanId = span.parentSpanId();
             }
             context.put(STATE_KEY, new State(type, name, safeTag(context), traceId, root, generatedTraceId,
-                    System.nanoTime(), threadId, Thread.currentThread().getName(), resources, span));
+                    System.nanoTime(), threadId, Thread.currentThread().getName(), resources, span,
+                    spanId, parentSpanId));
         } catch (Throwable ignored) {
             // Do not disturb the application's current trace if an instrumentation callback fails.
         }
@@ -89,7 +98,16 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
                     ? ThreadResourceSnapshot.capture(state.threadId, properties.getTrace().isResourceSamplingEnabled())
                     : new ThreadResourceSnapshot(state.threadId, -1, -1, -1, -1, -1, -1);
             Throwable error = context.getError();
-            boolean failed = error != null || serverError(context);
+            int status = httpStatus(context);
+            boolean failed = error != null || status >= 500;
+            BoundedThrowableFormatter.FailureEvidence failure = error == null
+                    ? BoundedThrowableFormatter.FailureEvidence.EMPTY
+                    : BoundedThrowableFormatter.capture(error);
+            if (error == null && status >= 500) {
+                TraceContext.markError("HTTP_" + status,
+                        new BoundedThrowableFormatter.FailureEvidence("HTTP_" + status,
+                                "HTTP status " + status, ""));
+            }
             long threshold = threshold(state.type);
             boolean slow = threshold > 0 && durationMs >= threshold;
             if (slow) TraceContext.markSlow("SLOW_" + state.type);
@@ -101,18 +119,18 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
                     resourcesAfter.blockedCountSince(state.resources),
                     resourcesAfter.blockedTimeMsSince(state.resources),
                     resourcesAfter.waitedCountSince(state.resources),
-                    resourcesAfter.waitedTimeMsSince(state.resources), state.detail, "", "", slow,
+                    resourcesAfter.waitedTimeMsSince(state.resources), state.detail, "", failure.stackTrace(), slow,
                     failed, slow ? List.of("SLOW_" + state.type) : List.of(),
-                    error == null ? (failed ? "HTTP_5XX" : "") : error.getClass().getName(),
-                    error == null && failed ? lowCardinality(context, "http.response.status_code") : "",
-                    Map.of(), Instant.now()));
+                    error == null ? (failed ? "HTTP_" + status : "") : error.getClass().getName(),
+                    error == null && failed ? "HTTP status " + status : failure.message(),
+                    Map.of(), Instant.now(), state.spanId, state.parentSpanId));
             if (state.root) {
                 TraceContext.stopRoot(threshold, state.type + " observation", error, completion -> {
                     boolean traceSlow = slow || completion.slow();
-                    boolean traceError = failed || completion.error();
+                    boolean traceFailed = failed || completion.error();
                     history.add(state.traceId, state.name, state.detail, state.type,
-                            failed ? 500 : 200, durationMs, traceSlow, traceError, completion.tree());
-                    if (archive != null && (traceSlow || traceError)) {
+                            status > 0 ? status : failed ? 500 : 200, durationMs, traceSlow, traceFailed, completion.tree());
+                    if (archive != null && (traceSlow || traceFailed)) {
                         try { archive.record(history.find(state.traceId)); }
                         catch (Throwable ignored) { }
                     }
@@ -141,6 +159,7 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
         if (normalized.equals("http.server.requests")) return "HTTP";
         if (normalized.startsWith("spring.kafka.listener")) return "KAFKA_CONSUMER";
         if (normalized.startsWith("spring.kafka.template")) return "KAFKA_PRODUCER";
+        if (normalized.startsWith("spring.data.elasticsearch") || normalized.startsWith("elasticsearch")) return "ELASTICSEARCH";
         if (normalized.startsWith("spring.jdbc") || normalized.startsWith("jdbc.")) return "DATABASE";
         if (normalized.startsWith("spring.transaction")) return "TRANSACTION";
         if (normalized.equals("tasks.scheduled.execution")) return "JOB";
@@ -174,17 +193,22 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
         return value == null || value.getValue() == null ? "" : value.getValue();
     }
 
-    private static boolean serverError(Observation.Context context) {
+    private static int httpStatus(Observation.Context context) {
         String status = lowCardinality(context, "http.response.status_code");
         if (status.isBlank()) status = lowCardinality(context, "status");
-        try { return Integer.parseInt(status) >= 500; }
-        catch (NumberFormatException ignored) { return false; }
+        try { return Integer.parseInt(status); }
+        catch (NumberFormatException ignored) { return 0; }
+    }
+
+    private static boolean isEntryType(String type) {
+        return "HTTP".equals(type) || "JOB".equals(type) || "KAFKA_CONSUMER".equals(type);
     }
 
     private static SpanKind kind(String type) {
         return switch (type) {
             case "REDIS" -> SpanKind.REDIS;
             case "DATABASE" -> SpanKind.DATABASE;
+            case "ELASTICSEARCH" -> SpanKind.REMOTE;
             case "KAFKA", "KAFKA_CONSUMER", "KAFKA_PRODUCER" -> SpanKind.KAFKA;
             case "TRANSACTION" -> SpanKind.TRANSACTION;
             case "HTTP" -> SpanKind.HTTP;
@@ -201,5 +225,6 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
 
     private record State(String type, String name, String detail, String traceId, boolean root,
                          boolean generatedTraceId, long startedNanos, long threadId, String threadName,
-                         ThreadResourceSnapshot resources, TraceContext.DetachedSpan span) { }
+                         ThreadResourceSnapshot resources, TraceContext.DetachedSpan span,
+                         String spanId, String parentSpanId) { }
 }

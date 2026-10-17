@@ -1,0 +1,83 @@
+.trend-controls {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 320px) 1fr;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  color: #586673;
+  font-size: 11px;
+}
+
+.trend-controls input[type="search"] {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid #cbd3db;
+  border-radius: 3px;
+  padding: 0 9px;
+  color: #263b56;
+  font: inherit;
+}
+
+.trend-controls input[type="search"]:focus-visible,
+.trend-option input:focus-visible,
+tbody tr.clickable:focus-visible {
+  outline: 2px solid #3278a8;
+  outline-offset: 2px;
+}
+
+.trend-controls > span {
+  justify-self: end;
+  color: #77838e;
+}
+
+.trend-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  max-height: 112px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #dce1e5;
+  background: #fafbfc;
+}
+
+.trend-option {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+  max-width: 100%;
+  color: #506070;
+  cursor: pointer;
+}
+
+.trend-option span {
+  overflow-wrap: anywhere;
+}
+
+.trend-option input {
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+}
+
+.trend-option input:disabled {
+  cursor: not-allowed;
+}
+
+#operation-table {
+  min-width: 980px;
+}
+
+@media (max-width: 680px) {
+  .trend-controls {
+    grid-template-columns: 1fr auto;
+  }
+
+  .trend-controls label {
+    grid-column: 1 / -1;
+  }
+
+  .trend-controls input[type="search"] {
+    grid-column: 1;
+  }
+}

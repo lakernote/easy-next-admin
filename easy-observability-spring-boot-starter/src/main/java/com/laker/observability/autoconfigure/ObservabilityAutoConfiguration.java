@@ -4,10 +4,10 @@ import com.laker.observability.metrics.BusinessMetrics;
 import com.laker.observability.metrics.MetricCardinalityConfiguration;
 import com.laker.observability.metrics.OperationRecorder;
 import com.laker.observability.config.EasyObservabilityProperties;
-import com.laker.observability.trace.TraceSpanAspect;
 import com.laker.observability.trace.TraceHistory;
 import com.laker.observability.trace.IncidentHistory;
 import com.laker.observability.trace.TraceArchive;
+import com.laker.observability.trace.BoundedHistoryWriter;
 import com.laker.observability.trace.TraceContextTaskDecorator;
 import com.laker.observability.metrics.history.MetricHistoryCollector;
 import com.laker.observability.metrics.history.MetricHistoryStore;
@@ -44,11 +44,9 @@ public class ObservabilityAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "easy.observability.trace", name = "enabled",
-            havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
-    TraceSpanAspect traceSpanAspect(EasyObservabilityProperties properties) {
-        return new TraceSpanAspect(properties);
+    BoundedHistoryWriter boundedHistoryWriter() {
+        return new BoundedHistoryWriter();
     }
 
     @Bean
@@ -59,16 +57,20 @@ public class ObservabilityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    IncidentHistory incidentHistory(ObjectMapper objectMapper, EasyObservabilityProperties properties) {
+    IncidentHistory incidentHistory(ObjectMapper objectMapper, EasyObservabilityProperties properties,
+                                    BoundedHistoryWriter writer) {
         EasyObservabilityProperties.Trace trace = properties.getTrace();
-        return new IncidentHistory(objectMapper, trace.getHistoryFile(), trace.getHistoryLimit(), trace.getHistoryMaxBytes());
+        return new IncidentHistory(objectMapper, trace.getHistoryFile(), trace.getHistoryLimit(),
+                trace.getHistoryMaxBytes(), writer);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    TraceArchive traceArchive(ObjectMapper objectMapper, EasyObservabilityProperties properties) {
+    TraceArchive traceArchive(ObjectMapper objectMapper, EasyObservabilityProperties properties,
+                              BoundedHistoryWriter writer) {
         EasyObservabilityProperties.Trace trace = properties.getTrace();
-        return new TraceArchive(objectMapper, trace.getArchiveFile(), trace.getHistoryLimit(), trace.getHistoryMaxBytes());
+        return new TraceArchive(objectMapper, trace.getArchiveFile(), trace.getHistoryLimit(),
+                trace.getHistoryMaxBytes(), writer);
     }
 
     @Bean

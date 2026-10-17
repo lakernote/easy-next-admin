@@ -43,11 +43,15 @@ class ObservationTraceHandlerTest {
         TraceContext.stopRoot(Long.MAX_VALUE, "test", null, result -> completion[0] = result);
         assertThat(completion[0].tree()).contains("[Redis] GET");
         assertThat(history.recentOperations(10, "slow")).singleElement()
-                .satisfies(operation -> assertThat(operation.traceId()).isEqualTo("trace-redis-1"));
+                .satisfies(operation -> {
+                    assertThat(operation.traceId()).isEqualTo("trace-redis-1");
+                    assertThat(operation.spanId()).isNotBlank();
+                    assertThat(operation.parentSpanId()).isEqualTo("1");
+                });
     }
 
     @Test
-    void recordsStandaloneObservationAsATraceRoot() {
+    void recordsStandaloneDependencyWithoutInventingTraceRoot() {
         EasyObservabilityProperties properties = new EasyObservabilityProperties();
         properties.getTrace().setRedisSlowThresholdMs(0);
         TraceHistory history = new TraceHistory(10, 10);
@@ -66,8 +70,32 @@ class ObservationTraceHandlerTest {
                     assertThat(operation.name()).isEqualTo("GET");
                     assertThat(operation.traceId()).isNotBlank();
                 });
-        assertThat(history.recent(10)).singleElement()
-                .satisfies(trace -> assertThat(trace.name()).isEqualTo("GET"));
+        assertThat(history.recent(10)).isEmpty();
+    }
+
+    @Test
+    void recordsHttpServerErrorStatusAsFailedTraceWithoutThrowable() {
+        EasyObservabilityProperties properties = new EasyObservabilityProperties();
+        TraceHistory history = new TraceHistory(10, 10);
+        OperationRecorder recorder = new OperationRecorder(new SimpleMeterRegistry(), history, properties);
+        ObservationRegistry registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new ObservationTraceHandler(recorder, history, properties));
+
+        Observation.createNotStarted("http.server.requests", registry)
+                .lowCardinalityKeyValue("http.request.method", "GET")
+                .lowCardinalityKeyValue("http.route", "/orders/{id}")
+                .lowCardinalityKeyValue("http.response.status_code", "503")
+                .start().stop();
+
+        assertThat(history.recent(10)).singleElement().satisfies(trace -> {
+            assertThat(trace.status()).isEqualTo(503);
+            assertThat(trace.error()).isTrue();
+            assertThat(trace.tree()).isNotBlank();
+        });
+        assertThat(history.recentOperations(10, "error")).singleElement().satisfies(operation -> {
+            assertThat(operation.error()).isTrue();
+            assertThat(operation.errorMessage()).isEqualTo("HTTP status 503");
+        });
     }
 
     @Test

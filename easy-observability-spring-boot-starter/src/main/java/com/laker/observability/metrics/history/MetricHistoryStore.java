@@ -912,25 +912,25 @@ public class MetricHistoryStore {
     }
 
     /**
-     * Makes room without allowing optional, high-cardinality meters to displace JVM/process/system and
-     * easy.operations series. A quarter of the configured series slots remains available for core meters;
+     * Makes room without allowing optional, high-cardinality meters to displace JVM/process/system series.
+     * A quarter of the configured series slots remains available for core meters;
      * higher-priority arrivals may evict lower-priority least-recently-written series.
      */
     private boolean ensureAdmissionCapacityLocked(String incomingName, Map<String, String> incomingTags,
                                                    long requiredBytes, boolean needsSlot, String excludedId) {
         if (requiredBytes < 0 || requiredBytes > maxStorageBytes) return false;
         int incomingPriority = metricPriority(incomingName, incomingTags);
-        if (needsSlot && incomingPriority > REQUEST_PRIORITY) {
+        if (needsSlot && incomingPriority != CORE_PRIORITY) {
             int nonCoreLimit = maxNonCoreSeries();
             while (nonCoreSeriesCount() >= nonCoreLimit) {
-                if (!hasLowerPrioritySeriesLocked(incomingPriority)) return false;
+                if (!hasEvictableSeriesLocked(incomingPriority)) return false;
                 SeriesMetadata candidate = lowestPriorityLruCandidate(excludedId, incomingPriority, false);
                 if (candidate == null) return false;
                 evictSeriesLocked(candidate, "优先级保留");
             }
         }
         while ((needsSlot && seriesByKey.size() >= maxSeries) || !hasCapacityLocked(requiredBytes)) {
-            if (!hasLowerPrioritySeriesLocked(incomingPriority)) return false;
+            if (!hasEvictableSeriesLocked(incomingPriority)) return false;
             SeriesMetadata candidate = lowestPriorityLruCandidate(excludedId, incomingPriority, false);
             if (candidate == null) return false;
             evictSeriesLocked(candidate, "优先级容量");
@@ -945,18 +945,17 @@ public class MetricHistoryStore {
     }
 
     private long nonCoreSeriesCount() {
-        long count = 0;
-        for (int priority = PLATFORM_PRIORITY; priority <= OPTIONAL_PRIORITY; priority++) {
-            count += seriesCountsByPriority[priority];
-        }
-        return count;
+        return (long) seriesCountsByPriority[REQUEST_PRIORITY]
+                + seriesCountsByPriority[PLATFORM_PRIORITY]
+                + seriesCountsByPriority[OPTIONAL_PRIORITY];
     }
 
-    private boolean hasLowerPrioritySeriesLocked(int incomingPriority) {
+    private boolean hasEvictableSeriesLocked(int incomingPriority) {
         for (int priority = incomingPriority + 1; priority <= OPTIONAL_PRIORITY; priority++) {
+            if (incomingPriority == REQUEST_PRIORITY && priority == CORE_PRIORITY) continue;
             if (seriesCountsByPriority[priority] > 0) return true;
         }
-        return false;
+        return incomingPriority == CORE_PRIORITY && seriesCountsByPriority[CORE_PRIORITY] > 0;
     }
 
     /** Selects the least valuable candidate first, then the least recently written within that priority. */
@@ -964,8 +963,12 @@ public class MetricHistoryStore {
                                                        boolean allowAnyPriority) {
         return seriesByKey.values().stream()
                 .filter(metadata -> !metadata.id().equals(excludedId))
-                .filter(metadata -> allowAnyPriority || metricPriority(metadata.name()) > incomingPriority)
-                .min(Comparator.comparingInt((SeriesMetadata metadata) -> metricPriority(metadata.name()))
+                .filter(metadata -> allowAnyPriority || metricPriority(metadata.name(), metadata.tags()) > incomingPriority
+                        && !(incomingPriority == REQUEST_PRIORITY
+                        && metricPriority(metadata.name(), metadata.tags()) == CORE_PRIORITY)
+                        || (incomingPriority == CORE_PRIORITY
+                        && metricPriority(metadata.name(), metadata.tags()) == CORE_PRIORITY))
+                .min(Comparator.comparingInt((SeriesMetadata metadata) -> metricPriority(metadata.name(), metadata.tags()))
                         .reversed()
                         .thenComparingLong(this::lastUpdateTime)
                         .thenComparing(SeriesMetadata::id))
@@ -1175,8 +1178,7 @@ public class MetricHistoryStore {
 
     public static int metricPriority(String name) {
         if (name == null) return OPTIONAL_PRIORITY;
-        if (name.startsWith("jvm.") || name.startsWith("process.") || name.startsWith("system.")
-                || name.equals("easy.operations") || name.startsWith("easy.operations.")) {
+        if (name.startsWith("jvm.") || name.startsWith("process.") || name.startsWith("system.")) {
             return CORE_PRIORITY;
         }
         if (name.startsWith("hikaricp.") || name.startsWith("jdbc.connections.")
@@ -1186,10 +1188,12 @@ public class MetricHistoryStore {
         return OPTIONAL_PRIORITY;
     }
 
-    /** Request duration histories keep their own route series ahead of detailed internal operation metrics. */
+    /** Entry summaries stay ahead of dependency details while a fixed share remains reserved for JVM metrics. */
     public static int metricPriority(String name, Map<String, String> tags) {
-        if ("easy.operations.duration".equals(name) && tags != null
-                && List.of("HTTP", "JOB", "KAFKA_CONSUMER").contains(tags.get("source"))) {
+        String source = tags == null ? null : tags.get("source");
+        if (List.of("easy.operations.duration", "easy.operations.cpu.time", "easy.operations.allocated").contains(name)
+                && source != null
+                && List.of("HTTP", "JOB", "KAFKA_CONSUMER").contains(source)) {
             return REQUEST_PRIORITY;
         }
         return metricPriority(name);

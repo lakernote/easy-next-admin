@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class Span {
+    private final String spanId;
     private final String name;
     private final String tag;
     private final SpanKind kind;
@@ -13,11 +14,12 @@ final class Span {
     private List<Span> children;
     private long endNanos;
 
-    Span(String name, SpanKind kind) {
-        this(name, kind, "", null);
+    Span(String spanId, String name, SpanKind kind) {
+        this(spanId, name, kind, "", null);
     }
 
-    Span(String name, SpanKind kind, String tag, Span parent) {
+    Span(String spanId, String name, SpanKind kind, String tag, Span parent) {
+        this.spanId = spanId == null ? "" : spanId;
         this.name = normalizeName(name);
         this.tag = normalizeTag(tag);
         this.kind = kind == null ? SpanKind.OTHER : kind;
@@ -38,6 +40,14 @@ final class Span {
 
     Span parent() {
         return parent;
+    }
+
+    String spanId() {
+        return spanId;
+    }
+
+    String parentSpanId() {
+        return parent == null ? "" : parent.spanId();
     }
 
     int subtreeSize() {

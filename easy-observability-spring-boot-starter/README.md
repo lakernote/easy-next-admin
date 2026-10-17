@@ -76,14 +76,14 @@ Servlet 应用会获得 `TraceIdFilter`。它独立于监控页面开关运行�
 | Redis / Redisson 社区版 | 通过 Spring Data `RedisConnection` 扩展记录命令 | 使用接口代理；应用若按具体 Redisson factory 类型注入，需关闭此适配或改注入 `RedisConnectionFactory` |
 | HTTP server 请求 | Trace ID Filter 处理请求头；Micrometer HTTP server Observation 作为 Trace 根，记录慢/错操作和线程资源 | 异步请求最终生命周期由 Servlet/Micrometer 版本决定；不解析请求体 |
 | HTTP client、JDBC | Observation Handler 接入 Micrometer 发布的 client 与 JDBC Observation；HTTP client 同时负责远程调用树节点。存在 OpenFeign 时自动加 Trace ID 请求头 | 客户端必须启用 Observation；不记录完整 URL 查询参数和 SQL 绑定参数 |
-| Kafka 消息链路 | Starter 提供生产端 `ProducerInterceptor` 注入 Trace ID、消费端 `RecordInterceptor` 恢复 Trace ID；Observation Handler 接收 Spring Kafka Listener/Template Observation | 应用自定义 Listener Container Factory 需挂载 `TraceIdRecordInterceptor` 并启用 Observation；不读取消息体。应用可在自己的生产拦截器中继承 Starter 适配器追加业务头 |
+| Kafka 消息链路 | 自动把 Trace ID 生产拦截器追加到 Spring Boot 默认 ProducerFactory，并通过 `ContainerCustomizer` 接入默认 Listener Container。Observation Handler 接收 Spring Kafka Listener/Template Observation | 应用自定义 ProducerFactory、Listener Container Factory、ContainerCustomizer、非 Spring Kafka listener 或自定义消息头策略需自行接入；不读取消息体。应用必须启用 Kafka Observation 才会记录 Listener/Template 调用统计 |
 | MyBatis | Starter 的 MyBatis `Interceptor` 自动记录 Mapper 名称、命令、耗时、线程资源及 Trace 子节点 | 只记录 Mapper ID 和 SQL 命令，不保存原始 SQL 与参数；可通过 `easy.observability.mybatis.enabled=false` 关闭 |
 | Spring 线程池 | 提供 `TraceContextTaskDecorator`，传播并恢复 Trace ID 与 MDC | 自定义线程池需要设置该 `TaskDecorator`；不传播线程绑定的 Trace Tree 对象 |
 | Spring 定时任务 | 使用 Spring 6.2 `SchedulingConfigurer` 扩展点启用 `@Scheduled` Observation，自动形成 JOB Trace 和慢/错记录 | 需要应用启用 `@EnableScheduling`；不使用 AOP 扫描任意方法 |
 | Quartz / 自定义任务 | 注入 `JobObservation` 并调用 `observe`，复用相同的 JOB Trace、Slow/Error 和资源采集 | 不拦截 Quartz 内部类；由 Job/Listener 显式调用 |
 | Spring 线程池指标 | 自动为 Spring `ThreadPoolTaskExecutor`、`ThreadPoolTaskScheduler` 和 ExecutorService 绑定 Micrometer 池指标 | 只记录池大小、活跃线程、队列等标准指标；任务名称需由 Spring 定时任务 Observation 或应用显式记录 |
 
-Spring Kafka 的 Observation 需在模板和 Listener Container 上启用。Starter 提供通用消息头拦截器；应用自定义 Listener Container Factory 时应显式设置该拦截器，避免 Starter 覆盖应用已有拦截器。EasyNextAdmin 的 `userId` 消息头仍由宿主适配器处理。
+Spring Kafka 的 Observation 需在模板和 Listener Container 上启用。Starter 会通过 Spring Boot 默认 `ContainerCustomizer` 安装 Trace ID 拦截器。若应用自定义了 Listener Container Factory 或 `ContainerCustomizer`，应在自己的配置中组合 `TraceIdRecordInterceptor` 与已有拦截器，避免替换宿主行为。EasyNextAdmin 的 `userId` 消息头仍由宿主适配器处理。
 
 Redis 适配可通过 `easy.observability.redis.enabled=false` 关闭。命令参数不会被记录。事务采集由 `easy.observability.transaction.enabled` 控制；`easy.observability.transaction.slow-threshold-ms` 默认是 `1000` 毫秒，设为 `0` 或负数会关闭长事务分类，但仍保留事务耗时采集。
 
@@ -103,7 +103,9 @@ Micrometer 当前指标每分钟写入 RRD4J。默认保留至少 30 天，使�
 
 慢操作和错误操作以有界 JSONL 持久化，事件包含操作名、Trace ID、线程 ID/名称、耗时、CPU 时间、线程分配字节数、阻塞/等待计数及错误摘要。慢/错 Trace 树单独落盘并保留关联操作资源信息；正常成功操作只保留在有界进程内列表，不写磁盘。默认文件位于 `./data/easy-observability/`，可用 `easy.observability.trace.history-file`、`archive-file` 和 `history-max-bytes` 调整。
 
-独立页面优先展示 JavaMelody 式入口请求统计：HTTP、Job、Kafka 消费分别按操作汇总调用数、平均/最大耗时、失败数和失败率，并显示线程 CPU 时间和分配内存均值。计数从当前应用进程启动后累计；操作名作为 Micrometer 标签记录，并由基数上限保护。Slow/Error 列表仍以完整入口 Trace 为一行，可按入口、关键词、时间范围、最短耗时筛选，并按最新或最慢排序；详情提供调用时间线、调用树和操作资源明细，数据库、Redis、远程调用和事务作为同一 Trace 的下游操作。RRD4J 指标趋势独立保留，可选择多条指标和时间范围对比。慢错 Trace 在进程重启后仍可查询。数据按当前实例本地保存，不会自动汇总多个实例。
+独立页面采用 JavaMelody 报告式阅读顺序：顶部运行摘要、多个关键指标趋势、入口统计、慢请求/错误列表和最近 Trace。入口统计展示 HTTP、Job、Kafka 消费的调用数、平均/最大耗时、累计耗时占比、失败数/失败率、线程 CPU 时间和分配内存均值。计数从当前应用进程启动后累计；趋势范围作用于 RRD4J 时间序列和慢错事件列表。页面默认选择最多四个常用趋势，也可搜索 Micrometer 历史目录并切换最多四个指标。
+
+Trace 根节点只由 HTTP server、Job 和 Kafka consumer 入口创建。HTTP client、Kafka producer、Redis、Elasticsearch、JDBC/MyBatis 与事务作为当前入口下的操作节点；它们在没有入口上下文时只记录操作指标，不会伪装成一次独立请求。发生慢调用或错误时，慢错列表打开入口 Trace，展示调用树、操作耗时、线程 ID、CPU 和线程分配内存。线程资源值受 JVM 支持和操作是否在同一线程完成的影响；异步切换线程时无法可靠计算的字段显示为空。慢错 Trace 在进程重启后仍可查询；数据按当前实例本地保存，不会自动汇总多个实例。
 
 页面资源可直接打开，但 `/api/easy-observability/**` 默认拒绝匿名读取，避免新接入的应用意外暴露 Trace、错误摘要和线程信息。推荐由宿主提供 `ObservabilityAccessPolicy` Bean 接入自己的登录/权限体系；页面同源请求会携带 Cookie，也支持 `window.EasyObservabilityAuth.token()` 宿主钩子传入 Bearer Token。只有在可信本地开发环境，才显式设置 `easy.observability.web.allow-anonymous=true` 开放匿名读取。
 

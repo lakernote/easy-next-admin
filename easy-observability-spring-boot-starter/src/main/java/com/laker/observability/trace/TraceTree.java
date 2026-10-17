@@ -16,6 +16,7 @@ final class TraceTree {
     private static final String OUTPUT_TRUNCATED_MARKER = System.lineSeparator()
             + "[Trace] TRACE_OUTPUT_TRUNCATED maxChars=" + MAX_RENDER_CHARS;
     private final Span root;
+    private long nextSpanId = 1;
     private final int maxDepth;
     private final int maxNodes;
     private final long minNodeCostMs;
@@ -43,30 +44,31 @@ final class TraceTree {
     }
 
     TraceTree(String rootName, SpanKind rootKind, String rootTag, int maxDepth, long minNodeCostMs, int maxNodes) {
-        this.root = new Span(rootName, rootKind, rootTag, null);
+        this.root = new Span("1", rootName, rootKind, rootTag, null);
         this.currentSpan = root;
         this.maxDepth = Math.max(1, maxDepth);
         this.minNodeCostMs = Math.max(0, minNodeCostMs);
         this.maxNodes = Math.max(1, maxNodes);
     }
 
-    void addSpan(String name, SpanKind kind, String tag) {
+    String addSpan(String name, SpanKind kind, String tag) {
         int nextDepth = callDepth + 2;
         callDepth++;
         Span parent = currentSpan;
         if (parent == null || nextDepth > maxDepth) {
             if (nextDepth > maxDepth) recordOmittedSpan();
-            return;
+            return "";
         }
         if (recordedNodes >= maxNodes) {
             recordOmittedSpan();
-            return;
+            return "";
         }
-        Span child = new Span(name, kind, tag, parent);
+        Span child = new Span(nextSpanId(), name, kind, tag, parent);
         parent.addChild(child);
         recordedNodes++;
         currentSpan = child;
         currentSpanDepth = nextDepth;
+        return child.spanId();
     }
 
     Span addDetachedSpan(String name, SpanKind kind, String tag) {
@@ -74,10 +76,23 @@ final class TraceTree {
             recordOmittedSpan();
             return null;
         }
-        Span span = new Span(name, kind, tag, root);
-        root.addChild(span);
+        Span parent = currentSpan == null ? root : currentSpan;
+        Span span = new Span(nextSpanId(), name, kind, tag, parent);
+        parent.addChild(span);
         recordedNodes++;
         return span;
+    }
+
+    String rootSpanId() {
+        return root.spanId();
+    }
+
+    String currentSpanId() {
+        return currentSpan == null ? "" : currentSpan.spanId();
+    }
+
+    private String nextSpanId() {
+        return Long.toHexString(++nextSpanId);
     }
 
     void stopSpan() {

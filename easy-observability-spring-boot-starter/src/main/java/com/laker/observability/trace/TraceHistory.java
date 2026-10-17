@@ -4,14 +4,21 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Keeps a small, recent in-memory view of completed traces for the bundled dashboard. */
 public class TraceHistory {
     private final ConcurrentLinkedDeque<TraceRecord> records = new ConcurrentLinkedDeque<>();
+    private final AtomicInteger recordCount = new AtomicInteger();
     private final AtomicLong nextId = new AtomicLong();
     private final ConcurrentLinkedDeque<OperationRecord> operations = new ConcurrentLinkedDeque<>();
+    private final ConcurrentMap<String, ConcurrentLinkedDeque<OperationRecord>> operationsByTraceId =
+            new ConcurrentHashMap<>();
+    private final AtomicInteger operationCount = new AtomicInteger();
     private final AtomicLong nextOperationId = new AtomicLong();
     private final int capacity;
     private final int operationCapacity;
@@ -32,18 +39,23 @@ public class TraceHistory {
 
     public void add(String traceId, String name, String method, String sourceType, int status, long durationMs,
                     boolean slow, boolean error, String tree) {
+        if (!isEntrySource(sourceType)) return;
         records.addFirst(new TraceRecord(nextId.incrementAndGet(), traceId, name, method, status,
                 Math.max(0, durationMs), slow, error, tree, Instant.now(), -1, -1, -1, List.of(), sourceType));
-        while (records.size() > capacity) records.pollLast();
+        recordCount.incrementAndGet();
+        while (recordCount.get() > capacity) {
+            if (records.pollLast() == null) break;
+            recordCount.decrementAndGet();
+        }
     }
 
     public List<TraceRecord> recent(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, capacity));
         List<TraceRecord> result = new ArrayList<>(safeLimit);
         for (TraceRecord record : records) {
+            if (!isEntrySource(record.sourceType())) continue;
             if (result.size() == safeLimit) break;
-            OperationRecord root = operationsFor(record.traceId(), 500).stream()
-                    .filter(TraceHistory::isRootOperation).findFirst().orElse(null);
+            OperationRecord root = firstRootOperation(record.traceId());
             result.add(root == null ? record : record.withDetails(root, List.of()));
         }
         return List.copyOf(result);
@@ -59,14 +71,29 @@ public class TraceHistory {
 
     public TraceRecord find(String traceId) {
         if (traceId == null || traceId.isBlank()) return null;
-        TraceRecord record = records.stream().filter(item -> traceId.equals(item.traceId())).findFirst().orElse(null);
+        TraceRecord record = records.stream().filter(item -> traceId.equals(item.traceId())
+                && isEntrySource(item.sourceType())).findFirst().orElse(null);
         return record == null ? null : withOperations(record);
     }
 
     public void addOperation(OperationRecord operation) {
         if (operation == null) return;
         operations.addFirst(operation);
-        while (operations.size() > operationCapacity) operations.pollLast();
+        operationCount.incrementAndGet();
+        if (!operation.traceId().isBlank()) {
+            operationsByTraceId.compute(operation.traceId(), (traceId, related) -> {
+                ConcurrentLinkedDeque<OperationRecord> indexed = related == null
+                        ? new ConcurrentLinkedDeque<>() : related;
+                indexed.addFirst(operation);
+                return indexed;
+            });
+        }
+        while (operationCount.get() > operationCapacity) {
+            OperationRecord expired = operations.pollLast();
+            if (expired == null) break;
+            operationCount.decrementAndGet();
+            removeIndexedOperation(expired);
+        }
     }
 
     public List<OperationRecord> recentOperations(int limit, String kind) {
@@ -84,19 +111,33 @@ public class TraceHistory {
 
     public List<OperationRecord> operationsFor(String traceId, int limit) {
         if (traceId == null || traceId.isBlank()) return List.of();
-        TraceRecord trace = records.stream().filter(item -> traceId.equals(item.traceId())).findFirst().orElse(null);
+        TraceRecord trace = records.stream().filter(item -> traceId.equals(item.traceId())
+                && isEntrySource(item.sourceType())).findFirst().orElse(null);
         if (trace == null) return List.of();
-        Instant start = trace.finishedAt().minusMillis(trace.durationMs()).minusMillis(1);
-        Instant end = trace.finishedAt().plusMillis(1);
         int safeLimit = Math.max(1, Math.min(limit, 1_000));
+        ConcurrentLinkedDeque<OperationRecord> related = operationsByTraceId.get(traceId);
+        if (related == null) return List.of();
         List<OperationRecord> result = new ArrayList<>();
-        for (OperationRecord operation : operations) {
-            if (!traceId.equals(operation.traceId()) || operation.finishedAt().isBefore(start)
-                    || operation.finishedAt().isAfter(end)) continue;
+        for (OperationRecord operation : related) {
             if (result.size() == safeLimit) break;
             result.add(operation);
         }
         return List.copyOf(result);
+    }
+
+    private OperationRecord firstRootOperation(String traceId) {
+        ConcurrentLinkedDeque<OperationRecord> related = operationsByTraceId.get(traceId);
+        if (related == null) return null;
+        return related.stream().filter(TraceHistory::isRootOperation).findFirst().orElse(null);
+    }
+
+    private void removeIndexedOperation(OperationRecord operation) {
+        String traceId = operation.traceId();
+        if (traceId.isBlank()) return;
+        operationsByTraceId.computeIfPresent(traceId, (ignored, related) -> {
+            related.remove(operation);
+            return related.isEmpty() ? null : related;
+        });
     }
 
     private TraceRecord withOperations(TraceRecord record) {
@@ -106,11 +147,13 @@ public class TraceHistory {
     }
 
     private static boolean isRootOperation(OperationRecord operation) {
-        return "HTTP".equals(operation.type()) || "REDIS".equals(operation.type())
-                || "KAFKA".equals(operation.type()) || "KAFKA_CONSUMER".equals(operation.type())
-                || "KAFKA_PRODUCER".equals(operation.type()) || "JOB".equals(operation.type())
-                || "TRANSACTION".equals(operation.type()) || "REMOTE".equals(operation.type())
-                || "DATABASE".equals(operation.type()) || "SQL".equals(operation.type());
+        return isEntrySource(operation.type());
+    }
+
+    /** Trace history contains entry points; dependencies remain visible under the entry's detail. */
+    public static boolean isEntrySource(String sourceType) {
+        if (sourceType == null || sourceType.isBlank()) return true; // legacy caller without a source tag
+        return "HTTP".equals(sourceType) || "KAFKA_CONSUMER".equals(sourceType) || "JOB".equals(sourceType);
     }
 
     /** One completed request or manually recorded trace. */

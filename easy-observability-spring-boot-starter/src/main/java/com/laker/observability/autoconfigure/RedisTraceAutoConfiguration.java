@@ -3,7 +3,6 @@ package com.laker.observability.autoconfigure;
 import com.laker.observability.config.EasyObservabilityProperties;
 import com.laker.observability.integration.redis.RedissonTraceConnectionFactoryPostProcessor;
 import com.laker.observability.metrics.OperationRecorder;
-import com.laker.observability.trace.TraceHistory;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -48,10 +47,10 @@ public class RedisTraceAutoConfiguration {
         @org.springframework.context.annotation.Bean
         @ConditionalOnProperty(prefix = "easy.observability.trace", name = "enabled",
                 havingValue = "true", matchIfMissing = true)
-        RedissonTraceConnectionFactoryPostProcessor redissonTraceConnectionFactoryPostProcessor(
-                OperationRecorder recorder, TraceHistory history,
-                com.laker.observability.trace.TraceArchive archive, EasyObservabilityProperties properties) {
-            return new RedissonTraceConnectionFactoryPostProcessor(recorder, history, archive, properties);
+        static RedissonTraceConnectionFactoryPostProcessor redissonTraceConnectionFactoryPostProcessor(
+                org.springframework.beans.factory.ObjectProvider<OperationRecorder> recorderProvider,
+                org.springframework.beans.factory.ObjectProvider<EasyObservabilityProperties> propertiesProvider) {
+            return new RedissonTraceConnectionFactoryPostProcessor(recorderProvider, propertiesProvider);
         }
     }
 }

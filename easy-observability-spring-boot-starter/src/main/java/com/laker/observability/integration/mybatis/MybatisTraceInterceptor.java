@@ -77,7 +77,8 @@ public final class MybatisTraceInterceptor implements Interceptor {
                         after.blockedTimeMsSince(before), after.waitedCountSince(before),
                         after.waitedTimeMsSince(before), command, "", "", slow, failed,
                         slow ? List.of("SLOW_SQL") : List.of(),
-                        failure == null ? "" : failure.getClass().getName(), "", Map.of(), Instant.now()));
+                        failure == null ? "" : failure.getClass().getName(), "", Map.of(), Instant.now(),
+                        span == null ? "" : span.spanId(), span == null ? "" : span.parentSpanId()));
             } catch (Throwable ignored) {
                 // Instrumentation failures must not replace the mapper result or exception.
             }

@@ -8,13 +8,15 @@ import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ObservabilityAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(ObservabilityAutoConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(ObservabilityAutoConfiguration.class,
+                    TraceSpanAutoConfiguration.class))
             .withPropertyValues("easy.observability.metrics.history.enabled=false")
             .withBean(MeterRegistry.class, SimpleMeterRegistry::new);
 
@@ -41,6 +43,26 @@ class ObservabilityAutoConfigurationTest {
         contextRunner.withPropertyValues("easy.observability.enabled=false").run(context -> {
             assertThat(context).doesNotHaveBean(BusinessMetrics.class);
             assertThat(context).doesNotHaveBean(TraceSpanAspect.class);
+        });
+    }
+
+    @Test
+    void startsWithoutSpringAopOnTheApplicationClasspath() {
+        contextRunner.withClassLoader(new FilteredClassLoader("org.aspectj")).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(TraceSpanAspect.class);
+            assertThat(context).hasSingleBean(BusinessMetrics.class);
+        });
+    }
+
+    @Test
+    void exposesJvmMemoryAndProcessorMetersForTheBuiltInTrendPage() {
+        contextRunner.withConfiguration(AutoConfigurations.of(RuntimeMetricsAutoConfiguration.class)).run(context -> {
+            MeterRegistry registry = context.getBean(MeterRegistry.class);
+
+            assertThat(registry.find("jvm.memory.used").gauges()).isNotEmpty();
+            assertThat(registry.find("system.cpu.usage").gauge()).isNotNull();
+            assertThat(registry.find("process.cpu.usage").gauge()).isNotNull();
         });
     }
 

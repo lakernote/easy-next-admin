@@ -32,15 +32,21 @@ public final class TraceContext {
 
     /** Starts a trace root if none exists, or adds a child span to the active trace. */
     public static void startRoot(String name, SpanKind kind) {
-        startRoot(name, kind, "", 8, 0);
+        startRootSpan(name, kind, "", 8, 0);
     }
 
     public static void startRoot(String name, SpanKind kind, String tag, int maxDepth, long minNodeCostMs) {
+        startRootSpan(name, kind, tag, maxDepth, minNodeCostMs);
+    }
+
+    /** Starts a root and returns its span id for integrations that record structured parent relationships. */
+    public static String startRootSpan(String name, SpanKind kind, String tag, int maxDepth, long minNodeCostMs) {
         if (LOCAL_TRACE.get() == null) {
-            LOCAL_TRACE.set(new TraceTree(name, kind, tag, maxDepth, minNodeCostMs));
-        } else {
-            addSpan(name, kind, tag);
+            TraceTree trace = new TraceTree(name, kind, tag, maxDepth, minNodeCostMs);
+            LOCAL_TRACE.set(trace);
+            return trace.rootSpanId();
         }
+        return LOCAL_TRACE.get().addSpan(name, kind, tag);
     }
 
     /** Adds a child span to the active trace. Does nothing when no trace is active. */
@@ -53,6 +59,12 @@ public final class TraceContext {
         if (trace != null) {
             trace.addSpan(name, kind, tag);
         }
+    }
+
+    /** Returns the id of the currently active span, or an empty string when no trace is active. */
+    public static String currentSpanId() {
+        TraceTree trace = LOCAL_TRACE.get();
+        return trace == null ? "" : trace.currentSpanId();
     }
 
     public static void stopSpan() {
@@ -110,6 +122,14 @@ public final class TraceContext {
 
         public void beginBusinessBoundary() {
             if (span != null) span.beginBusinessBoundary();
+        }
+
+        public String spanId() {
+            return span == null ? "" : span.spanId();
+        }
+
+        public String parentSpanId() {
+            return span == null ? "" : span.parentSpanId();
         }
 
         @Override

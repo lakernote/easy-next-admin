@@ -7,20 +7,25 @@ import com.laker.observability.trace.IncidentHistory;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Records bounded operation metrics and recent details for the bundled monitoring page. */
 public final class OperationRecorder {
+    private static final Logger log = LoggerFactory.getLogger(OperationRecorder.class);
     private static final List<String> TYPES = List.of(
-            "HTTP", "SQL", "DATABASE", "REDIS", "TRANSACTION", "REMOTE", "KAFKA", "JOB", "OTHER");
+            "HTTP", "SQL", "DATABASE", "REDIS", "ELASTICSEARCH", "TRANSACTION", "REMOTE", "KAFKA", "JOB", "OTHER");
     private static final List<String> OUTCOMES = List.of("success", "failure");
 
     private final MeterRegistry meterRegistry;
     private final TraceHistory traceHistory;
     private final IncidentHistory incidentHistory;
     private final EasyObservabilityProperties properties;
+    private final AtomicBoolean failureLogged = new AtomicBoolean();
 
     public OperationRecorder(MeterRegistry meterRegistry, TraceHistory traceHistory,
                              EasyObservabilityProperties properties) {
@@ -38,15 +43,17 @@ public final class OperationRecorder {
     /** Never propagates monitoring failures into the observed business operation. */
     public void record(OperationRecord operation) {
         if (operation == null) return;
-        if (properties.getMetrics().isEnabled()) safely(() -> recordMetrics(operation));
-        if (properties.getTrace().isEnabled()) safely(() -> traceHistory.addOperation(operation));
-        if (incidentHistory != null) safely(() -> incidentHistory.record(operation));
+        if (properties.getMetrics().isEnabled()) safely("记录操作指标", () -> recordMetrics(operation));
+        if (properties.getTrace().isEnabled()) safely("保留 Trace 操作", () -> traceHistory.addOperation(operation));
+        if (incidentHistory != null) safely("保留 slow/error 操作", () -> incidentHistory.record(operation));
     }
 
-    private static void safely(Runnable action) {
+    private void safely(String actionName, Runnable action) {
         try { action.run(); }
-        catch (Throwable ignored) {
-            // One broken backend must not suppress the other monitoring outputs or affect application work.
+        catch (RuntimeException failure) {
+            if (failureLogged.compareAndSet(false, true)) {
+                log.warn("Easy Observability {}失败；业务操作会继续执行", actionName, failure);
+            }
         }
     }
 

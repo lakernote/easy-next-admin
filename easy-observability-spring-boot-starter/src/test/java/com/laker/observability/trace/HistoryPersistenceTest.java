@@ -19,20 +19,24 @@ class HistoryPersistenceTest {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         Path operationsFile = directory.resolve("incidents.jsonl");
         Path tracesFile = directory.resolve("traces.jsonl");
+        BoundedHistoryWriter writer = new BoundedHistoryWriter();
         OperationRecord operation = new OperationRecord("HTTP", "trace-123", "GET /orders/{id}",
                 "http-nio-8080-exec-7", 77, "failure", 845, 51, 2048, 0, 0, 0, 0,
                 "GET /orders/{id}", "", "", true, true, List.of("SLOW_HTTP"),
-                "HTTP_5XX", "500", Map.of(), Instant.parse("2026-10-15T10:00:00Z"));
-        IncidentHistory incidents = new IncidentHistory(mapper, operationsFile.toString(), 1000, 4 * 1024 * 1024);
+                "HTTP_5XX", "500", Map.of(), Instant.parse("2026-10-15T10:00:00Z"), "1", "");
+        IncidentHistory incidents = new IncidentHistory(mapper, operationsFile.toString(), 1000,
+                4 * 1024 * 1024, writer);
         incidents.restore();
         incidents.record(operation);
 
         TraceHistory.TraceRecord trace = new TraceHistory.TraceRecord(1, "trace-123", "GET /orders/{id}",
                 "GET /orders/{id}", 500, 845, true, true, "HTTP GET\n  SQL select", operation.finishedAt(),
                 operation.threadId(), operation.cpuTimeMs(), operation.allocatedBytes(), List.of(operation));
-        TraceArchive archive = new TraceArchive(mapper, tracesFile.toString(), 1000, 4 * 1024 * 1024);
+        TraceArchive archive = new TraceArchive(mapper, tracesFile.toString(), 1000,
+                4 * 1024 * 1024, writer);
         archive.restore();
         archive.record(trace);
+        writer.close();
 
         IncidentHistory restoredIncidents = new IncidentHistory(mapper, operationsFile.toString(), 1000, 4 * 1024 * 1024);
         restoredIncidents.restore();
@@ -44,6 +48,7 @@ class HistoryPersistenceTest {
             assertThat(saved.allocatedBytes()).isEqualTo(2048);
             assertThat(saved.threadId()).isEqualTo(77);
             assertThat(saved.threadName()).isEqualTo("http-nio-8080-exec-7");
+            assertThat(saved.spanId()).isEqualTo("1");
         });
         assertThat(restoredTraces.find("trace-123")).satisfies(saved -> {
             assertThat(saved).isNotNull();

@@ -4,8 +4,6 @@ import com.laker.observability.config.EasyObservabilityProperties;
 import com.laker.observability.integration.transaction.TransactionTraceBeanPostProcessor;
 import com.laker.observability.integration.transaction.TransactionTraceListener;
 import com.laker.observability.metrics.OperationRecorder;
-import com.laker.observability.trace.TraceHistory;
-import com.laker.observability.trace.TraceArchive;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -23,10 +21,9 @@ import org.springframework.transaction.TransactionExecutionListener;
 public class TransactionTraceAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    TransactionTraceListener transactionTraceListener(OperationRecorder recorder, TraceHistory history,
-                                                       TraceArchive archive, MeterRegistry meterRegistry,
+    TransactionTraceListener transactionTraceListener(OperationRecorder recorder, MeterRegistry meterRegistry,
                                                        EasyObservabilityProperties properties) {
-        return new TransactionTraceListener(recorder, history, archive, meterRegistry, properties);
+        return new TransactionTraceListener(recorder, meterRegistry, properties);
     }
 
     @Bean

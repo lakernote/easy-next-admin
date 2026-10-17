@@ -1,782 +1,392 @@
 const api = '/api/easy-observability'
-const traceRows = document.querySelector('#trace-rows')
-const metricRows = document.querySelector('#metric-rows')
-const notice = document.querySelector('#notice')
-const dialog = document.querySelector('#trace-dialog')
-let metrics = []
+const byId = id => document.getElementById(id)
+const labels = { HTTP: 'HTTP', JOB: 'Job', KAFKA_CONSUMER: 'Kafka 消费', REDIS: 'Redis', DATABASE: '数据库', SQL: '数据库', TRANSACTION: '事务', REMOTE: '远程调用', ELASTICSEARCH: 'Elasticsearch', KAFKA_PRODUCER: 'Kafka 生产' }
+let requestStats = []
 let traces = []
-let requestStatistics = []
-let selectedRequestSource = 'ALL'
-let slowTraces = []
-let errorTraces = []
-let metricSeries = []
-let selectedSeriesKeys = []
-let historyRequestVersion = 0
-const MAX_SELECTED_SERIES = 4
-const incidentSources = [
-  { key: 'ALL', label: '全部入口' },
-  { key: 'HTTP', label: 'HTTP' },
-  { key: 'JOB', label: 'Job' },
-  { key: 'KAFKA_CONSUMER', label: 'Kafka 消费' },
-  { key: 'OTHER', label: '其他独立 Trace' }
-]
-const selectedIncidentSource = { slow: 'ALL', error: 'ALL' }
-const sourceLabels = {
-  HTTP: 'HTTP', JOB: 'Job', KAFKA_CONSUMER: 'Kafka 消费', KAFKA_PRODUCER: 'Kafka 生产',
-  KAFKA: 'Kafka', REDIS: 'Redis', TRANSACTION: '事务', REMOTE: '远程调用',
-  DATABASE: '数据库', SQL: '数据库', OTHER: '其他'
-}
+let selectedSource = 'ALL'
+let seriesCatalog = []
+let liveMetrics = []
+let seriesCache = new Map()
+let selectedSeriesKeys = new Set()
+let seriesSelectionInitialized = false
+const seriesLimit = 4
+const recentPageSize = 30
+let recentPage = 0
 
-function cell(value, className = '') {
-  const element = document.createElement('td')
-  element.textContent = value ?? '-'
-  if (className) element.className = className
-  return element
+function safeText(value) { return value == null || value === '' ? '—' : String(value) }
+function formatNumber(value, suffix = '') {
+  const number = Number(value)
+  return Number.isFinite(number) && number >= 0 ? `${number.toLocaleString(undefined, { maximumFractionDigits: 2 })}${suffix}` : '—'
 }
-
-function setNotice(message = '') {
-  notice.textContent = message
-  notice.hidden = !message
+function formatBytes(value) {
+  const bytes = Number(value)
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+  if (bytes < 1024) return `${formatNumber(bytes)} B`
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KiB`
+  return `${(bytes / 1048576).toFixed(1)} MiB`
 }
-
+function formatMetricValue(name, value) {
+  if (name === 'process.cpu.usage' || name === 'system.cpu.usage') {
+    return `${(Number(value) * 100).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`
+  }
+  if (name === 'jvm.memory.used') return formatBytes(value)
+  return formatNumber(value)
+}
+function formatTime(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? safeText(value) : date.toLocaleString()
+}
+function esc(value) { return String(value ?? '').replaceAll('\\', '\\\\').replaceAll('"', '\\"') }
 async function getJson(path) {
   const headers = { Accept: 'application/json' }
-  const hostToken = window.EasyObservabilityAuth?.token?.()
-  let token = typeof hostToken === 'string' ? hostToken : ''
+  let token = typeof window.EasyObservabilityAuth?.token === 'function' ? window.EasyObservabilityAuth.token() : ''
   if (!token) {
     try {
       const raw = localStorage.getItem('easy-next-admin-web-auth') || sessionStorage.getItem('easy-next-admin-web-auth')
       token = raw ? JSON.parse(raw).accessToken || '' : ''
-    } catch { /* The dashboard can run without a browser-stored bearer token. */ }
+    } catch { /* Standalone installations may use same-origin cookies. */ }
   }
   if (token) headers.Authorization = `Bearer ${token}`
   const response = await fetch(`${api}${path}`, { headers })
-  if (response.status === 401 || response.status === 403) {
-    throw new Error('监控数据访问受限：请登录并配置 ObservabilityAccessPolicy，或仅在可信本地环境显式开启匿名访问')
-  }
-  if (!response.ok) throw new Error(`请求失败：${response.status}`)
+  if (response.status === 401 || response.status === 403) throw new Error('监控数据访问受限，请登录或配置 ObservabilityAccessPolicy')
+  if (!response.ok) throw new Error(`读取监控数据失败：${response.status}`)
   return response.json()
 }
-
-function formatTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+function td(row, value, className = '') {
+  const cell = document.createElement('td')
+  cell.textContent = safeText(value)
+  if (className) cell.className = className
+  row.append(cell)
+  return cell
 }
-
-function formatNumber(value, unit = '') {
-  return Number.isFinite(Number(value)) && Number(value) >= 0
-    ? `${Number(value).toLocaleString()}${unit}`
-    : '-'
+function makeClickable(row, label, action) {
+  row.classList.add('clickable')
+  row.tabIndex = 0
+  row.setAttribute('aria-label', label)
+  row.addEventListener('click', action)
+  row.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    action()
+  })
 }
+function periodStart() { return Date.now() - Number(byId('period').value) * 3600000 }
+function inSelectedPeriod(trace) { return new Date(trace.finishedAt).getTime() >= periodStart() }
+function showNotice(message = '') { byId('notice').textContent = message; byId('notice').hidden = !message }
 
-function formatBytes(value) {
-  const bytes = Number(value)
-  if (!Number.isFinite(bytes) || bytes < 0) return '-'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
-}
-
-function renderTraces(items) {
-  traces = items
-  traceRows.replaceChildren()
-  document.querySelector('#trace-count').textContent = `${items.length} 条`
-  document.querySelector('#trace-empty').hidden = items.length > 0
-  for (const trace of items) {
-    const row = document.createElement('tr')
-    row.className = 'clickable'
-    const result = document.createElement('td')
-    const badge = document.createElement('span')
-    badge.className = `pill ${trace.error ? 'error' : trace.slow ? 'slow' : 'ok'}`
-    badge.textContent = trace.error ? '错误' : trace.slow ? '慢请求' : '正常'
-    result.append(badge)
-    row.append(result, cell(`${trace.method || ''} ${trace.name || ''}`.trim()), cell(String(trace.status)), cell(`${trace.durationMs} ms`), cell(formatNumber(trace.cpuTimeMs, ' ms')), cell(formatBytes(trace.allocatedBytes)), cell(formatNumber(trace.threadId)), cell(trace.traceId, 'mono'), cell(formatTime(trace.finishedAt), 'muted'))
-    row.addEventListener('click', () => showTrace(trace))
-    traceRows.append(row)
-  }
-}
-
-function renderRequestStatistics(items) {
-  requestStatistics = items
-  const visible = selectedRequestSource === 'ALL'
-    ? items : items.filter(item => item.source === selectedRequestSource)
-  const body = document.querySelector('#request-rows')
-  body.replaceChildren()
-  document.querySelector('#request-count').textContent = `${visible.length} 项`
-  document.querySelector('#request-empty').hidden = visible.length > 0
-  const summary = document.querySelector('#request-summary')
-  summary.replaceChildren()
-  const count = visible.reduce((total, item) => total + item.count, 0)
-  const errors = visible.reduce((total, item) => total + item.errorCount, 0)
-  const totalDuration = visible.reduce((total, item) => total + item.totalDurationMs, 0)
-  const maxDuration = Math.max(0, ...visible.map(item => item.maxDurationMs))
-  const summaryItems = [
-    ['调用总数', formatNumber(count)],
-    ['平均耗时', formatNumber(count ? totalDuration / count : 0, ' ms')],
-    ['最大耗时', formatNumber(maxDuration, ' ms')],
-    ['错误率', `${(count ? errors / count * 100 : 0).toFixed(2)}%`]
-  ]
-  for (const [label, value] of summaryItems) {
-    const card = document.createElement('div')
-    card.className = 'request-summary-item'
-    const title = document.createElement('span')
-    title.textContent = label
-    const number = document.createElement('strong')
-    number.textContent = value
-    card.append(title, number)
-    summary.append(card)
-  }
+function renderStats() {
+  const visible = selectedSource === 'ALL' ? requestStats : requestStats.filter(item => item.source === selectedSource)
+  const count = visible.reduce((sum, item) => sum + Number(item.count || 0), 0)
+  const errors = visible.reduce((sum, item) => sum + Number(item.errorCount || 0), 0)
+  const totalMs = visible.reduce((sum, item) => sum + Number(item.totalDurationMs || 0), 0)
+  byId('total-count').textContent = formatNumber(count)
+  byId('mean-duration').textContent = formatNumber(count ? totalMs / count : 0, ' ms')
+  byId('error-rate').textContent = `${(count ? errors / count * 100 : 0).toFixed(2)}%`
+  const rows = byId('entry-rows')
+  rows.replaceChildren()
+  const sumDuration = visible.reduce((sum, item) => sum + Number(item.totalDurationMs || 0), 0)
   for (const item of visible) {
     const row = document.createElement('tr')
-    const errorRate = `${Number(item.errorRate || 0).toFixed(2)}%`
-    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation),
-      cell(`${totalDuration ? (item.totalDurationMs / totalDuration * 100).toFixed(1) : '0.0'}%`), cell(formatNumber(item.count)),
-      cell(formatNumber(item.meanDurationMs, ' ms')), cell(formatNumber(item.maxDurationMs, ' ms')),
-      cell(formatNumber(item.errorCount)), cell(errorRate), cell(formatNumber(item.meanCpuTimeMs, ' ms')),
-      cell(formatBytes(item.meanAllocatedBytes)))
-    const trendCell = document.createElement('td')
-    const trendButton = document.createElement('button')
-    trendButton.className = 'trend-link'
-    trendButton.type = 'button'
-    trendButton.textContent = '查看'
-    trendButton.addEventListener('click', () => showRequestTrend(item))
-    trendCell.append(trendButton)
-    row.append(trendCell)
-    body.append(row)
+    row.title = '查看保留的单次调用'
+    makeClickable(row, `查看 ${labels[item.source] || item.source} ${item.operation} 的调用记录`, () => openEntryDetails(item))
+    td(row, `${labels[item.source] || item.source} · ${item.operation}`)
+    td(row, formatNumber(item.count), 'number')
+    const shareCell = td(row, `${sumDuration ? (item.totalDurationMs / sumDuration * 100).toFixed(1) : '0.0'}%`, 'share')
+    const bar = document.createElement('div'); bar.className = 'share-line'
+    const fill = document.createElement('i'); fill.style.width = `${sumDuration ? Math.min(100, item.totalDurationMs / sumDuration * 100) : 0}%`; bar.append(fill); shareCell.append(bar)
+    td(row, formatNumber(item.meanDurationMs, ' ms'), 'number')
+    td(row, formatNumber(item.maxDurationMs, ' ms'), 'number')
+    td(row, formatNumber(item.errorCount), 'number')
+    td(row, `${Number(item.errorRate || 0).toFixed(2)}%`, 'number')
+    td(row, formatNumber(item.meanCpuTimeMs, ' ms'), 'number')
+    td(row, formatBytes(item.meanAllocatedBytes), 'number')
+    rows.append(row)
   }
-  renderOverview(items)
+  byId('entry-empty').hidden = visible.length > 0
 }
 
-function renderOverview(items) {
-  const count = items.reduce((total, item) => total + Number(item.count || 0), 0)
-  const duration = items.reduce((total, item) => total + Number(item.totalDurationMs || 0), 0)
-  const errors = items.reduce((total, item) => total + Number(item.errorCount || 0), 0)
-  const maxDuration = Math.max(0, ...items.map(item => Number(item.maxDurationMs || 0)))
-  const cards = [
-    ['请求总数', formatNumber(count), '进程启动以来'],
-    ['平均响应时间', formatNumber(count ? duration / count : 0, ' ms'), '按调用次数加权'],
-    ['最大响应时间', formatNumber(maxDuration, ' ms'), '已完成请求中的最大值'],
-    ['错误率', `${(count ? errors / count * 100 : 0).toFixed(2)}%`, `${formatNumber(errors)} 次失败`],
-    ['慢调用', `${slowTraces.length}`, '最近保留的慢 Trace'],
-    ['错误 Trace', `${errorTraces.length}`, '最近保留的错误 Trace']
-  ]
-  const summary = document.querySelector('#overview-summary')
-  summary.replaceChildren()
-  for (const [label, value, detail] of cards) {
-    const card = document.createElement('article')
-    card.className = 'overview-stat'
-    const name = document.createElement('span')
-    name.className = 'overview-stat-name'
-    name.textContent = label
-    const number = document.createElement('strong')
-    number.textContent = value
-    const note = document.createElement('small')
-    note.textContent = detail
-    card.append(name, number, note)
-    summary.append(card)
-  }
-
-  const body = document.querySelector('#overview-request-rows')
-  body.replaceChildren()
-  document.querySelector('#overview-request-empty').hidden = items.length > 0
-  for (const item of items.slice(0, 8)) {
-    const share = duration ? item.totalDurationMs / duration * 100 : 0
-    const row = document.createElement('tr')
-    const shareCell = document.createElement('td')
-    const shareValue = document.createElement('span')
-    shareValue.className = 'share-value'
-    shareValue.textContent = `${share.toFixed(1)}%`
-    const shareTrack = document.createElement('span')
-    shareTrack.className = 'share-track'
-    const shareFill = document.createElement('span')
-    shareFill.className = 'share-fill'
-    shareFill.style.width = `${Math.max(0, Math.min(100, share))}%`
-    shareTrack.append(shareFill)
-    shareCell.append(shareValue, shareTrack)
-    row.append(cell(sourceLabels[item.source] || item.source), cell(item.operation), shareCell,
-      cell(formatNumber(item.count)), cell(formatNumber(item.meanDurationMs, ' ms')),
-      cell(formatNumber(item.maxDurationMs, ' ms')), cell(`${Number(item.errorRate || 0).toFixed(2)}%`))
-    body.append(row)
-  }
-  renderOverviewCharts()
+function entryOperationCandidates(trace) {
+  return [
+    `${trace.method || ''} · ${trace.name || ''}`,
+    `${trace.name || ''} · ${trace.method || ''}`,
+    `${trace.method || ''} ${trace.name || ''}`,
+    trace.name || '', trace.method || ''
+  ].map(value => value.trim().toLocaleLowerCase()).filter(Boolean)
 }
-
-function renderOverviewCharts() {
-  const root = document.querySelector('#overview-charts')
-  root.replaceChildren()
-  const selected = metricSeries.filter(series => selectedSeriesKeys.includes(seriesKey(series))).slice(0, 4)
-  document.querySelector('#overview-window').value = document.querySelector('#history-window').value
-  for (const series of selected) {
-    const card = document.createElement('article')
-    card.className = 'overview-chart-card'
-    const title = document.createElement('div')
-    title.className = 'overview-chart-title'
-    title.textContent = metricDisplayName(series.name, series.tags)
-    const canvas = document.createElement('canvas')
-    canvas.height = 172
-    canvas.setAttribute('aria-label', `${title.textContent} 趋势`)
-    const measurement = (series.measurements || [])[0]
-    card.append(title, canvas)
-    root.append(card)
-    if (measurement && series.history) drawHistory(canvas, series.history, measurement)
-    else {
-      const context = canvas.getContext('2d')
-      context.fillStyle = '#778397'
-      context.font = '13px sans-serif'
-      context.fillText('等待首个历史采集点', 14, 26)
-    }
-  }
-  if (!selected.length) {
-    const empty = document.createElement('div')
-    empty.className = 'overview-chart-empty'
-    empty.textContent = metricSeries.length ? '暂无默认趋势系列，请在“指标趋势”中选择要关注的指标。' : '历史指标尚未采集。'
-    root.append(empty)
-  }
-}
-
-function metricDisplayName(name, tags = {}) {
-  const names = {
-    'process.cpu.usage': '进程 CPU 使用率', 'system.cpu.usage': '系统 CPU 使用率',
-    'jvm.memory.used': tags.area === 'heap' ? '堆内存使用量' : '非堆内存使用量',
-    'hikaricp.connections.active': '活动数据库连接', 'http.server.requests': 'HTTP 请求耗时',
-    'easy.operations.duration': tags.type === 'HTTP' ? `HTTP 请求耗时 · ${tags.operation || '入口'}` : name
-  }
-  return names[name] || name
-}
-
-async function showRequestTrend(item) {
-  const matching = metricSeries.filter(series => series.name === 'easy.operations.duration'
-    && series.tags?.source === item.source && series.tags?.operation === item.operation)
-  if (!matching.length) {
-    setNotice('这项操作的历史趋势尚未采集；等待下一个指标采集周期后再查看')
-    return
-  }
-  selectedSeriesKeys = matching.slice(0, MAX_SELECTED_SERIES).map(seriesKey)
-  document.querySelector('#history-search').value = 'easy.operations.duration'
-  renderSeries()
-  document.querySelector('[data-tab="history"]').click()
-  try {
-    await loadHistory()
-  } catch (error) {
-    setNotice(error.message || '读取请求趋势失败')
-  }
-}
-
-function renderIncidentRows(kind, items) {
-  const prefix = kind === 'error' ? 'error' : 'slow'
-  const body = document.querySelector(`#${prefix}-rows`)
-  const selectedSource = selectedIncidentSource[kind]
-  const searchedItems = filterIncidentTraces(kind, items)
-  const visibleItems = selectedSource === 'ALL'
-    ? searchedItems
-    : selectedSource === 'OTHER'
-      ? searchedItems.filter(item => !['HTTP', 'JOB', 'KAFKA_CONSUMER'].includes(rootSource(item)))
-      : searchedItems.filter(item => rootSource(item) === selectedSource)
-  renderIncidentSources(kind, searchedItems)
-  body.replaceChildren()
-  document.querySelector(`#${prefix}-count`).textContent = selectedSource === 'ALL'
-    ? `${visibleItems.length} / ${items.length} 条` : `${visibleItems.length} / ${searchedItems.length} 条`
-  const empty = document.querySelector(`#${prefix}-empty`)
-  empty.hidden = visibleItems.length > 0
-  empty.textContent = items.length ? '当前条件下没有匹配的 Trace。' : kind === 'error' ? '暂时没有错误 Trace。' : '暂时没有慢 Trace。'
-  for (const trace of visibleItems) {
-    const row = document.createElement('tr')
-    row.className = 'clickable'
-    const source = rootSource(trace)
-    const operations = trace.operations || []
-    const rootOperation = [...operations].filter(operation => operation.type === source)
-      .sort((left, right) => Math.abs(new Date(left.finishedAt) - new Date(trace.finishedAt))
-        - Math.abs(new Date(right.finishedAt) - new Date(trace.finishedAt)))[0]
-    const errorOperation = operations.find(operation => operation.error) || rootOperation
-    const cells = [cell(sourceLabels[source] || '其他'), cell(`${trace.method || ''} ${trace.name || ''}`.trim()),
-      cell(String(trace.status)), cell(`${trace.durationMs} ms`), cell(formatNumber(trace.cpuTimeMs, ' ms')),
-      cell(formatBytes(trace.allocatedBytes)), cell(formatNumber(trace.threadId))]
-    if (kind === 'error') {
-      cells.push(cell(errorOperation?.errorType || errorOperation?.errorMessage || '执行失败'))
-    }
-    cells.push(cell(trace.traceId, 'mono'), cell(formatTime(trace.finishedAt), 'muted'))
-    row.append(...cells)
-    row.addEventListener('click', () => showTrace({ traceId: trace.traceId }))
-    body.append(row)
-  }
-}
-
-function filterIncidentTraces(kind, items) {
-  const prefix = kind === 'error' ? 'error' : 'slow'
-  const keyword = document.querySelector(`#${prefix}-search`).value.trim().toLowerCase()
-  const windowMinutes = Number(document.querySelector(`#${prefix}-window`).value)
-  const minDuration = Number(document.querySelector(`#${prefix}-min-duration`).value)
-  const cutoff = windowMinutes > 0 ? Date.now() - windowMinutes * 60 * 1000 : 0
-  const filtered = items.filter(trace => {
-    const finished = new Date(trace.finishedAt).getTime()
-    if (cutoff && (!Number.isFinite(finished) || finished < cutoff)) return false
-    if (Number.isFinite(minDuration) && minDuration > 0 && Number(trace.durationMs) < minDuration) return false
-    if (!keyword) return true
-    const operationText = (trace.operations || []).map(operation =>
-      `${operation.name} ${operation.type} ${operation.errorType} ${operation.errorMessage} ${operation.detail}`
-    ).join(' ')
-    return `${trace.traceId} ${trace.name} ${trace.method} ${rootSource(trace)} ${operationText}`
-      .toLowerCase().includes(keyword)
-  })
-  if (document.querySelector(`#${prefix}-sort`).value === 'slowest') {
-    filtered.sort((left, right) => Number(right.durationMs) - Number(left.durationMs))
-  } else {
-    filtered.sort((left, right) => new Date(right.finishedAt) - new Date(left.finishedAt))
-  }
-  return filtered
-}
-
-function rootSource(trace) {
-  return String(trace.sourceType || '').toUpperCase() || 'OTHER'
-}
-
-function renderIncidentSources(kind, items) {
-  const root = document.querySelector(`#${kind === 'error' ? 'error' : 'slow'}-sources`)
-  root.replaceChildren()
-  const counts = new Map(incidentSources.map(source => [source.key, 0]))
-  for (const item of items) {
-    const source = rootSource(item)
-    const bucket = ['HTTP', 'JOB', 'KAFKA_CONSUMER'].includes(source) ? source : 'OTHER'
-    counts.set(bucket, (counts.get(bucket) || 0) + 1)
-  }
-  for (const source of incidentSources) {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = `source-filter${selectedIncidentSource[kind] === source.key ? ' active' : ''}`
-    button.setAttribute('aria-pressed', String(selectedIncidentSource[kind] === source.key))
-    button.textContent = `${source.label} ${source.key === 'ALL' ? items.length : counts.get(source.key) || 0}`
-    button.addEventListener('click', () => {
-      selectedIncidentSource[kind] = source.key
-      renderIncidentRows(kind, kind === 'error' ? errorTraces : slowTraces)
+function openEntryDetails(item) {
+  const matches = traces.filter(trace => trace.sourceType === item.source
+    && entryOperationCandidates(trace).some(candidate => candidate === item.operation.trim().toLocaleLowerCase()))
+  byId('entry-dialog-title').textContent = `${labels[item.source] || item.source} · ${item.operation}`
+  byId('entry-dialog-note').textContent = `累计 ${formatNumber(item.count)} 次；以下是当前 Trace 保留窗口中匹配的 ${matches.length} 条调用。`
+  const rows = byId('entry-trace-rows'); rows.replaceChildren()
+  for (const trace of matches.slice(0, 100)) {
+    const row = document.createElement('tr'); makeClickable(row, `查看 Trace ${trace.traceId}`, () => {
+      byId('entry-dialog').close(); openTrace(trace)
     })
-    root.append(button)
+    td(row, trace.error ? '错误' : trace.slow ? '慢' : '正常', `status ${trace.error ? 'error' : trace.slow ? 'slow' : 'ok'}`)
+    td(row, formatNumber(trace.status), 'number'); td(row, formatNumber(trace.durationMs, ' ms'), 'number')
+    td(row, trace.traceId, 'mono'); td(row, formatTime(trace.finishedAt)); rows.append(row)
   }
+  if (!matches.length) {
+    const row = document.createElement('tr'); const cell = document.createElement('td')
+    cell.colSpan = 5; cell.className = 'empty'; cell.textContent = '当前保留窗口没有匹配的 Trace；累计指标仍可用。'
+    row.append(cell); rows.append(row)
+  }
+  byId('entry-dialog').showModal()
 }
 
-async function showTrace(trace) {
-  document.querySelector('#dialog-title').textContent = trace.traceId || 'Trace 详情'
-  document.querySelector('#trace-summary').replaceChildren()
-  document.querySelector('#trace-waterfall').replaceChildren()
-  document.querySelector('#trace-operations').replaceChildren()
-  document.querySelector('#trace-tree').textContent = ''
-  document.querySelector('#trace-operation-detail').hidden = true
-  setTraceView('timeline')
-  dialog.showModal()
-  if (!trace.traceId) {
-    renderTraceDetails(trace)
-    return
-  }
-  try {
-    const latest = await getJson(`/traces/${encodeURIComponent(trace.traceId)}`)
-    renderTraceDetails(latest || trace)
-  } catch (error) {
-    renderTraceDetails(trace)
-    setNotice(error.message || '读取 Trace 详情失败')
-  }
-}
-
-function renderTraceDetails(trace) {
-  const source = rootSource(trace)
-  const summary = document.querySelector('#trace-summary')
-  const status = trace.error ? '错误' : trace.slow ? '慢' : '正常'
-  const entries = [
-    ['入口', sourceLabels[source] || '其他'],
-    ['结果', `${status} · ${trace.status ?? '-'}`],
-    ['总耗时', formatNumber(trace.durationMs, ' ms')],
-    ['CPU', formatNumber(trace.cpuTimeMs, ' ms')],
-    ['分配内存', formatBytes(trace.allocatedBytes)],
-    ['线程 ID', formatNumber(trace.threadId)],
-    ['完成时间', formatTime(trace.finishedAt)]
+async function openTrace(trace) {
+  byId('dialog-title').textContent = `${labels[trace.sourceType] || trace.sourceType || 'Trace'} · ${trace.method || ''} ${trace.name || ''}`.trim()
+  byId('trace-facts').replaceChildren()
+  const facts = [
+    `状态 ${trace.status ?? '—'}`, `耗时 ${formatNumber(trace.durationMs, ' ms')}`,
+    `CPU ${formatNumber(trace.cpuTimeMs, ' ms')}`, `分配内存 ${formatBytes(trace.allocatedBytes)}`,
+    `线程 ${formatNumber(trace.threadId)}`, `Trace ID ${trace.traceId || '—'}`,
+    `完成 ${formatTime(trace.finishedAt)}`
   ]
-  for (const [label, value] of entries) {
-    const item = document.createElement('span')
-    item.className = 'trace-summary-item'
-    const strong = document.createElement('strong')
-    strong.textContent = `${label}：`
-    item.append(strong, document.createTextNode(value))
-    summary.append(item)
-  }
-  document.querySelector('#trace-tree').textContent = trace.tree || ''
-  renderTraceWaterfall(trace)
-  renderTraceOperations(trace)
-}
-
-function renderTraceWaterfall(trace) {
-  const root = document.querySelector('#trace-waterfall')
-  const operations = [...(trace.operations || [])]
-  const source = rootSource(trace)
-  const rootOperation = operations.filter(operation => operation.type === source)
-    .sort((left, right) => Math.abs(new Date(left.finishedAt) - new Date(trace.finishedAt))
-      - Math.abs(new Date(right.finishedAt) - new Date(trace.finishedAt)))[0]
-  if (rootOperation) operations.splice(operations.indexOf(rootOperation), 1)
-  const rootItem = {
-    type: source, name: `${trace.method || ''} ${trace.name || ''}`.trim(),
-    durationMs: trace.durationMs, finishedAt: trace.finishedAt, threadId: trace.threadId,
-    cpuTimeMs: trace.cpuTimeMs, allocatedBytes: trace.allocatedBytes,
-    slow: trace.slow, error: trace.error, outcome: trace.error ? 'failure' : 'success',
-    detail: '', errorType: '', errorMessage: '', lockInfo: '', stackTrace: ''
-  }
-  const ordered = [rootItem, ...operations.sort((left, right) =>
-    new Date(left.finishedAt) - new Date(right.finishedAt))]
-  const duration = Math.max(1, Number(trace.durationMs) || 0)
-  const traceEnd = new Date(trace.finishedAt).getTime()
-  const traceStart = traceEnd - duration
-  for (const operation of ordered) {
-    const row = document.createElement('div')
-    row.className = 'waterfall-row'
-    const name = document.createElement('div')
-    name.className = 'waterfall-name'
-    const type = document.createElement('strong')
-    type.textContent = operation === rootItem ? '入口' : (sourceLabels[operation.type] || operation.type)
-    const label = document.createElement('span')
-    label.textContent = operation.name || '-'
-    name.append(type, label)
-    name.title = `${operation.type}: ${operation.name || ''}`
-    const track = document.createElement('div')
-    track.className = 'waterfall-track'
-    const bar = document.createElement('div')
-    bar.className = `waterfall-bar${operation.error ? ' is-error' : operation.slow ? ' is-slow' : ''}`
-    const operationDuration = Math.max(0, Number(operation.durationMs) || 0)
-    const end = operation === rootItem ? traceEnd : new Date(operation.finishedAt).getTime()
-    const start = Number.isFinite(end) ? end - operationDuration : traceStart
-    const left = operation === rootItem ? 0 : Math.max(0, Math.min(100, (start - traceStart) / duration * 100))
-    const right = operation === rootItem ? 100 : Math.max(left + 0.6,
-      Math.min(100, (end - traceStart) / duration * 100))
-    bar.style.left = `${left}%`
-    bar.style.width = `${Math.max(0.6, right - left)}%`
-    track.append(bar)
-    const cost = document.createElement('div')
-    cost.className = 'waterfall-duration'
-    cost.textContent = formatNumber(operationDuration, ' ms')
-    row.append(name, track, cost)
-    row.addEventListener('click', () => showOperationDetail(operation))
-    root.append(row)
-  }
-}
-
-function showOperationDetail(operation) {
-  const detail = document.querySelector('#trace-operation-detail')
-  const resources = `耗时=${formatNumber(operation.durationMs, ' ms')} CPU=${formatNumber(operation.cpuTimeMs, ' ms')} 分配内存=${formatBytes(operation.allocatedBytes)} 线程=${formatNumber(operation.threadId)}`
-  const lines = [`[${operation.type}] ${operation.name || ''} (${operation.outcome || 'success'})`, resources]
-  if (operation.detail) lines.push(`明细：${operation.detail}`)
-  if (operation.errorType || operation.errorMessage) lines.push(`错误：${operation.errorType || ''} ${operation.errorMessage || ''}`)
-  if (operation.lockInfo) lines.push(`锁：${operation.lockInfo}`)
-  if (operation.stackTrace) lines.push(`堆栈：\n${operation.stackTrace}`)
-  detail.textContent = lines.join('\n')
-  detail.hidden = false
-}
-
-function renderTraceOperations(trace) {
-  const root = document.querySelector('#trace-operations')
-  for (const operation of trace.operations || []) {
-    const card = document.createElement('article')
-    card.className = 'trace-operation-card'
-    const heading = document.createElement('div')
-    heading.className = 'trace-operation-heading'
-    const title = document.createElement('strong')
-    title.textContent = `[${operation.type}] ${operation.name || '-'}`
-    const badge = document.createElement('span')
-    badge.className = `pill ${operation.error ? 'error' : operation.slow ? 'slow' : 'ok'}`
-    badge.textContent = operation.error ? '错误' : operation.slow ? '慢' : '正常'
-    const meta = document.createElement('span')
-    meta.className = 'trace-operation-meta'
-    meta.textContent = `${formatNumber(operation.durationMs, ' ms')} · CPU ${formatNumber(operation.cpuTimeMs, ' ms')} · ${formatBytes(operation.allocatedBytes)} · 线程 ${formatNumber(operation.threadId)}`
-    heading.append(title, badge, meta)
-    card.append(heading)
-    const description = [operation.detail, operation.errorType && `错误类型：${operation.errorType}`,
-      operation.errorMessage && `错误信息：${operation.errorMessage}`, operation.lockInfo && `锁：${operation.lockInfo}`]
-      .filter(Boolean).join('\n')
-    if (description) {
-      const text = document.createElement('pre')
-      text.textContent = description
-      card.append(text)
-    }
-    if (operation.stackTrace) {
-      const stack = document.createElement('pre')
-      stack.textContent = operation.stackTrace
-      card.append(stack)
-    }
-    root.append(card)
-  }
-  if (!trace.operations?.length) root.textContent = '没有保存操作明细。'
-}
-
-function setTraceView(view) {
-  document.querySelectorAll('.trace-view').forEach(button =>
-    button.classList.toggle('active', button.dataset.traceView === view))
-  document.querySelectorAll('.trace-view-panel').forEach(panel => {
-    panel.hidden = panel.id !== (view === 'timeline' ? 'trace-timeline'
-      : view === 'tree' ? 'trace-tree-panel' : 'trace-operations-panel')
-  })
-}
-
-function renderMetrics() {
-  const keyword = document.querySelector('#metric-search').value.trim().toLowerCase()
-  const rows = metrics.filter(metric => `${metric.name} ${JSON.stringify(metric.tags)}`.toLowerCase().includes(keyword))
-  metricRows.replaceChildren()
-  document.querySelector('#metric-count').textContent = `${rows.length} / ${metrics.length} 个指标`
-  document.querySelector('#metric-empty').hidden = rows.length > 0
-  for (const metric of rows) {
+  for (const fact of facts) { const span = document.createElement('span'); span.textContent = fact; byId('trace-facts').append(span) }
+  byId('trace-tree').textContent = '正在读取调用树和下游明细…'
+  byId('operation-rows').replaceChildren()
+  byId('trace-dialog').showModal()
+  let detail = trace
+  try { detail = await getJson(`/traces/${encodeURIComponent(trace.traceId)}`) || trace }
+  catch (error) { byId('trace-tree').textContent = error?.message || '读取 Trace 明细失败'; return }
+  byId('trace-tree').textContent = detail.tree || '此请求未触发慢或错误，未保存完整调用树；已采集的下游操作见下表。'
+  const operationRows = byId('operation-rows'); operationRows.replaceChildren()
+  for (const { operation, depth } of orderOperations(detail.operations || [])) {
     const row = document.createElement('tr')
-    const tags = Object.entries(metric.tags || {}).map(([key, value]) => `${key}=${value}`).join(', ') || '-'
-    const values = Object.entries(metric.values || {}).map(([key, value]) => `${key}: ${Number(value).toLocaleString(undefined, { maximumFractionDigits: 4 })}`).join(' · ') || '-'
-    row.append(cell(metric.name, 'mono'), cell(metric.type), cell(tags), cell(values))
-    metricRows.append(row)
+    td(row, labels[operation.type] || operation.type)
+    const operationName = `${depth ? `${'　'.repeat(depth)}↳ ` : ''}${operation.name || ''}${operation.detail ? ` · ${operation.detail}` : ''}`
+    td(row, operationName)
+    td(row, formatNumber(operation.durationMs, ' ms'), 'number')
+    td(row, formatNumber(operation.cpuTimeMs, ' ms'), 'number')
+    td(row, formatBytes(operation.allocatedBytes), 'number')
+    td(row, `${operation.threadName || '—'} (${formatNumber(operation.threadId)})`)
+    td(row, operation.error ? '错误' : operation.slow ? '慢' : '正常', operation.error ? 'status error' : operation.slow ? 'status slow' : 'status ok')
+    const errorCell = td(row, [operation.errorType, operation.errorMessage].filter(Boolean).join(': '))
+    if (operation.stackTrace) {
+      const details = document.createElement('details')
+      const summary = document.createElement('summary'); summary.textContent = '查看异常堆栈'
+      const stack = document.createElement('pre'); stack.textContent = operation.stackTrace
+      details.append(summary, stack); errorCell.append(details)
+    }
+    operationRows.append(row)
   }
 }
 
-function renderSeries() {
-  const search = document.querySelector('#history-search').value.trim().toLowerCase()
-  const list = document.querySelector('#history-series-list')
-  const available = metricSeries.filter(series => seriesLabel(series).toLowerCase().includes(search))
-  const availableKeys = new Set(metricSeries.map(seriesKey))
-  selectedSeriesKeys = selectedSeriesKeys.filter(key => availableKeys.has(key))
-  list.replaceChildren()
-  document.querySelector('#history-selection-count').textContent = `已选 ${selectedSeriesKeys.length} / ${MAX_SELECTED_SERIES}`
-  for (const series of available) {
+function orderOperations(operations) {
+  const byId = new Map(operations.filter(item => item.spanId).map(item => [item.spanId, item]))
+  const children = new Map()
+  const roots = []
+  const ordered = [...operations].sort((left, right) => new Date(left.finishedAt).getTime() - new Date(right.finishedAt).getTime())
+  for (const operation of ordered) {
+    const parentId = operation.parentSpanId
+    if (parentId && parentId !== operation.spanId && byId.has(parentId)) {
+      const siblings = children.get(parentId) || []
+      siblings.push(operation)
+      children.set(parentId, siblings)
+    } else roots.push(operation)
+  }
+  const result = []
+  const visited = new Set()
+  const visit = (operation, depth) => {
+    if (operation.spanId && visited.has(operation.spanId)) return
+    if (operation.spanId) visited.add(operation.spanId)
+    result.push({ operation, depth })
+    for (const child of children.get(operation.spanId) || []) visit(child, depth + 1)
+  }
+  roots.forEach(root => visit(root, 0))
+  ordered.forEach(operation => {
+    if (!operation.spanId || !visited.has(operation.spanId)) visit(operation, 0)
+  })
+  return result
+}
+
+function traceRow(trace, target) {
+  const row = document.createElement('tr')
+  makeClickable(row, `查看 Trace ${trace.traceId}`, () => openTrace(trace))
+  td(row, `${labels[trace.sourceType] || trace.sourceType || '入口'} · ${trace.method || ''} ${trace.name || ''}`.trim())
+  if (target === 'slow') {
+    td(row, formatNumber(trace.durationMs, ' ms'), 'number')
+    td(row, formatNumber(trace.cpuTimeMs, ' ms'), 'number')
+    td(row, formatBytes(trace.allocatedBytes), 'number')
+    td(row, formatNumber(trace.threadId), 'number')
+  } else {
+    td(row, formatNumber(trace.status), 'number')
+    const root = (trace.operations || []).find(op => op.type === trace.sourceType)
+    td(row, root ? [root.errorType, root.errorMessage].filter(Boolean).join(': ') : trace.tree?.split('\n').find(line => /ERROR|HTTP_5/.test(line)) || '—')
+    td(row, formatNumber(trace.durationMs, ' ms'), 'number')
+    td(row, formatNumber(trace.threadId), 'number')
+  }
+  td(row, formatTime(trace.finishedAt))
+  return row
+}
+function renderIncidentTables() {
+  const selected = traces.filter(inSelectedPeriod)
+  const slowMatches = selected.filter(trace => trace.slow)
+  const errorMatches = selected.filter(trace => trace.error)
+  const slow = slowMatches.slice(0, 50)
+  const errors = errorMatches.slice(0, 50)
+  byId('slow-count').textContent = formatNumber(slowMatches.length)
+  byId('failure-count').textContent = formatNumber(errorMatches.length)
+  byId('slow-total').textContent = `(${formatNumber(slowMatches.length)}${slowMatches.length > 50 ? '，显示前 50 条' : ''})`
+  byId('error-total').textContent = `(${formatNumber(errorMatches.length)}${errorMatches.length > 50 ? '，显示前 50 条' : ''})`
+  byId('slow-rows').replaceChildren(...slow.map(trace => traceRow(trace, 'slow')))
+  byId('error-rows').replaceChildren(...errors.map(trace => traceRow(trace, 'error')))
+  byId('slow-empty').hidden = slowMatches.length > 0
+  byId('error-empty').hidden = errorMatches.length > 0
+  const pageCount = Math.max(1, Math.ceil(traces.length / recentPageSize))
+  recentPage = Math.min(recentPage, pageCount - 1)
+  const start = recentPage * recentPageSize
+  const recent = traces.slice(start, start + recentPageSize)
+  const rows = byId('trace-rows'); rows.replaceChildren()
+  for (const trace of recent) {
+    const row = document.createElement('tr')
+    makeClickable(row, `查看 Trace ${trace.traceId}`, () => openTrace(trace))
+    const result = td(row, trace.error ? '错误' : trace.slow ? '慢' : '正常', `status ${trace.error ? 'error' : trace.slow ? 'slow' : 'ok'}`)
+    td(row, `${labels[trace.sourceType] || trace.sourceType || '入口'} · ${trace.method || ''} ${trace.name || ''}`.trim())
+    td(row, formatNumber(trace.status), 'number'); td(row, formatNumber(trace.durationMs, ' ms'), 'number')
+    td(row, trace.traceId, 'mono'); td(row, formatTime(trace.finishedAt)); rows.append(row)
+  }
+  byId('trace-empty').hidden = recent.length > 0
+  byId('trace-page').textContent = traces.length ? `${start + 1}–${start + recent.length} 条，共 ${traces.length} 条（最多读取最近 500 条）` : ''
+  byId('trace-prev').disabled = recentPage <= 0
+  byId('trace-next').disabled = recentPage >= pageCount - 1
+}
+
+function seriesTitle(series) {
+  const tags = Object.entries(series.tags || {}).map(([key, value]) => `${key}=${value}`).join(', ')
+  return `${series.name}${tags ? ` · ${tags}` : ''}`
+}
+function seriesKey(series) {
+  const tags = Object.entries(series.tags || {}).sort(([left], [right]) => left.localeCompare(right))
+  return `${series.name}|${tags.map(([key, value]) => `${key}=${value}`).join('&')}`
+}
+function chooseSeries() {
+  const liveKeys = new Set(liveMetrics.map(seriesKey))
+  const currentSeries = seriesCatalog.filter(series => liveKeys.has(seriesKey(series)))
+  const find = (name, predicate = () => true) => currentSeries.find(item => item.name === name && predicate(item))
+    || seriesCatalog.find(item => item.name === name && predicate(item))
+  const priority = [
+    find('process.cpu.usage'),
+    find('jvm.memory.used', item => item.tags?.area === 'heap'),
+    find('system.cpu.usage'),
+    find('hikaricp.connections.active'),
+    find('http.server.requests')
+  ].filter(Boolean)
+  const seen = new Set()
+  return priority.filter(item => { const key = seriesTitle(item); if (seen.has(key)) return false; seen.add(key); return true }).slice(0, seriesLimit)
+}
+function renderSeriesPicker() {
+  if (!seriesSelectionInitialized) {
+    selectedSeriesKeys = new Set(chooseSeries().map(seriesKey))
+    seriesSelectionInitialized = true
+  }
+  const options = byId('trend-options')
+  const query = byId('trend-search').value.trim().toLocaleLowerCase()
+  const filtered = seriesCatalog.filter(series => !query || seriesTitle(series).toLocaleLowerCase().includes(query))
+  const fragment = document.createDocumentFragment()
+  for (const series of filtered) {
     const key = seriesKey(series)
     const label = document.createElement('label')
-    label.className = 'history-series-option'
+    label.className = 'trend-option'
     const checkbox = document.createElement('input')
     checkbox.type = 'checkbox'
-    checkbox.checked = selectedSeriesKeys.includes(key)
-    checkbox.addEventListener('change', () => {
-      if (checkbox.checked && selectedSeriesKeys.length >= MAX_SELECTED_SERIES) {
-        checkbox.checked = false
-        setNotice(`一次最多比较 ${MAX_SELECTED_SERIES} 条指标趋势`)
-        return
-      }
-      selectedSeriesKeys = checkbox.checked
-        ? [...selectedSeriesKeys, key]
-        : selectedSeriesKeys.filter(item => item !== key)
-      document.querySelector('#history-selection-count').textContent = `已选 ${selectedSeriesKeys.length} / ${MAX_SELECTED_SERIES}`
-      loadHistory().catch(error => setNotice(error.message || '读取指标趋势失败'))
-    })
-    const name = document.createElement('span')
-    name.className = 'history-series-name mono'
-    name.textContent = metricDisplayName(series.name, series.tags)
-    const tags = document.createElement('span')
-    tags.className = 'history-series-tags muted'
-    tags.textContent = Object.entries(series.tags || {}).map(([tag, value]) => `${tag}=${value}`).join(', ') || '无标签'
-    label.append(checkbox, name, tags)
-    list.append(label)
+    checkbox.value = key
+    checkbox.checked = selectedSeriesKeys.has(key)
+    checkbox.disabled = !checkbox.checked && selectedSeriesKeys.size >= seriesLimit
+    const text = document.createElement('span')
+    text.textContent = seriesTitle(series)
+    label.append(checkbox, text)
+    fragment.append(label)
   }
-  if (!available.length) {
-    const empty = document.createElement('div')
-    empty.className = 'history-list-empty'
-    empty.textContent = metricSeries.length ? '没有匹配的指标系列' : '暂无可用历史指标'
-    list.append(empty)
+  options.replaceChildren(fragment)
+  byId('trend-selection-note').textContent = `${selectedSeriesKeys.size}/${seriesLimit} 项已选择${filtered.length < seriesCatalog.length ? ` · 显示 ${filtered.length}/${seriesCatalog.length} 项` : ''}`
+}
+function drawChart(card, points, measurement, name, colorClass = '') {
+  const ns = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', '0 0 420 150'); svg.setAttribute('preserveAspectRatio', 'none')
+  for (let y = 18; y <= 128; y += 36) { const line = document.createElementNS(ns, 'line'); line.setAttribute('x1', '32'); line.setAttribute('x2', '412'); line.setAttribute('y1', String(y)); line.setAttribute('y2', String(y)); line.setAttribute('class', 'chart-grid'); svg.append(line) }
+  const values = points.map(point => Number(point.measurements?.[measurement])).filter(Number.isFinite)
+  const path = document.createElementNS(ns, 'path'); path.setAttribute('class', `chart-line ${colorClass}`)
+  if (values.length > 1) {
+    const min = Math.min(...values); const max = Math.max(...values); const range = max - min || 1
+    const d = values.map((value, index) => `${index ? 'L' : 'M'} ${32 + index * 380 / (values.length - 1)} ${128 - (value - min) / range * 108}`).join(' ')
+    path.setAttribute('d', d); svg.append(path)
+    const high = document.createElementNS(ns, 'text'); high.setAttribute('x', '1'); high.setAttribute('y', '21'); high.setAttribute('class', 'chart-label'); high.textContent = formatMetricValue(name, max); svg.append(high)
+    const low = document.createElementNS(ns, 'text'); low.setAttribute('x', '1'); low.setAttribute('y', '128'); low.setAttribute('class', 'chart-label'); low.textContent = formatMetricValue(name, min); svg.append(low)
+  } else {
+    const msg = document.createElementNS(ns, 'text'); msg.setAttribute('x', '110'); msg.setAttribute('y', '74'); msg.setAttribute('class', 'chart-label'); msg.textContent = '等待首个采样点'; svg.append(msg)
   }
-  renderHistoryCharts()
+  card.append(svg)
 }
-
-function seriesKey(series) {
-  return JSON.stringify({ name: series.name, tags: series.tags || {} })
-}
-
-function seriesLabel(series) {
-  const tags = Object.entries(series.tags || {}).map(([key, value]) => `${key}=${value}`).join(', ')
-  return `${series.name} ${tags}`
-}
-
-function renderHistoryCharts() {
-  const charts = document.querySelector('#history-charts')
-  charts.replaceChildren()
-  const selected = metricSeries.filter(series => selectedSeriesKeys.includes(seriesKey(series)))
-  document.querySelector('#history-empty').hidden = selected.length > 0
-  for (const series of selected) {
-    const card = document.createElement('article')
-    card.className = 'history-chart-card'
-    const heading = document.createElement('div')
-    heading.className = 'history-chart-heading'
-    const title = document.createElement('div')
-    title.className = 'history-chart-title'
-    const name = document.createElement('strong')
-    name.textContent = series.name
-    const tags = document.createElement('span')
-    tags.className = 'muted'
-    tags.textContent = Object.entries(series.tags || {}).map(([key, value]) => `${key}=${value}`).join(', ') || '无标签'
-    title.append(name, tags)
-    const measurement = document.createElement('select')
-    measurement.setAttribute('aria-label', `${series.name} 统计值`)
-    for (const item of series.measurements || []) {
-      const option = document.createElement('option')
-      option.value = item
-      option.textContent = item
-      measurement.append(option)
+async function renderTrends() {
+  const grid = byId('trend-grid'); grid.replaceChildren()
+  const selected = seriesCatalog.filter(series => selectedSeriesKeys.has(seriesKey(series))).slice(0, seriesLimit)
+  if (!selected.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = '当前没有可显示的 Micrometer 历史指标。'; grid.append(p); return }
+  for (let index = 0; index < selected.length; index++) {
+    const series = selected[index]
+    const key = seriesTitle(series)
+    const card = document.createElement('article'); card.className = 'trend-card'
+    const heading = document.createElement('h3'); heading.textContent = key; card.append(heading)
+    grid.append(card)
+    let points = seriesCache.get(key)
+    if (!points) {
+      // The longest visible range is 30 days. RRD4J uses at most 30-minute points there,
+      // so 5,000 points cover the full chart without transferring the API's 50,000-point cap.
+      const params = new URLSearchParams({ name: series.name, tags: JSON.stringify(series.tags || {}), limit: '5000' })
+      points = await getJson(`/metrics/history?${params}`)
+      seriesCache.set(key, points)
     }
-    const canvas = document.createElement('canvas')
-    canvas.height = 220
-    canvas.setAttribute('aria-label', `${series.name} 指标历史趋势`)
-    heading.append(title, measurement)
-    card.append(heading, canvas)
-    charts.append(card)
-    measurement.addEventListener('change', () => {
-      drawHistory(canvas, series.history || [], measurement.value)
-    })
-    drawHistory(canvas, series.history || [], measurement.value)
+    const measurement = (series.measurements || []).includes('VALUE') ? 'VALUE' : series.measurements?.[0]
+    const from = periodStart()
+    const windowPoints = points.filter(point => new Date(point.capturedAt).getTime() >= from
+      && !(series.name === 'jvm.memory.used' && Number(point.measurements?.[measurement]) <= 0)).slice().reverse()
+    drawChart(card, windowPoints, measurement, series.name, ['','alt','green',''][index])
   }
-}
-
-function drawHistory(canvas, points, measurement) {
-  const context = canvas.getContext('2d')
-  const bounds = canvas.getBoundingClientRect()
-  const ratio = window.devicePixelRatio || 1
-  canvas.width = Math.max(1, bounds.width * ratio)
-  canvas.height = Math.max(1, bounds.height * ratio)
-  context.scale(ratio, ratio)
-  const width = bounds.width
-  const height = bounds.height
-  context.clearRect(0, 0, width, height)
-  const hours = Number(document.querySelector('#history-window').value) || 24
-  const end = Date.now()
-  const start = end - hours * 60 * 60 * 1000
-  const data = points.slice().reverse().map(point => ({
-    time: new Date(point.capturedAt), value: Number(point.measurements?.[measurement])
-  })).filter(point => Number.isFinite(point.value) && point.time.getTime() >= start && point.time.getTime() <= end)
-  if (!data.length) {
-    context.fillStyle = '#8290a3'
-    context.font = '13px sans-serif'
-    context.fillText('该时间范围暂无样本', 16, 32)
-    return
-  }
-  const sampled = data.length > 600
-    ? Array.from({ length: 600 }, (_, index) => data[Math.round(index * (data.length - 1) / 599)])
-    : data
-  const pad = { left: 64, right: 18, top: 20, bottom: 38 }
-  const min = Math.min(...sampled.map(point => point.value))
-  const max = Math.max(...sampled.map(point => point.value))
-  const span = max - min || Math.max(Math.abs(max) * 0.1, 1)
-  context.font = '12px sans-serif'
-  context.strokeStyle = '#e6ebf2'
-  context.fillStyle = '#718096'
-  for (let line = 0; line <= 4; line++) {
-    const y = pad.top + (height - pad.top - pad.bottom) * line / 4
-    context.beginPath(); context.moveTo(pad.left, y); context.lineTo(width - pad.right, y); context.stroke()
-    context.fillText((max - span * line / 4).toLocaleString(undefined, { maximumFractionDigits: 3 }), 4, y + 4)
-  }
-  context.strokeStyle = '#315fe8'
-  context.lineWidth = 2
-  context.beginPath()
-  sampled.forEach((point, index) => {
-    const x = pad.left + (width - pad.left - pad.right) * ((point.time.getTime() - start) / (hours * 60 * 60 * 1000))
-    const y = pad.top + (height - pad.top - pad.bottom) * (max - point.value) / span
-    if (index === 0) context.moveTo(x, y); else context.lineTo(x, y)
-  })
-  context.stroke()
-  context.fillStyle = '#718096'
-  context.fillText(formatTime(new Date(start)).slice(0, 16), pad.left, height - 10)
-  context.fillText(formatTime(new Date(end)).slice(0, 16), Math.max(pad.left, width - 150), height - 10)
-}
-
-async function loadHistory() {
-  const version = ++historyRequestVersion
-  const selected = metricSeries.filter(series => selectedSeriesKeys.includes(seriesKey(series)))
-  for (const series of selected) {
-    const query = new URLSearchParams({ name: series.name, tags: JSON.stringify(series.tags || {}), limit: '50000' })
-    series.history = await getJson(`/metrics/history?${query}`)
-    if (version !== historyRequestVersion) return
-  }
-  renderHistoryCharts()
-  renderOverviewCharts()
 }
 
 async function refresh() {
-  setNotice('')
-  document.querySelector('#refresh').disabled = true
+  byId('refresh').disabled = true; showNotice('')
   try {
-    const [requestsResult, tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult] = await Promise.allSettled([
-      getJson('/request-statistics?source=ALL&limit=500'), getJson('/traces?limit=100'), getJson('/metrics?limit=500'),
-      getJson('/incidents?kind=slow&limit=500'), getJson('/incidents?kind=error&limit=500'),
-      getJson('/metrics/series'), getJson('/metrics/storage')
+    const [statsResult, tracesResult, catalogResult, storageResult, metricsResult] = await Promise.allSettled([
+      getJson('/request-statistics?source=ALL&limit=500'), getJson('/traces?limit=500'), getJson('/metrics/series'),
+      getJson('/metrics/storage'), getJson('/metrics?limit=2000')
     ])
-    if (requestsResult.status === 'fulfilled') renderRequestStatistics(requestsResult.value)
-    if (tracesResult.status === 'fulfilled') renderTraces(tracesResult.value)
-    if (metricsResult.status === 'fulfilled') {
-      metrics = metricsResult.value
-      renderMetrics()
-    }
-    if (slowResult.status === 'fulfilled') {
-      slowTraces = slowResult.value
-      renderIncidentRows('slow', slowTraces)
-    }
-    if (errorsResult.status === 'fulfilled') {
-      errorTraces = errorsResult.value
-      renderIncidentRows('error', errorTraces)
-    }
-    renderOverview(requestStatistics)
-    if (seriesResult.status === 'fulfilled') {
-      const cachedHistory = new Map(metricSeries.map(series => [seriesKey(series), series.history]))
-      metricSeries = seriesResult.value
-      for (const series of metricSeries) series.history = cachedHistory.get(seriesKey(series))
-      if (!selectedSeriesKeys.length) {
-        const defaults = [
-          metricSeries.find(series => series.name === 'process.cpu.usage'),
-          metricSeries.find(series => series.name === 'jvm.memory.used' && series.tags?.area === 'heap'),
-          metricSeries.find(series => series.name === 'hikaricp.connections.active'),
-          metricSeries.find(series => series.name === 'http.server.requests' && series.tags?.uri !== 'UNKNOWN')
-            || metricSeries.find(series => series.name === 'easy.operations.duration' && series.tags?.type === 'HTTP')
-        ].filter(Boolean)
-        selectedSeriesKeys = [...new Set(defaults.map(seriesKey))].slice(0, MAX_SELECTED_SERIES)
-      }
-      renderSeries()
-      if (selectedSeriesKeys.length) loadHistory().catch(error => setNotice(error.message || '读取指标趋势失败'))
-    }
-    if (storageResult.status === 'fulfilled') {
-      const storage = storageResult.value
-      document.querySelector('#history-storage').textContent = storage.enabled
-        ? `${formatBytes(storage.storageBytes)} / ${formatBytes(storage.maxStorageBytes)} · ${storage.segmentCount} 个系列 · 保留 ${storage.retentionDays} 天`
-        : '历史存储已关闭'
-    }
-    const failures = [requestsResult, tracesResult, metricsResult, slowResult, errorsResult, seriesResult, storageResult]
-      .filter(result => result.status === 'rejected')
-    if (failures.length) setNotice(failures.map(result => result.reason?.message || '读取失败').join('；'))
-    document.querySelector('#last-updated').textContent = `更新于 ${new Date().toLocaleTimeString()}`
-  } finally {
-    document.querySelector('#refresh').disabled = false
-  }
+    const failed = []
+    if (statsResult.status === 'fulfilled') { requestStats = statsResult.value; renderStats() } else failed.push(statsResult.reason?.message)
+    if (tracesResult.status === 'fulfilled') { traces = tracesResult.value; renderIncidentTables() } else failed.push(tracesResult.reason?.message)
+    if (catalogResult.status === 'fulfilled') { seriesCatalog = catalogResult.value; seriesCache.clear(); renderSeriesPicker() } else failed.push(catalogResult.reason?.message)
+    if (storageResult.status === 'fulfilled' && storageResult.value) byId('instance').textContent = `当前实例 · RRD ${formatBytes(storageResult.value.storageBytes)}`
+    if (metricsResult.status === 'fulfilled') liveMetrics = metricsResult.value
+    else { liveMetrics = []; failed.push(metricsResult.reason?.message) }
+    if (catalogResult.status === 'fulfilled') await renderTrends()
+    if (failed.length) showNotice(failed.filter(Boolean).join('；'))
+    byId('updated').textContent = `更新于 ${new Date().toLocaleTimeString()}`
+  } catch (error) { showNotice(error?.message || '加载监控报告失败') }
+  finally { byId('refresh').disabled = false }
 }
 
-document.querySelector('#refresh').addEventListener('click', refresh)
-document.querySelectorAll('[data-request-source]').forEach(button => button.addEventListener('click', () => {
-  selectedRequestSource = button.dataset.requestSource
-  document.querySelectorAll('[data-request-source]').forEach(item => item.classList.toggle('active', item === button))
-  renderRequestStatistics(requestStatistics)
-}))
-document.querySelector('#metric-search').addEventListener('input', renderMetrics)
-document.querySelector('#history-search').addEventListener('input', renderSeries)
-document.querySelector('#history-window').addEventListener('change', renderHistoryCharts)
-document.querySelector('#overview-window').addEventListener('change', event => {
-  document.querySelector('#history-window').value = event.target.value
-  renderHistoryCharts()
-  renderOverviewCharts()
+byId('refresh').addEventListener('click', refresh)
+byId('trace-prev').addEventListener('click', () => { recentPage = Math.max(0, recentPage - 1); renderIncidentTables() })
+byId('trace-next').addEventListener('click', () => { recentPage++; renderIncidentTables() })
+byId('close-entry-dialog').addEventListener('click', () => byId('entry-dialog').close())
+byId('trend-search').addEventListener('input', renderSeriesPicker)
+byId('trend-options').addEventListener('change', event => {
+  const checkbox = event.target.closest('input[type="checkbox"]')
+  if (!checkbox) return
+  if (checkbox.checked) selectedSeriesKeys.add(checkbox.value)
+  else selectedSeriesKeys.delete(checkbox.value)
+  renderSeriesPicker()
+  renderTrends().catch(error => showNotice(error?.message || '读取指标趋势失败'))
 })
-document.querySelectorAll('[data-open-tab]').forEach(button => button.addEventListener('click', () => {
-  document.querySelector(`[data-tab="${button.dataset.openTab}"]`).click()
-}))
-document.querySelectorAll('.incident-toolbar input, .incident-toolbar select').forEach(control => {
-  control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', () => {
-    const kind = control.id.startsWith('error-') ? 'error' : 'slow'
-    renderIncidentRows(kind, kind === 'error' ? errorTraces : slowTraces)
-  })
+byId('period').addEventListener('change', () => { renderIncidentTables(); renderTrends().catch(error => showNotice(error.message)) })
+byId('entry-filters').addEventListener('click', event => {
+  const button = event.target.closest('button[data-source]')
+  if (!button) return
+  selectedSource = button.dataset.source
+  byId('entry-filters').querySelectorAll('button').forEach(item => item.classList.toggle('selected', item === button))
+  renderStats()
 })
-document.querySelectorAll('.trace-view').forEach(button => button.addEventListener('click', () =>
-  setTraceView(button.dataset.traceView)))
-window.addEventListener('resize', () => {
-  renderHistoryCharts()
-  renderOverviewCharts()
-  const activePanel = document.querySelector('[data-panel]:not([hidden])')?.dataset.panel
-  if (activePanel === 'slow') renderIncidentRows('slow', slowTraces)
-  if (activePanel === 'errors') renderIncidentRows('error', errorTraces)
-})
-document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
-  document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === tab))
-  document.querySelectorAll('[data-panel]').forEach(panel => { panel.hidden = panel.dataset.panel !== tab.dataset.tab })
-  if (tab.dataset.tab === 'slow') renderIncidentRows('slow', slowTraces)
-  if (tab.dataset.tab === 'errors') renderIncidentRows('error', errorTraces)
-  if (tab.dataset.tab === 'requests') renderRequestStatistics(requestStatistics)
-  if (tab.dataset.tab === 'overview') renderOverview(requestStatistics)
-  if (tab.dataset.tab === 'history') renderHistoryCharts()
-}))
+byId('close-dialog').addEventListener('click', () => byId('trace-dialog').close())
 refresh()
