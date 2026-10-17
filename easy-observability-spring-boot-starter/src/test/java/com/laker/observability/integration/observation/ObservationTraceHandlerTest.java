@@ -99,6 +99,46 @@ class ObservationTraceHandlerTest {
     }
 
     @Test
+    void canLeaveHttpEntryToAHostSpecificAsyncAwareAdapter() {
+        EasyObservabilityProperties properties = new EasyObservabilityProperties();
+        properties.getTrace().setHttpServerObservationEnabled(false);
+        TraceHistory history = new TraceHistory(10, 10);
+        OperationRecorder recorder = new OperationRecorder(new SimpleMeterRegistry(), history, properties);
+        ObservationRegistry registry = ObservationRegistry.create();
+        registry.observationConfig().observationHandler(new ObservationTraceHandler(recorder, history, properties));
+
+        Observation.createNotStarted("http.server.requests", registry)
+                .lowCardinalityKeyValue("http.request.method", "GET")
+                .lowCardinalityKeyValue("http.route", "/orders")
+                .start().stop();
+
+        assertThat(history.recentOperations(10, null)).isEmpty();
+        assertThat(history.recent(10)).isEmpty();
+        assertThat(TraceContext.active()).isFalse();
+    }
+
+    @Test
+    void canDisableFrameworkObservationsWhenNativeAdaptersOwnRedisAndDatabase() {
+        EasyObservabilityProperties properties = new EasyObservabilityProperties();
+        properties.getTrace().setRedisObservationEnabled(false);
+        properties.getTrace().setDatabaseObservationEnabled(false);
+        ObservationTraceHandler handler = new ObservationTraceHandler(
+                new OperationRecorder(new SimpleMeterRegistry(), new TraceHistory(10, 10), properties),
+                new TraceHistory(10, 10), properties);
+
+        Observation.Context redis = new Observation.Context();
+        redis.setName("spring.data.redis");
+        Observation.Context database = new Observation.Context();
+        database.setName("spring.jdbc");
+        Observation.Context transaction = new Observation.Context();
+        transaction.setName("spring.transaction");
+
+        assertThat(handler.supportsContext(redis)).isFalse();
+        assertThat(handler.supportsContext(database)).isFalse();
+        assertThat(handler.supportsContext(transaction)).isTrue();
+    }
+
+    @Test
     void recordsHttpRouteAsBoundedRequestStatisticTags() {
         EasyObservabilityProperties properties = new EasyObservabilityProperties();
         SimpleMeterRegistry meters = new SimpleMeterRegistry();

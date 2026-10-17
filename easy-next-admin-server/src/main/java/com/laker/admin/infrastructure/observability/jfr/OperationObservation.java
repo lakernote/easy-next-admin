@@ -548,10 +548,12 @@ public class OperationObservation {
                         new OperationRecord.OperationSummary(summary.count(), summary.errorCount(),
                                 summary.totalDurationMs(), summary.maxDurationMs())));
                 java.time.Instant finishedInstant = finishedAt.atZone(java.time.ZoneId.systemDefault()).toInstant();
+                String spanId = aggregateRoot && "HTTP".equals(type) ? TraceContext.currentSpanId() : "";
                 operationRecorder.record(new OperationRecord(type, traceId, name, threadName, threadId, outcome,
                         durationMs, cpuMs, allocated, blockedCount, blockedTime, waitedCount, waitedTime,
                         completedDetail, lockInfo, stack, completion.slow(), completion.error(), completion.reasons(),
-                        completion.errorType(), completion.errorMessage(), summaries, finishedInstant));
+                        completion.errorType(), completion.errorMessage(), summaries, finishedInstant,
+                        spanId, ""));
             } else if (recordGeneric) {
                 recordResourceMetrics(type, outcome, durationMs, resources);
             }

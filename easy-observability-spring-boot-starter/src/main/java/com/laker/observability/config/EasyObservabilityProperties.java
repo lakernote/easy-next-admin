@@ -143,6 +143,9 @@ public class EasyObservabilityProperties {
 
     public static class Trace {
         private boolean enabled = true;
+        private boolean httpServerObservationEnabled = true;
+        private boolean redisObservationEnabled = true;
+        private boolean databaseObservationEnabled = true;
         private String headerName = "X-Trace-Id";
         private long redisSlowThresholdMs = 250;
         private long jobSlowThresholdMs = 1_000;
@@ -159,6 +162,12 @@ public class EasyObservabilityProperties {
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
         }
+        public boolean isHttpServerObservationEnabled() { return httpServerObservationEnabled; }
+        public void setHttpServerObservationEnabled(boolean enabled) { this.httpServerObservationEnabled = enabled; }
+        public boolean isRedisObservationEnabled() { return redisObservationEnabled; }
+        public void setRedisObservationEnabled(boolean enabled) { this.redisObservationEnabled = enabled; }
+        public boolean isDatabaseObservationEnabled() { return databaseObservationEnabled; }
+        public void setDatabaseObservationEnabled(boolean enabled) { this.databaseObservationEnabled = enabled; }
         public String getHeaderName() { return headerName; }
         public void setHeaderName(String headerName) {
             this.headerName = headerName == null || headerName.isBlank() ? "X-Trace-Id" : headerName;

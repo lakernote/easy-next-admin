@@ -122,6 +122,11 @@ easy:
     trace:
       # Keep annotated spans aligned with the application's existing trace switch.
       enabled: ${easy.trace.enabled:true}
+      # The async-aware MVC interceptor owns HTTP entry traces in Easy Admin.
+      http-server-observation-enabled: false
+      # MyBatis and Redisson native adapters own these operations in Easy Admin.
+      redis-observation-enabled: false
+      database-observation-enabled: false
       # Starter keeps reusable Slow/Error operation history separately from app-specific JFR/thread diagnostics.
       history-file: ${EASY_OBSERVABILITY_INCIDENT_FILE:./data/easy-observability/incidents.jsonl}
       archive-file: ${EASY_OBSERVABILITY_TRACE_FILE:./data/easy-observability/traces.jsonl}

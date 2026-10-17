@@ -38,6 +38,9 @@ easy:
       enabled: true
     trace:
       enabled: true
+      http-server-observation-enabled: true
+      redis-observation-enabled: true
+      database-observation-enabled: true
       header-name: X-Trace-Id
       slow-threshold-ms: 250
       job-slow-threshold-ms: 1000
@@ -66,6 +69,10 @@ easy:
 框架接入代码位于 `com.laker.observability.integration`。Starter 使用 Micrometer `ObservationHandler` 把已启用的框架 Observation 接入有界操作历史和 Trace Tree；Spring 事务则通过 `TransactionExecutionListener` 接入真实的 begin、commit、rollback 生命周期，不需要业务方法 AOP。采集结果只包含操作名和低基数上下文，不复制 Redis key、SQL 绑定参数、HTTP 请求体或 Kafka 消息体。JVM 支持时，操作记录还会包含线程 ID、CPU 时间、分配字节数和阻塞/等待计数。
 
 Servlet 应用会获得 `TraceIdFilter`。它独立于监控页面开关运行，接收有效的 `X-Trace-Id`，缺少或无效时生成新 ID，并将 ID 写入响应头；请求结束后恢复此前的 MDC。可通过 `easy.observability.trace.header-name` 修改请求头名称，也可由应用提供自己的 `TraceIdFilter` Bean 替换默认实现。
+
+默认由 `http.server.requests` Observation 创建 HTTP 入口 Trace。若宿主已经提供负责异步生命周期的 HTTP Trace 适配器，可设置 `easy.observability.trace.http-server-observation-enabled=false`，让宿主适配器成为唯一入口；宿主仍可通过 Starter 的 `OperationRecorder` 写入统一指标和 Trace 历史。
+
+Redis 和数据库 Observation 默认开启。若应用同时使用 Starter 提供的 Redisson 或 MyBatis 原生拦截器，应关闭对应的 `redis-observation-enabled` 或 `database-observation-enabled`，避免 Micrometer Observation 与原生扩展点重复记录同一次操作；原生拦截器不会受这两个开关影响。
 
 ## 框架接入状态
 

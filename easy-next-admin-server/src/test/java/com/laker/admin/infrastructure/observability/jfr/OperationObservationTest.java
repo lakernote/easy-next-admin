@@ -3,6 +3,8 @@ package com.laker.admin.infrastructure.observability.jfr;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.observability.config.EasyObservabilityProperties;
 import com.laker.observability.metrics.OperationRecorder;
+import com.laker.observability.trace.SpanKind;
+import com.laker.observability.trace.TraceContext;
 import com.laker.observability.trace.TraceHistory;
 import com.laker.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
@@ -40,6 +42,7 @@ class OperationObservationTest {
     @AfterEach
     void clearTraceId() {
         TraceIdContext.clear();
+        TraceContext.clear();
     }
 
     @Test
@@ -61,7 +64,7 @@ class OperationObservationTest {
     }
 
     @Test
-    void recordsHttpRequestStatisticsThroughTheObservabilityStarter() {
+    void recordsOneHttpRootOperationWithItsTraceSpanId() {
         RecentTraceStore store = mock(RecentTraceStore.class);
         EasyNextAdminConfig config = new EasyNextAdminConfig();
         SimpleMeterRegistry meters = new SimpleMeterRegistry();
@@ -69,20 +72,23 @@ class OperationObservationTest {
         @SuppressWarnings("unchecked")
         org.springframework.beans.factory.ObjectProvider<LocalJfrRecorder> recorderProvider =
                 mock(org.springframework.beans.factory.ObjectProvider.class);
-        OperationRecorder operationRecorder = new OperationRecorder(meters, new TraceHistory(10),
+        TraceHistory traceHistory = new TraceHistory(10);
+        OperationRecorder operationRecorder = new OperationRecorder(meters, traceHistory,
                 new EasyObservabilityProperties());
         OperationObservation observation = new OperationObservation(store, config, registry, meters,
                 recorderProvider, operationRecorder);
+        TraceIdContext.putTraceId("http-trace-1");
+        TraceContext.startRoot("GET /api/orders", SpanKind.HTTP);
 
         observation.startHttpRequest("OrdersController#list", "GET /api/orders").finish("success");
 
-        assertThat(meters.find("easy.operations.duration").timers()).singleElement()
-                .satisfies(timer -> {
-                    assertThat(timer.getId().getTag("source")).isEqualTo("HTTP");
-                    assertThat(timer.getId().getTag("operation"))
-                            .isEqualTo("GET /api/orders · OrdersController#list");
-                    assertThat(timer.count()).isEqualTo(1);
-                });
+        assertThat(meters.find("easy.operations.duration").tag("source", "HTTP").timers())
+                .singleElement().satisfies(timer -> assertThat(timer.count()).isEqualTo(1));
+        assertThat(traceHistory.recentOperations(10, null)).singleElement().satisfies(operation -> {
+            assertThat(operation.traceId()).isEqualTo("http-trace-1");
+            assertThat(operation.spanId()).isEqualTo("1");
+            assertThat(operation.parentSpanId()).isEmpty();
+        });
     }
 
     @Test

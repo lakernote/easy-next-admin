@@ -44,7 +44,14 @@ public final class ObservationTraceHandler implements ObservationHandler<Observa
 
     @Override
     public boolean supportsContext(Observation.Context context) {
-        return resolveType(context) != null;
+        String type = resolveType(context);
+        if (type == null) return false;
+        return switch (type) {
+            case "HTTP" -> properties.getTrace().isHttpServerObservationEnabled();
+            case "REDIS" -> properties.getTrace().isRedisObservationEnabled();
+            case "DATABASE" -> properties.getTrace().isDatabaseObservationEnabled();
+            default -> true;
+        };
     }
 
     @Override

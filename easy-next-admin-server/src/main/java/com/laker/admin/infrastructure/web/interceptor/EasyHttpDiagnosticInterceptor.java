@@ -74,9 +74,12 @@ public class EasyHttpDiagnosticInterceptor implements AsyncHandlerInterceptor {
             return true;
         }
         String handlerName = resolveHandlerName(handler);
-        OperationObservation.Scope observation = operationObservation.startHttpRequest(handlerName,
-                request.getMethod() + " " + request.getRequestURI());
         boolean ownsTrace = enabled && !TraceContext.active();
+        OperationObservation.Scope observation = ownsTrace
+                ? operationObservation.startHttpRequest(handlerName,
+                        request.getMethod() + " " + request.getRequestURI())
+                : operationObservation.startDiagnosticOnly("HTTP", handlerName,
+                        request.getMethod() + " " + request.getRequestURI());
         RequestState state = new RequestState(handlerName, TraceIdContext.currentTraceId(), MdcContext.copy(),
                 request.getMethod() + " " + request.getRequestURI(), observation, ownsTrace);
         request.setAttribute(STATE_ATTRIBUTE, state);

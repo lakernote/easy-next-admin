@@ -153,6 +153,7 @@ async function openTrace(trace) {
   catch (error) { byId('trace-tree').textContent = error?.message || '读取 Trace 明细失败'; return }
   byId('trace-tree').textContent = detail.tree || '此请求未触发慢或错误，未保存完整调用树；已采集的下游操作见下表。'
   const operationRows = byId('operation-rows'); operationRows.replaceChildren()
+  const renderedRows = new Set()
   for (const { operation, depth } of orderOperations(detail.operations || [])) {
     const row = document.createElement('tr')
     td(row, labels[operation.type] || operation.type)
@@ -170,15 +171,34 @@ async function openTrace(trace) {
       const stack = document.createElement('pre'); stack.textContent = operation.stackTrace
       details.append(summary, stack); errorCell.append(details)
     }
+    const visibleRow = row.textContent
+    if (renderedRows.has(visibleRow)) continue
+    renderedRows.add(visibleRow)
     operationRows.append(row)
   }
 }
 
 function orderOperations(operations) {
-  const byId = new Map(operations.filter(item => item.spanId).map(item => [item.spanId, item]))
+  const unique = []
+  const seen = new Set()
+  for (const operation of operations) {
+    // Span IDs may differ when the same dependency was captured through two adapters. Collapse only
+    // rows that are indistinguishable in the table; different timing/resource values remain separate.
+    const identity = JSON.stringify([
+      operation.traceId, labels[operation.type] || operation.type,
+      operation.name, operation.detail, operation.threadName, operation.threadId,
+      formatNumber(operation.durationMs, ' ms'), formatNumber(operation.cpuTimeMs, ' ms'),
+      formatBytes(operation.allocatedBytes), operation.outcome,
+      operation.errorType, operation.errorMessage
+    ])
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    unique.push(operation)
+  }
+  const byId = new Map(unique.filter(item => item.spanId).map(item => [item.spanId, item]))
   const children = new Map()
   const roots = []
-  const ordered = [...operations].sort((left, right) => new Date(left.finishedAt).getTime() - new Date(right.finishedAt).getTime())
+  const ordered = unique.sort((left, right) => new Date(left.finishedAt).getTime() - new Date(right.finishedAt).getTime())
   for (const operation of ordered) {
     const parentId = operation.parentSpanId
     if (parentId && parentId !== operation.spanId && byId.has(parentId)) {
@@ -188,16 +208,22 @@ function orderOperations(operations) {
     } else roots.push(operation)
   }
   const result = []
-  const visited = new Set()
+  const visitedOperations = new Set()
+  const visitedSpanIds = new Set()
   const visit = (operation, depth) => {
-    if (operation.spanId && visited.has(operation.spanId)) return
-    if (operation.spanId) visited.add(operation.spanId)
+    if (visitedOperations.has(operation)) return
+    if (operation.spanId && visitedSpanIds.has(operation.spanId)) {
+      visitedOperations.add(operation)
+      return
+    }
+    visitedOperations.add(operation)
+    if (operation.spanId) visitedSpanIds.add(operation.spanId)
     result.push({ operation, depth })
     for (const child of children.get(operation.spanId) || []) visit(child, depth + 1)
   }
   roots.forEach(root => visit(root, 0))
   ordered.forEach(operation => {
-    if (!operation.spanId || !visited.has(operation.spanId)) visit(operation, 0)
+    if (!visitedOperations.has(operation)) visit(operation, 0)
   })
   return result
 }
