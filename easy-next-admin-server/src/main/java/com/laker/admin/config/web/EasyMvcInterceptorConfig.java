@@ -5,8 +5,7 @@ import com.laker.admin.infrastructure.security.interceptor.EasyPermissionInterce
 import com.laker.admin.infrastructure.web.interceptor.EasyHttpDiagnosticInterceptor;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.TraceHistory;
-import com.laker.observability.web.ObservabilityAccessPolicy;
+import io.github.lakernote.observability.web.ObservabilityAccessPolicy;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +32,13 @@ public class EasyMvcInterceptorConfig implements WebMvcConfigurer {
     @Bean
     @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
     public EasyHttpDiagnosticInterceptor easyHttpDiagnosticInterceptor(
-            RecentTraceStore recentTraceStore, OperationObservation operationObservation, TraceHistory traceHistory) {
+            RecentTraceStore recentTraceStore, OperationObservation operationObservation,
+            io.github.lakernote.observability.trace.store.RecentTraceStore starterTraceStore) {
         return new EasyHttpDiagnosticInterceptor(
                 easyNextAdminConfig.getTrace().isEnabled(),
                 easyNextAdminConfig.getTrace().getHttpSlowThresholdMs(),
                 easyNextAdminConfig.getTrace().getMaxDepth(),
-                easyNextAdminConfig.getTrace().getMinNodeCostMs(), recentTraceStore, operationObservation, traceHistory);
+                easyNextAdminConfig.getTrace().getMinNodeCostMs(), recentTraceStore, operationObservation, starterTraceStore);
     }
 
     @Bean

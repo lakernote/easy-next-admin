@@ -6,8 +6,7 @@ EasyNextAdmin 是单体优先的企业后台脚手架。后端按模块分层，
 
 ```text
 easy-next-admin
-├── easy-observability-spring-boot-starter  # 可独立发布的 Micrometer 指标与轻量 Trace
-├── easy-next-admin-server
+├── easy-next-admin-server   # Spring Boot 3 服务端，观测能力依赖 Maven Central 上的 Easy Observability
 │   ├── common          # 统一响应、异常、常量、工具
 │   ├── config          # Spring、MyBatis、WebMVC、OpenAPI、线程池等配置
 │   ├── infrastructure  # 认证、权限、数据范围、审计、缓存、锁、幂等、限流、观测性、AI 模型适配
@@ -510,7 +509,7 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 
 项目保留自研轻量 `X-Trace-Id` 和本地 Trace Tree；指标仍通过 Micrometer，框架 Observation 由 Starter 桥接进自研 Trace。Starter 的 `TraceIdFilter` 接收或生成链路号并写入响应头和 MDC；认证成功后 `EasyAuthFilter` 再把 `userId` 放入 MDC。异步线程池、Feign、RestClient 和 Kafka 生产端继续透传同一个链路号，Kafka 消费入口如果没有 traceId 会新建 traceId，日志通过 `logback.xml` 输出 `[user:%X{userId:-} trace:%X{traceId:-}]`。
 
-通用实现位于独立的 `easy-observability-spring-boot-starter`，发布坐标为 `com.laker.observability:easy-observability-spring-boot-starter`。它提供 `TraceContext`、`TraceIdContext`、`MdcContext`、`TraceBlock`、显式 `@TraceSpan`、`BusinessMetrics`、Micrometer Observation 桥接、RRD4J 指标历史、Slow/Error 与慢错 Trace JSONL 持久化，以及打包在 JAR 内的 `/easy-observability/` 独立监控页和只读 API。框架扩展点覆盖 HTTP Filter/Observation、MyBatis Interceptor、Kafka Producer/Consumer Interceptor、Redis/Lettuce Observation、Feign RequestInterceptor、Spring 事务监听器、Spring 6.2 `@Scheduled` Observation 和 Spring 线程池指标绑定。操作历史包含线程 ID、CPU 时间和线程分配字节数；宿主仅需保留 JFR、线程现场、脱敏策略及业务专用数据。页面及 API 应由宿主保护；EasyNextAdmin 使用 `ObservabilityAccessPolicy` 对接运行诊断权限。配置统一位于 `easy.observability.*` 前缀。
+通用实现作为独立项目发布到 Maven Central，EasyNextAdmin 通过 `io.github.lakernote:easy-observability-spring-boot-3-starter` 依赖接入。它提供 `TraceContext`、`TraceIdContext`、`MdcContext`、显式 `@TraceSpan`、`BusinessMetrics`、Micrometer Observation 桥接、RRD4J 指标历史、Slow/Error 与慢错 Trace 持久化，以及 JAR 内的 `/easy-observability/` 页面和只读 API。框架扩展点覆盖 HTTP Observation、MyBatis Interceptor、Kafka Producer/Consumer Interceptor、Redis/Lettuce Observation、Feign RequestInterceptor、事务监听器、`@Scheduled` Observation 和 Spring 线程池指标绑定。操作记录包含线程 ID、CPU 时间和线程分配字节数；宿主继续负责 JFR、线程现场、权限和业务专用诊断数据。EasyNextAdmin 通过 `ObservabilityAccessPolicy` 将监控 API 接入运行诊断权限；配置统一位于 `easy.observability.*` 前缀。
 
 慢入口、事务、SQL 和远程调用的阈值集中放在 `easy.trace`：
 

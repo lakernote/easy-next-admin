@@ -1,6 +1,6 @@
 package com.laker.admin.config.thread;
 
-import com.laker.observability.trace.TraceContextTaskDecorator;
+import io.github.lakernote.observability.trace.TraceContextTaskDecorator;
 import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

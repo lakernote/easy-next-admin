@@ -4,7 +4,7 @@ import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;

@@ -1,8 +1,8 @@
 package com.laker.admin.infrastructure.observability;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.observability.config.EasyObservabilityProperties;
-import com.laker.observability.metrics.BusinessMetrics;
+import io.github.lakernote.observability.config.EasyObservabilityProperties;
+import io.github.lakernote.observability.metrics.BusinessMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

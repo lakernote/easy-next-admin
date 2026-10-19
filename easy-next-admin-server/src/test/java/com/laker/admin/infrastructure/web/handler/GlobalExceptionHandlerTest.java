@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -107,5 +108,18 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(403001);
         assertThat(response.getBody().getMessage()).isEqualTo("账号已被禁用");
+    }
+
+    @Test
+    void shouldPreserveForbiddenStatusFromFrameworkComponents() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/easy-observability/metrics");
+
+        ResponseEntity<Response<Void>> response = handler.handleResponseStatusException(
+                new ResponseStatusException(HttpStatus.FORBIDDEN), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(403000);
+        assertThat(response.getBody().getMessage()).isEqualTo("无访问权限");
     }
 }

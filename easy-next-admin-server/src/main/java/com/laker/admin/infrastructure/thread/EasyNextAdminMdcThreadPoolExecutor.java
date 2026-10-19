@@ -1,7 +1,7 @@
 package com.laker.admin.infrastructure.thread;
 
-import com.laker.observability.trace.MdcContext;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;

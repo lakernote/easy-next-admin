@@ -1,14 +1,13 @@
 package com.laker.admin.infrastructure.web.interceptor;
 
-import com.laker.observability.trace.BoundedThrowableFormatter;
-import com.laker.observability.trace.SpanKind;
-import com.laker.observability.trace.TraceContext;
-import com.laker.observability.trace.TraceIdContext;
-import com.laker.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.BoundedThrowableFormatter;
+import io.github.lakernote.observability.trace.SpanKind;
+import io.github.lakernote.observability.trace.TraceContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.MdcContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.ObservationSuppression;
-import com.laker.observability.trace.TraceHistory;
+import io.github.lakernote.observability.trace.ObservationSuppression;
 import com.laker.admin.infrastructure.web.context.EasyResolvedExceptionContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -38,19 +37,19 @@ public class EasyHttpDiagnosticInterceptor implements AsyncHandlerInterceptor {
     private final long minNodeCostMs;
     private final RecentTraceStore recentTraceStore;
     private final OperationObservation operationObservation;
-    private final TraceHistory traceHistory;
+    private final io.github.lakernote.observability.trace.store.RecentTraceStore traceHistory;
     /** Callable workers are serialized per thread; keep one reusable slot instead of one ThreadLocal per request. */
     private final ThreadLocal<AsyncWorkerBinding> workerBinding = new ThreadLocal<>();
 
     public EasyHttpDiagnosticInterceptor(boolean enabled, long slowThresholdMs, int maxDepth, long minNodeCostMs,
                                     RecentTraceStore recentTraceStore, OperationObservation operationObservation) {
         this(enabled, slowThresholdMs, maxDepth, minNodeCostMs, recentTraceStore, operationObservation,
-                new TraceHistory(500));
+                new io.github.lakernote.observability.trace.store.RecentTraceStore(500));
     }
 
     public EasyHttpDiagnosticInterceptor(boolean enabled, long slowThresholdMs, int maxDepth, long minNodeCostMs,
                                     RecentTraceStore recentTraceStore, OperationObservation operationObservation,
-                                    TraceHistory traceHistory) {
+                                    io.github.lakernote.observability.trace.store.RecentTraceStore traceHistory) {
         this.enabled = enabled;
         this.slowThresholdMs = slowThresholdMs;
         this.maxDepth = maxDepth;

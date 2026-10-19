@@ -6,7 +6,7 @@ import com.laker.admin.infrastructure.id.EasyIdGenerator;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.message.local.entity.LocalMessage;
 import com.laker.admin.infrastructure.message.local.mapper.LocalMessageMapper;
-import com.laker.observability.metrics.BusinessMetrics;
+import io.github.lakernote.observability.metrics.BusinessMetrics;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

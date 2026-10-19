@@ -221,8 +221,7 @@ class EnterpriseScaffoldSurfaceTest {
         String moduleControllers = readSourceTree(Path.of("src/main/java/com/laker/admin/module"));
         String apiAccessLogAspect = Files.readString(
                 Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"));
-        String businessMetrics = Files.readString(
-                Path.of("../easy-observability-spring-boot-starter/src/main/java/com/laker/observability/metrics/BusinessMetrics.java"));
+        String observabilityDependency = Files.readString(Path.of("pom.xml"));
 
         assertThat(moduleControllers)
                 .contains("@EasyApiAccessLog")
@@ -230,9 +229,9 @@ class EnterpriseScaffoldSurfaceTest {
         assertThat(apiAccessLogAspect)
                 .contains("audit_api_log", "EasyApiAccessLog")
                 .doesNotContain("class EasyMetricsAspect");
-        assertThat(businessMetrics)
-                .contains("API_ACCESS_TIMER", "REMOTE_CALL_TIMER")
-                .doesNotContain("audit_api_log");
+        assertThat(observabilityDependency)
+                .contains("io.github.lakernote", "easy-observability-spring-boot-3-starter")
+                .doesNotContain("com.laker.observability");
     }
 
     @Test

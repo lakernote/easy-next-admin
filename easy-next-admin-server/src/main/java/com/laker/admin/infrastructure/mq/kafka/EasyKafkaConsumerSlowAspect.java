@@ -2,12 +2,11 @@ package com.laker.admin.infrastructure.mq.kafka;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.observability.trace.MdcContext;
-import com.laker.observability.trace.TraceIdContext;
-import com.laker.observability.trace.BoundedThrowableFormatter;
-import com.laker.observability.trace.SpanKind;
-import com.laker.observability.trace.TraceContext;
-import com.laker.observability.trace.TraceHistory;
+import io.github.lakernote.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.BoundedThrowableFormatter;
+import io.github.lakernote.observability.trace.SpanKind;
+import io.github.lakernote.observability.trace.TraceContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -38,20 +37,12 @@ public class EasyKafkaConsumerSlowAspect {
     private final EasyNextAdminConfig easyNextAdminConfig;
     private final RecentTraceStore recentTraceStore;
     private final OperationObservation operationObservation;
-    private final TraceHistory traceHistory;
-
     @Autowired
     public EasyKafkaConsumerSlowAspect(EasyNextAdminConfig easyNextAdminConfig, RecentTraceStore recentTraceStore,
-                                       OperationObservation operationObservation, TraceHistory traceHistory) {
+                                       OperationObservation operationObservation) {
         this.easyNextAdminConfig = easyNextAdminConfig;
         this.recentTraceStore = recentTraceStore;
         this.operationObservation = operationObservation;
-        this.traceHistory = traceHistory;
-    }
-
-    public EasyKafkaConsumerSlowAspect(EasyNextAdminConfig easyNextAdminConfig, RecentTraceStore recentTraceStore,
-                                       OperationObservation operationObservation) {
-        this(easyNextAdminConfig, recentTraceStore, operationObservation, null);
     }
 
     public EasyKafkaConsumerSlowAspect(EasyNextAdminConfig easyNextAdminConfig) {

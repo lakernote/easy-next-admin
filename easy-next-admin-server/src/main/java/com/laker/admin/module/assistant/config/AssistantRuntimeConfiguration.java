@@ -1,6 +1,6 @@
 package com.laker.admin.module.assistant.config;
 
-import com.laker.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.MdcContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

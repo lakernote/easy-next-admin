@@ -1,12 +1,11 @@
 package com.laker.admin.infrastructure.observability.jfr;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.observability.config.EasyObservabilityProperties;
-import com.laker.observability.metrics.OperationRecorder;
-import com.laker.observability.trace.SpanKind;
-import com.laker.observability.trace.TraceContext;
-import com.laker.observability.trace.TraceHistory;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.config.EasyObservabilityProperties;
+import io.github.lakernote.observability.metrics.OperationRecorder;
+import io.github.lakernote.observability.trace.SpanKind;
+import io.github.lakernote.observability.trace.TraceContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
 import io.micrometer.core.instrument.Meter;
@@ -72,7 +71,8 @@ class OperationObservationTest {
         @SuppressWarnings("unchecked")
         org.springframework.beans.factory.ObjectProvider<LocalJfrRecorder> recorderProvider =
                 mock(org.springframework.beans.factory.ObjectProvider.class);
-        TraceHistory traceHistory = new TraceHistory(10);
+        io.github.lakernote.observability.trace.store.RecentTraceStore traceHistory =
+                new io.github.lakernote.observability.trace.store.RecentTraceStore(10);
         OperationRecorder operationRecorder = new OperationRecorder(meters, traceHistory,
                 new EasyObservabilityProperties());
         OperationObservation observation = new OperationObservation(store, config, registry, meters,

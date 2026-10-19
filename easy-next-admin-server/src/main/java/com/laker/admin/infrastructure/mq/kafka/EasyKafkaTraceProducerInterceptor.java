@@ -1,8 +1,8 @@
 package com.laker.admin.infrastructure.mq.kafka;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
-import com.laker.observability.trace.MdcContext;
-import com.laker.observability.integration.kafka.TraceIdProducerInterceptor;
+import io.github.lakernote.observability.trace.MdcContext;
+import io.github.lakernote.observability.integration.kafka.TraceIdProducerInterceptor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.util.StringUtils;
 

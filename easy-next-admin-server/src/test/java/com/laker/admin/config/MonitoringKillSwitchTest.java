@@ -8,7 +8,7 @@ import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.config.web.EasyMvcInterceptorConfig;
 import com.laker.admin.infrastructure.mq.kafka.EasyKafkaConsumerSlowAspect;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.TraceSpanAspect;
+import io.github.lakernote.observability.trace.TraceSpanAspect;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.trace.TransactionDiagnosticBeanPostProcessor;
 import com.laker.admin.infrastructure.observability.trace.TransactionDiagnosticListener;
@@ -32,7 +32,8 @@ class MonitoringKillSwitchTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
-                    com.laker.observability.autoconfigure.ObservabilityAutoConfiguration.class))
+                    io.github.lakernote.observability.autoconfigure.ObservabilityAutoConfiguration.class,
+                    io.github.lakernote.observability.autoconfigure.TraceSpanAutoConfiguration.class))
             .withUserConfiguration(MonitoringComponents.class)
             .withBean(EasyNextAdminConfig.class, EasyNextAdminConfig::new)
             .withBean(EasyPermissionInterceptor.class, () -> mock(EasyPermissionInterceptor.class))

@@ -8,7 +8,7 @@ import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.infrastructure.security.service.EasyAuthService;
 import com.laker.admin.infrastructure.security.support.EasyAuthRequestAttributes;
 import com.laker.admin.infrastructure.security.support.EasySecurityHeaders;
-import com.laker.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.MdcContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

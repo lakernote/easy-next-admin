@@ -1,7 +1,7 @@
 package com.laker.admin.module.workflow.purchase.batch;
 
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.module.batch.dto.BatchTaskView;
 import com.laker.admin.module.batch.dto.BatchTaskSubmitRequest;
 import com.laker.admin.module.batch.entity.BatchTask;

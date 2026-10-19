@@ -3,7 +3,7 @@ package com.laker.admin.infrastructure.web.interceptor;
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
-import com.laker.observability.trace.ObservationSuppression;
+import io.github.lakernote.observability.trace.ObservationSuppression;
 import com.laker.admin.infrastructure.web.handler.GlobalExceptionHandler;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.AsyncEvent;
@@ -75,6 +75,8 @@ class EasyHttpDiagnosticInterceptorTest {
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(scope);
+        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
                 false, 3_000, 64, 1, store, observation);
@@ -159,6 +161,8 @@ class EasyHttpDiagnosticInterceptorTest {
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
+        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(false);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
                 false, 3_000, 64, 1, store, observation);
@@ -193,6 +197,8 @@ class EasyHttpDiagnosticInterceptorTest {
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(scope);
+        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         when(scope.rebindAfterInitialAsyncHandoff()).thenReturn(true);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
@@ -232,6 +238,8 @@ class EasyHttpDiagnosticInterceptorTest {
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
+        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(scope);
         EasyHttpDiagnosticInterceptor interceptor = new EasyHttpDiagnosticInterceptor(
                 false, 3_000, 64, 1, store, observation);
 
@@ -266,6 +274,8 @@ class EasyHttpDiagnosticInterceptorTest {
         OperationObservation observation = mock(OperationObservation.class);
         OperationObservation.Scope scope = mock(OperationObservation.Scope.class);
         when(observation.startHttpRequest(eq("Object"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(scope);
+        when(observation.startDiagnosticOnly(eq("HTTP"), eq("Object"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(scope);
         IllegalStateException businessFailure = new IllegalStateException("handler failed");
         doThrow(new AssertionError("monitoring finalizer failed"))

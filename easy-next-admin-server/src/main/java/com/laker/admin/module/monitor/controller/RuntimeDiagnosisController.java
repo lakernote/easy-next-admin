@@ -8,8 +8,8 @@ import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.infrastructure.observability.jfr.LocalJfrRecorder;
 import com.laker.admin.infrastructure.observability.jfr.ActiveOperationRegistry;
-import com.laker.observability.metrics.history.MetricHistoryStore;
-import com.laker.observability.metrics.history.MetricHistoryPoint;
+import io.github.lakernote.observability.metrics.history.MetricHistoryStore;
+import io.github.lakernote.observability.metrics.history.MetricHistoryPoint;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import com.laker.admin.module.audit.dto.AuditErrorLogView;
@@ -104,7 +104,7 @@ public class RuntimeDiagnosisController {
                 recentTraceStore.queueCapacity(), recentTraceStore.pendingBytes(), recentTraceStore.pendingMaxBytes(),
                 recentTraceStore.droppedWrites(), recentTraceStore.byteBudgetDroppedWrites(),
                 historyBytes >= Math.round(recentTraceStore.maxHistoryBytes() * 0.9));
-        MetricHistoryStore.StorageStatus metricsStorageStatus = metricTimeSeriesStore.status();
+        MetricHistoryStore.StorageStatus metricsStorageStatus = metricTimeSeriesStore.getStatus();
         return Response.ok(new DiagnosisSummary(status, incidentSummary.sampledAt().toString(), 60, activeTotal, active,
                 incidentSummary.incidents(), slow, errors, recentTraceStore.retentionDays(), historyBytes,
                 jfrStatus.completedFiles(), jfrStatus.totalBytes(), Map.of(
@@ -128,7 +128,7 @@ public class RuntimeDiagnosisController {
                         .thenComparing(MetricView::name)
                         .thenComparing(metric -> metric.tags().toString()))
                 .forEach(metric -> result.put(metricSeriesKey(metric.name(), metric.tags()), metric));
-        metricTimeSeriesStore.seriesCatalog().stream()
+        metricTimeSeriesStore.listSeries().stream()
                 .filter(series -> isUsefulMetric(series.name()))
                 .map(RuntimeDiagnosisController::historicalMetricView)
                 .forEach(metric -> result.putIfAbsent(metricSeriesKey(metric.name(), metric.tags()), metric));
@@ -150,7 +150,7 @@ public class RuntimeDiagnosisController {
         try { if (tags != null && !tags.isBlank()) tagFilter = objectMapper.readValue(tags, new TypeReference<>() { }); }
         catch (Exception exception) { return Response.ok(List.of()); }
         int safeLimit = clamp(limit, 50000);
-        List<MetricHistoryPoint> current = metricTimeSeriesStore.metricHistory(
+        List<MetricHistoryPoint> current = metricTimeSeriesStore.queryHistory(
                 name, tagFilter, safeLimit);
         // RRD4J is the canonical store. Avoid scanning the bounded incident JSONL whenever the requested series
         // already exists there; the fallback is only for data written by the pre-RRD local-history prototype.

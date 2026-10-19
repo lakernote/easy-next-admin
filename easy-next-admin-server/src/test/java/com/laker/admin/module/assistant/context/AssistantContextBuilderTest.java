@@ -2,7 +2,7 @@ package com.laker.admin.module.assistant.context;
 
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.exception.EasyAuthException;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import org.junit.jupiter.api.AfterEach;

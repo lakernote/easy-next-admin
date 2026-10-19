@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -206,6 +207,26 @@ public class GlobalExceptionHandler {
         capture(request, e);
         log.error("uri:{}, method:{}, detail:{}", e.getResourcePath(), e.getHttpMethod(), e.getBody().getDetail());
         return error(ErrorCode.RESOURCE_NOT_FOUND);
+    }
+
+    /**
+     * 保留框架组件声明的 HTTP 状态码，例如只读监控接口的 403 访问拒绝。
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Response<Void>> handleResponseStatusException(ResponseStatusException e,
+                                                                         HttpServletRequest request) {
+        capture(request, e);
+        ErrorCode errorCode = ErrorCode.fromHttpStatus(e.getStatusCode().value());
+        String reason = e.getReason();
+        if (e.getStatusCode().is4xxClientError()) {
+            log.warn("uri:{}, httpMethod:{}, status:{}, reason:{}",
+                    requestUri(request), requestMethod(request), e.getStatusCode().value(), reason);
+        } else {
+            logRequestInfo(request);
+            log.error("uri:{}, httpMethod:{}, status:{}, reason:{}",
+                    requestUri(request), requestMethod(request), e.getStatusCode().value(), reason, e);
+        }
+        return error(errorCode, reason == null || reason.isBlank() ? errorCode.getDefaultMessage() : reason);
     }
 
     @ExceptionHandler(Exception.class)

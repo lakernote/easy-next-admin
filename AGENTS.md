@@ -11,7 +11,7 @@ EasyNextAdmin 是面向中文企业后台二次开发的开源脚手架，采用
 ## 主要目录
 
 ```text
-easy-observability-spring-boot-starter  可独立发布的 Micrometer metrics / trace starter
+Easy Observability 通过 Maven Central 依赖提供 Micrometer metrics / trace starter
 easy-next-admin-server   Spring Boot 3 服务端
 easy-next-admin-web      Vue 3 + Vite + Element Plus 前端
 docs                开源项目文档

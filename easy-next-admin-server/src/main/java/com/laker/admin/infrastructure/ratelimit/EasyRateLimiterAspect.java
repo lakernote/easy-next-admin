@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.ratelimit;
 
-import com.laker.observability.metrics.BusinessMetrics;
+import io.github.lakernote.observability.metrics.BusinessMetrics;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.web.context.EasyRequestContext;
 import lombok.RequiredArgsConstructor;

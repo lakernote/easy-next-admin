@@ -2,8 +2,8 @@ package com.laker.admin.infrastructure.observability.trace;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.TraceContext;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

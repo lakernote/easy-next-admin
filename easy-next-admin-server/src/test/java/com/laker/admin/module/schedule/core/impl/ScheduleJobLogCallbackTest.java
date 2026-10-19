@@ -3,7 +3,7 @@ package com.laker.admin.module.schedule.core.impl;
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.metrics.BusinessMetrics;
+import io.github.lakernote.observability.metrics.BusinessMetrics;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;

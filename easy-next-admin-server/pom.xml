@@ -16,9 +16,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.laker.observability</groupId>
-            <artifactId>easy-observability-spring-boot-starter</artifactId>
-            <version>${observability.version}</version>
+            <groupId>io.github.lakernote</groupId>
+            <artifactId>easy-observability-spring-boot-3-starter</artifactId>
+            <version>${easy-observability.version}</version>
         </dependency>
         <!-- 只使用 Spring AI 的模型与 Tool Calling 标准抽象；企业 Agent 循环由本项目控制。 -->
         <dependency>

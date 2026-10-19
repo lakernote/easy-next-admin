@@ -142,7 +142,9 @@ easy:
         interval-ms: ${EASY_DIAGNOSIS_METRICS_PERSIST_INTERVAL_MS:60000}
         max-storage-bytes: ${EASY_DIAGNOSIS_METRICS_HISTORY_MAX_BYTES:67108864}
         max-series-bytes: ${EASY_DIAGNOSIS_METRICS_SEGMENT_MAX_BYTES:8388608}
-        max-series: ${EASY_DIAGNOSIS_METRICS_MAX_SERIES:512}
+        # The built-in application already restores ~500 low-cardinality series; keep headroom while
+        # the 64 MiB global cap continues to bound local history storage.
+        max-series: ${EASY_DIAGNOSIS_METRICS_MAX_SERIES:768}
   features:
     # 能力级开关集中在这里，避免 Redis/Kafka/OSS 等可选依赖被误装配。
     redis: ${EASY_FEATURE_REDIS:true}

@@ -1,12 +1,12 @@
 package com.laker.admin.infrastructure.observability.jfr;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
-import com.laker.observability.trace.BoundedThrowableFormatter;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.BoundedThrowableFormatter;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.observability.trace.RecentTraceStore;
-import com.laker.observability.trace.TraceContext;
-import com.laker.observability.metrics.OperationRecorder;
-import com.laker.observability.trace.OperationRecord;
+import io.github.lakernote.observability.trace.TraceContext;
+import io.github.lakernote.observability.metrics.OperationRecorder;
+import io.github.lakernote.observability.trace.OperationRecord;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;

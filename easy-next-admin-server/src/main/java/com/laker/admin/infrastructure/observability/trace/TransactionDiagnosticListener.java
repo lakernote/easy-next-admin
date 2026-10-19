@@ -2,10 +2,10 @@ package com.laker.admin.infrastructure.observability.trace;
 
 import com.laker.admin.config.properties.EasyNextAdminConfig;
 import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.observability.trace.TraceIdContext;
-import com.laker.observability.trace.ObservationSuppression;
-import com.laker.observability.trace.SpanKind;
-import com.laker.observability.trace.TraceContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.ObservationSuppression;
+import io.github.lakernote.observability.trace.SpanKind;
+import io.github.lakernote.observability.trace.TraceContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

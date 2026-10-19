@@ -1,6 +1,6 @@
 package com.laker.admin.infrastructure.audit;
 
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;

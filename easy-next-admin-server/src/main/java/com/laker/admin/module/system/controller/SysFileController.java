@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
-import com.laker.observability.trace.TraceIdContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
