@@ -138,7 +138,7 @@ easy:
         enabled: ${easy.monitor.diagnosis.enabled:true}
         # Keep the legacy directory as the default so existing RRD4J history survives the module move.
         storage-dir: ${EASY_DIAGNOSIS_METRICS_STORAGE_DIR:./data/diagnosis/metrics}
-        retention-days: ${EASY_DIAGNOSIS_METRICS_RETENTION_DAYS:30}
+        retention-days: ${EASY_DIAGNOSIS_METRICS_RETENTION_DAYS:15}
         interval-ms: ${EASY_DIAGNOSIS_METRICS_PERSIST_INTERVAL_MS:60000}
         max-storage-bytes: ${EASY_DIAGNOSIS_METRICS_HISTORY_MAX_BYTES:67108864}
         max-series-bytes: ${EASY_DIAGNOSIS_METRICS_SEGMENT_MAX_BYTES:8388608}
