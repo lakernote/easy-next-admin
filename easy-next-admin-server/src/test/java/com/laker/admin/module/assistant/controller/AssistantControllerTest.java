@@ -1,7 +1,6 @@
 package com.laker.admin.module.assistant.controller;
 
 import com.laker.admin.common.model.Response;
-import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
 import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
@@ -77,24 +76,15 @@ class AssistantControllerTest {
                 executionCompleted.countDown();
             }
         }).when(agentTurnService).run(eq(request), any());
-        OperationObservation operationObservation = mock(OperationObservation.class);
-        OperationObservation.ContextSnapshot observationContext = mock(OperationObservation.ContextSnapshot.class);
-        OperationObservation.ContextBinding observationBinding = mock(OperationObservation.ContextBinding.class);
-        when(operationObservation.captureContext()).thenReturn(observationContext);
-        when(observationContext.bind()).thenReturn(observationBinding);
-
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            controller(agentTurnService, executor::execute, operationObservation).streamUserChat(request);
+            controller(agentTurnService, executor::execute).streamUserChat(request);
 
             assertThat(executionCompleted.await(2, TimeUnit.SECONDS)).isTrue();
             verify(agentTurnService, timeout(2_000)).run(eq(request), any());
             assertThat(workerPrincipal.get()).isSameAs(principal);
             assertThat(workerAccessToken.get()).as("原始登录 Token 不应传播给 Agent 线程").isNull();
             assertThat(workerTraceId.get()).isEqualTo("trace-sse-test");
-            verify(operationObservation).captureContext();
-            verify(observationContext).bind();
-            verify(observationBinding, timeout(2_000)).close();
 
             Future<?> contextCheck = executor.submit(() -> {
                 assertThat(EasySecurityContext.getPrincipal()).isNull();
@@ -113,22 +103,10 @@ class AssistantControllerTest {
 
     private static AssistantController controller(AgentTurnService agentTurnService,
                                                   org.springframework.core.task.TaskExecutor executor) {
-        OperationObservation operationObservation = mock(OperationObservation.class);
-        OperationObservation.ContextSnapshot observationContext = mock(OperationObservation.ContextSnapshot.class);
-        OperationObservation.ContextBinding observationBinding = mock(OperationObservation.ContextBinding.class);
-        when(operationObservation.captureContext()).thenReturn(observationContext);
-        when(observationContext.bind()).thenReturn(observationBinding);
-        return controller(agentTurnService, executor, operationObservation);
-    }
-
-    private static AssistantController controller(AgentTurnService agentTurnService,
-                                                  org.springframework.core.task.TaskExecutor executor,
-                                                  OperationObservation operationObservation) {
         TaskScheduler scheduler = mock(TaskScheduler.class);
         ScheduledFuture<?> heartbeat = mock(ScheduledFuture.class);
         doReturn(heartbeat).when(scheduler)
                 .scheduleAtFixedRate(any(Runnable.class), any(Duration.class));
-        return new AssistantController(agentTurnService, executor, scheduler, new AssistantRuntimeProperties(),
-                operationObservation);
+        return new AssistantController(agentTurnService, executor, scheduler, new AssistantRuntimeProperties());
     }
 }

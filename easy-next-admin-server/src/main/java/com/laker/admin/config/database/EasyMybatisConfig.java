@@ -6,10 +6,6 @@ import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInt
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.laker.admin.infrastructure.security.datascope.resolver.DataScopeResolver;
 import com.laker.admin.infrastructure.security.datascope.mybatis.EasyDataScopeInnerInterceptor;
-import com.laker.admin.infrastructure.observability.jfr.OperationObservation;
-import com.laker.admin.infrastructure.persistence.mybatis.EasyMybatisDiagnosticInterceptor;
-import org.apache.ibatis.plugin.Interceptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,12 +16,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @MapperScan("com.laker.admin.**.mapper")
 public class EasyMybatisConfig {
-
-    @Bean
-    @ConditionalOnProperty(prefix = "easy.features", name = "monitor", havingValue = "true", matchIfMissing = true)
-    public Interceptor easyMybatisDiagnosticInterceptor(OperationObservation observations) {
-        return new EasyMybatisDiagnosticInterceptor(observations);
-    }
 
     /**
      * mybatis-plus插件

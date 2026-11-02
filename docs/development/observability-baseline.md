@@ -350,8 +350,8 @@ HTTP 标签：
 | 优先级 | 能力 | 落地方向 |
 | --- | --- | --- |
 | P0 | 指标命名和标签规范 | 新增 `docs/components/observability/metrics.md` |
-| P0 | Micrometer + InfluxDB 指标出口 | `BusinessMetrics` 覆盖 API、远程调用、限流、调度任务、Outbox，`micrometer-registry-influx` 负责导出 |
-| P0 | API 访问日志与指标职责分离 | `@EasyApiAccessLog` 只写访问日志，指标统一走 `BusinessMetrics` |
+| P0 | Micrometer + InfluxDB 指标出口 | `EasyAdminMetrics` 覆盖 API、远程调用、限流、调度任务、Outbox；`micrometer-registry-influx` 可负责外部导出 |
+| P0 | API 访问日志与指标职责分离 | `@EasyApiAccessLog` 只写访问日志，应用指标走 `EasyAdminMetrics` |
 | P1 | W3C Trace Context 兼容 | Starter `TraceIdFilter`、Feign、Kafka、前端 trace |
 | P1 | 生产集中日志结构化 | 本地文本日志 + OpenSearch/SLS/Loki 结构化采集链路 |
 | P1 | 前端错误和性能观测 | Vue 全局错误、Promise rejection、Axios 失败事件、本地事件模型 |

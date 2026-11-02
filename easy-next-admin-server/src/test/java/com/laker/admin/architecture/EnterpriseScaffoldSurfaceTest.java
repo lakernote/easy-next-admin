@@ -157,15 +157,11 @@ class EnterpriseScaffoldSurfaceTest {
         String feignConfig = Files.readString(Path.of("src/main/java/com/laker/admin/config/remote/EasyFeignConfig.java"));
         String circuitBreakerConfig = Files.readString(
                 Path.of("src/main/java/com/laker/admin/config/remote/EasyCircuitBreakerConfig.java"));
-        String remoteMetricsAspect = Files.readString(
-                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/RemoteCallDiagnosticAspect.java"));
         String applicationYaml = Files.readString(Path.of("src/main/resources/application.yaml"));
 
         assertThat(treeUtil).doesNotContain("module.system.dto.MenuVo");
         assertThat(feignConfig).contains("@EnableFeignClients(basePackages = \"com.laker.admin.module\")");
         assertThat(feignConfig).contains("Logger.Level.BASIC");
-        assertThat(remoteMetricsAspect).contains("org.springframework.cloud.openfeign.FeignClient");
-        assertThat(remoteMetricsAspect).doesNotContain("com.laker.admin.module.remote.feign", "com.laker.admin.module.remote.rest");
         assertThat(circuitBreakerConfig + applicationYaml).doesNotContain(
                 "ipifyClient",
                 "backendA",

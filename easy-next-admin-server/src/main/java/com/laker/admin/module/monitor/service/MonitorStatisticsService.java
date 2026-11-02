@@ -12,9 +12,6 @@ import com.laker.admin.module.schedule.entity.ScheduleJobLog;
 import com.laker.admin.module.schedule.mapper.ScheduleJobLogMapper;
 import com.laker.admin.module.schedule.mapper.ScheduleJobMapper;
 import com.laker.admin.module.system.dto.OnlineSessionView;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,14 +23,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 监控统计查询服务。
@@ -52,25 +46,21 @@ public class MonitorStatisticsService {
     private final ScheduleJobMapper scheduleJobMapper;
     private final ScheduleJobLogMapper scheduleJobLogMapper;
     private final EasyAuthService authService;
-    private final MeterRegistry meterRegistry;
 
     public MonitorStatisticsService(AuditApiLogMapper auditApiLogMapper,
                                     ScheduleJobMapper scheduleJobMapper,
                                     ScheduleJobLogMapper scheduleJobLogMapper,
-                                    EasyAuthService authService,
-                                    MeterRegistry meterRegistry) {
+                                    EasyAuthService authService) {
         this.auditApiLogMapper = auditApiLogMapper;
         this.scheduleJobMapper = scheduleJobMapper;
         this.scheduleJobLogMapper = scheduleJobLogMapper;
         this.authService = authService;
-        this.meterRegistry = meterRegistry;
     }
 
     public MonitorStatisticsOverview overview() {
         return MonitorStatisticsOverview.builder()
                 .api(apiStatistics(DEFAULT_DAYS, DEFAULT_TOP_LIMIT))
                 .onlineUsers(onlineUserStatistics(1, 5))
-                .remoteCalls(remoteCallStatistics())
                 .jobs(jobStatistics(DEFAULT_TOP_LIMIT))
                 .build();
     }
@@ -105,27 +95,6 @@ public class MonitorStatisticsService {
 
     public PageResponse<OnlineSessionView> onlineUsers(int page, int pageSize) {
         return authService.pageOnlineSessions(Math.max(page, 1), safeLimit(pageSize, 100));
-    }
-
-    public List<MonitorStatisticsOverview.RemoteCallStatistics> remoteCallStatistics() {
-        Map<String, RemoteCallAccumulator> accumulators = new HashMap<>();
-        for (Meter meter : meterRegistry.getMeters()) {
-            if (!(meter instanceof Timer timer) || !"easy.remote.calls".equals(meter.getId().getName())) {
-                continue;
-            }
-            String target = textOrDash(tagValue(meter.getId(), "target"));
-            String method = textOrDash(tagValue(meter.getId(), "method"));
-            String result = tagValue(meter.getId(), "result");
-            String key = target + "#" + method;
-            accumulators.computeIfAbsent(key, unused -> new RemoteCallAccumulator(target, method))
-                    .record(timer, result);
-        }
-        return accumulators.values().stream()
-                .map(RemoteCallAccumulator::toStatistics)
-                .sorted(Comparator.comparing(MonitorStatisticsOverview.RemoteCallStatistics::getTotalCount).reversed()
-                        .thenComparing(MonitorStatisticsOverview.RemoteCallStatistics::getTarget)
-                        .thenComparing(MonitorStatisticsOverview.RemoteCallStatistics::getMethod))
-                .toList();
     }
 
     public MonitorStatisticsOverview.JobStatistics jobStatistics(int limit) {
@@ -276,21 +245,13 @@ public class MonitorStatisticsService {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private String textOrDash(String value) {
-        return StringUtils.hasText(value) ? value : "-";
-    }
-
-    private String tagValue(Meter.Id id, String key) {
-        return id.getTags().stream()
-                .filter(tag -> key.equals(tag.getKey()))
-                .map(tag -> tag.getValue())
-                .findFirst()
-                .orElse("-");
-    }
-
     private String stringValue(Map<String, Object> row, String key) {
         Object value = mapValue(row, key);
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String textOrDash(String value) {
+        return StringUtils.hasText(value) ? value : "-";
     }
 
     private int intValue(Map<String, Object> row, String key) {
@@ -381,43 +342,4 @@ public class MonitorStatisticsService {
         return builder.toString();
     }
 
-    private static class RemoteCallAccumulator {
-        private final String target;
-        private final String method;
-        private long totalCount;
-        private long successCount;
-        private long failureCount;
-        private double totalCostMs;
-        private double maxCostMs;
-
-        private RemoteCallAccumulator(String target, String method) {
-            this.target = target;
-            this.method = method;
-        }
-
-        private void record(Timer timer, String result) {
-            long count = timer.count();
-            totalCount += count;
-            if (Objects.equals(result, "failure")) {
-                failureCount += count;
-            } else {
-                successCount += count;
-            }
-            totalCostMs += timer.totalTime(TimeUnit.MILLISECONDS);
-            maxCostMs = Math.max(maxCostMs, timer.max(TimeUnit.MILLISECONDS));
-        }
-
-        private MonitorStatisticsOverview.RemoteCallStatistics toStatistics() {
-            return MonitorStatisticsOverview.RemoteCallStatistics.builder()
-                    .target(target)
-                    .method(method)
-                    .totalCount(totalCount)
-                    .successCount(successCount)
-                    .failureCount(failureCount)
-                    .avgCostMs(totalCount == 0 ? 0D : Math.round(totalCostMs * 100.0 / totalCount) / 100.0)
-                    .maxCostMs(Math.round(maxCostMs * 100.0) / 100.0)
-                    .successRate(totalCount == 0 ? 0 : (int) Math.round(successCount * 100.0 / totalCount))
-                    .build();
-        }
-    }
 }

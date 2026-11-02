@@ -2,6 +2,7 @@ package com.laker.admin.infrastructure.mq.kafka;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import io.github.lakernote.observability.trace.MdcContext;
+import io.github.lakernote.observability.trace.TraceIdContext;
 import io.github.lakernote.observability.integration.kafka.TraceIdProducerInterceptor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.util.StringUtils;
@@ -17,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 public class EasyKafkaTraceProducerInterceptor extends TraceIdProducerInterceptor<String, String> {
     @Override
     public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
+        TraceIdContext.getOrCreateTraceId();
         super.onSend(record);
         record.headers().remove(EasyNextAdminConstants.USER_ID);
         String userId = MdcContext.get(EasyNextAdminConstants.USER_ID);

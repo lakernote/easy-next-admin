@@ -117,34 +117,21 @@ mybatis-plus:
 easy:
   log-file-path: ${EASY_LOG_FILE_PATH:logs/easy-next-admin.log}
   observability:
-    # Keep the reusable starter aligned with the application's existing monitoring switch.
+    # Easy Observability supplies Trace capture, metrics history and the embedded dashboards.
     enabled: ${easy.features.monitor:true}
     trace:
-      # Keep annotated spans aligned with the application's existing trace switch.
-      enabled: ${easy.trace.enabled:true}
-      # The async-aware MVC interceptor owns HTTP entry traces in Easy Admin.
-      http-server-observation-enabled: false
-      # MyBatis and Redisson native adapters own these operations in Easy Admin.
-      redis-observation-enabled: false
-      database-observation-enabled: false
-      # Starter keeps reusable Slow/Error operation history separately from app-specific JFR/thread diagnostics.
-      history-file: ${EASY_OBSERVABILITY_INCIDENT_FILE:./data/easy-observability/incidents.jsonl}
-      archive-file: ${EASY_OBSERVABILITY_TRACE_FILE:./data/easy-observability/traces.jsonl}
-    transaction:
-      # The starter owns transaction timing and trace capture; the server adds local JFR diagnostics only.
-      slow-threshold-ms: ${EASY_TRACE_TRANSACTION_SLOW_THRESHOLD_MS:1000}
-    metrics:
-      history:
-        enabled: ${easy.monitor.diagnosis.enabled:true}
-        # Keep the legacy directory as the default so existing RRD4J history survives the module move.
-        storage-dir: ${EASY_DIAGNOSIS_METRICS_STORAGE_DIR:./data/diagnosis/metrics}
-        retention-days: ${EASY_DIAGNOSIS_METRICS_RETENTION_DAYS:15}
-        interval-ms: ${EASY_DIAGNOSIS_METRICS_PERSIST_INTERVAL_MS:60000}
-        max-storage-bytes: ${EASY_DIAGNOSIS_METRICS_HISTORY_MAX_BYTES:67108864}
-        max-series-bytes: ${EASY_DIAGNOSIS_METRICS_SEGMENT_MAX_BYTES:8388608}
-        # The built-in application already restores ~500 low-cardinality series; keep headroom while
-        # the 64 MiB global cap continues to bound local history storage.
-        max-series: ${EASY_DIAGNOSIS_METRICS_MAX_SERIES:768}
+      enabled: true
+      http-slow-threshold-ms: 3000
+      job-slow-threshold-ms: 10000
+      kafka-consumer-slow-threshold-ms: 30000
+      cpu-threshold-ms: ${EASY_TRACE_CPU_THRESHOLD_MS:500}
+      allocated-memory-threshold: ${EASY_TRACE_ALLOCATED_MEMORY_THRESHOLD:50MB}
+      diagnostic-trace-file: ${EASY_OBSERVABILITY_TRACE_FILE:./data/easy-observability/traces.jsonl}
+      diagnostic-history-limit: ${EASY_OBSERVABILITY_TRACE_HISTORY_LIMIT:1000}
+      diagnostic-max-bytes: ${EASY_OBSERVABILITY_TRACE_MAX_BYTES:8MB}
+    web:
+      enabled: true
+      allow-anonymous: ${EASY_OBSERVABILITY_ALLOW_ANONYMOUS:false}
   features:
     # 能力级开关集中在这里，避免 Redis/Kafka/OSS 等可选依赖被误装配。
     redis: ${EASY_FEATURE_REDIS:true}
@@ -155,46 +142,6 @@ easy:
     oss: ${EASY_FEATURE_OSS:false}
     web-log: ${EASY_FEATURE_WEB_LOG:true}
     monitor: ${EASY_FEATURE_MONITOR:true}
-  monitor:
-    diagnosis:
-      enabled: ${EASY_DIAGNOSIS_ENABLED:true}
-      # JFR 是近期深度取证增强项；Metrics、Slow、Errors、关联 Trace 和单次资源统计不依赖它。
-      jfr-enabled: ${EASY_DIAGNOSIS_JFR_ENABLED:false}
-      detail-sampling-enabled: ${EASY_DIAGNOSIS_DETAIL_SAMPLING_ENABLED:true}
-      # 活跃操作只保留固定上限；SQL 另设子上限，为 HTTP、Job、Kafka 等入口预留容量。
-      active-max-entries: ${EASY_DIAGNOSIS_ACTIVE_MAX_ENTRIES:4096}
-      active-max-sql-entries: ${EASY_DIAGNOSIS_ACTIVE_MAX_SQL_ENTRIES:1024}
-      # 慢周期采样和慢/错结束采样共享深栈与完整持有锁预算；周期内超额时可能只有轻量现场。
-      active-max-samples-per-cycle: ${EASY_DIAGNOSIS_ACTIVE_MAX_SAMPLES_PER_CYCLE:32}
-      # SQL 默认只保留耗时，并在深采样预算内尝试保留慢/错线程栈与锁现场；逐条 CPU/分配/争用差值需显式开启。
-      sql-resource-sampling-enabled: ${EASY_DIAGNOSIS_SQL_RESOURCE_SAMPLING_ENABLED:false}
-      # 兼容旧版远程调用明细表；默认关闭，慢/错详情统一写有界本地 Incident JSONL。
-      remote-log-persistence-enabled: ${EASY_DIAGNOSIS_REMOTE_LOG_PERSISTENCE_ENABLED:false}
-      # 默认不读取首尾 ThreadInfo，blocked/waited 次数与耗时均不可用；慢/错现场另受深采样预算控制。按需开启会增加 JVM 全局争用统计开销。
-      contention-time-enabled: ${EASY_DIAGNOSIS_CONTENTION_TIME_ENABLED:false}
-      # 结构化诊断、Metrics 时序段和可选 JFR 分段写到本地；生产请将该目录挂到持久卷。
-      storage-dir: ${EASY_DIAGNOSIS_STORAGE_DIR:./data/diagnosis}
-      retention-days: ${EASY_DIAGNOSIS_RETENTION_DAYS:30}
-      # 显式开启兼容表后每天物理清理，复用 retention-days，避免逻辑删除后表仍持续增长。
-      remote-log-cleanup-cron: "${EASY_DIAGNOSIS_REMOTE_LOG_CLEANUP_CRON:0 29 2 * * *}"
-      # Trace、事务、操作和事件使用稀疏 JSONL；Metrics 使用独立 RRD4J 时序文件，互不挤占容量。
-      history-max-bytes: ${EASY_DIAGNOSIS_HISTORY_MAX_BYTES:67108864}
-      history-segment-max-bytes: ${EASY_DIAGNOSIS_HISTORY_SEGMENT_MAX_BYTES:8388608}
-      # 异步 JSONL 队列同时按条数和估算内存限流，避免慢盘时大量诊断对象滞留堆内存。
-      pending-max-bytes: ${EASY_DIAGNOSIS_PENDING_MAX_BYTES:16777216}
-      # 监控采样、RRD 写入和清理使用独立调度池，避免慢磁盘让 500ms 活跃操作采样失去时效。
-      scheduler-pool-size: ${EASY_DIAGNOSIS_SCHEDULER_POOL_SIZE:2}
-      # 显式开启兼容 MySQL 明细后才使用该异步队列；队列满时丢明细，不反压业务线程。
-      persistence-queue-capacity: ${EASY_DIAGNOSIS_PERSISTENCE_QUEUE_CAPACITY:512}
-      # 开启 JFR 后仅保留近期深度取证窗口，不承担 30 天趋势存储。
-      jfr-retention-days: ${EASY_DIAGNOSIS_JFR_RETENTION_DAYS:1}
-      # 页面开启的单次 JFR 会话最长 24 小时；录制采用 JDK continuous/default 低开销基线，重启后回到配置默认状态。
-      jfr-max-session-minutes: ${EASY_DIAGNOSIS_JFR_MAX_SESSION_MINUTES:1440}
-      jfr-session-check-ms: ${EASY_DIAGNOSIS_JFR_SESSION_CHECK_MS:60000}
-      jfr-rotation-ms: ${EASY_DIAGNOSIS_JFR_ROTATION_MS:1800000}
-      jfr-max-total-bytes: ${EASY_DIAGNOSIS_JFR_MAX_TOTAL_BYTES:67108864}
-      jfr-max-file-bytes: ${EASY_DIAGNOSIS_JFR_MAX_FILE_BYTES:16777216}
-      active-sample-interval-ms: ${EASY_DIAGNOSIS_ACTIVE_SAMPLE_INTERVAL_MS:500}
   assistant:
     trace:
       # 生产安全默认：不在 Trace 中记录 Prompt、Tool 参数和业务结果正文。
@@ -287,16 +234,6 @@ easy:
       storage-path: storage
     aliyun:
       enable: false
-  trace:
-    enabled: true
-    http-slow-threshold-ms: 3000
-    max-depth: 64
-    min-node-cost-ms: 1
-    schedule-slow-threshold-ms: 10000
-    kafka-consumer-slow-threshold-ms: 30000
-    transaction-slow-threshold-ms: ${EASY_TRACE_TRANSACTION_SLOW_THRESHOLD_MS:1000}
-    sql-slow-threshold-ms: ${EASY_TRACE_SQL_SLOW_THRESHOLD_MS:500}
-    remote-slow-threshold-ms: ${EASY_TRACE_REMOTE_SLOW_THRESHOLD_MS:3000}
   thread-pool:
     scheduler:
       pool-size: ${EASY_JOB_POOL_SIZE:20}
@@ -345,7 +282,7 @@ management:
   endpoints:
     web:
       exposure:
-        # Metrics 通过受 monitor:diagnosis:view 保护的诊断 API 查看，不裸露 Actuator 指标端点。
+        # 指标和 Trace 由 Easy Observability 页面提供；不直接暴露 Actuator 明细端点。
         include: health,info
   info:
     build:

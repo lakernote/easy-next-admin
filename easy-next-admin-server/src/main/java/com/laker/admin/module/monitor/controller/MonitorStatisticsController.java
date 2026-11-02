@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 
 @Tag(name = "监控统计")
 @RestController
@@ -32,7 +31,7 @@ public class MonitorStatisticsController {
 
     @GetMapping("/overview")
     @EasyPermission(EasyPermissions.Monitor.SERVER_VIEW)
-    @Operation(summary = "监控统计总览", description = "聚合接口、在线用户、远程调用和任务执行统计。")
+    @Operation(summary = "监控统计总览", description = "聚合接口、在线用户和任务执行统计。")
     public Response<MonitorStatisticsOverview> overview() {
         return Response.ok(monitorStatisticsService.overview());
     }
@@ -52,13 +51,6 @@ public class MonitorStatisticsController {
     public PageResponse<OnlineSessionView> onlineUsers(@RequestParam(required = false, defaultValue = "1") int page,
                                                        @RequestParam(required = false, defaultValue = "10") int limit) {
         return monitorStatisticsService.onlineUsers(page, limit);
-    }
-
-    @GetMapping("/remote-calls")
-    @EasyPermission(EasyPermissions.Audit.BEHAVIOR_VIEW)
-    @Operation(summary = "远程调用统计", description = "读取观测层 Micrometer 计时器中的真实远程调用统计。")
-    public Response<List<MonitorStatisticsOverview.RemoteCallStatistics>> remoteCalls() {
-        return Response.ok(monitorStatisticsService.remoteCallStatistics());
     }
 
     @GetMapping("/jobs")

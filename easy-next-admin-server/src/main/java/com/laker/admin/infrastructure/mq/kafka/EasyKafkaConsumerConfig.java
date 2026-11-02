@@ -13,6 +13,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.util.backoff.BackOff;
 import org.springframework.util.backoff.FixedBackOff;
 import io.micrometer.observation.ObservationRegistry;
@@ -64,7 +65,10 @@ public class EasyKafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setRecordInterceptor(traceIdRecordInterceptor);
+        @SuppressWarnings("unchecked")
+        RecordInterceptor<String, String> traceInterceptor =
+                (RecordInterceptor<String, String>) (RecordInterceptor<?, ?>) traceIdRecordInterceptor;
+        factory.setRecordInterceptor(traceInterceptor);
 
         // 为监听器添加消息过滤器
 //        factory.setRecordFilterStrategy(

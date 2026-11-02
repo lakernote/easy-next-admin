@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.laker.admin.infrastructure.audit.AuditRequestPayloadFormatter;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.json.EasyJsonException;
-import io.github.lakernote.observability.metrics.BusinessMetrics;
+import com.laker.admin.infrastructure.observability.metrics.EasyAdminMetrics;
 import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
@@ -32,7 +32,7 @@ import java.time.LocalDateTime;
 /**
  * API 访问日志切面。
  *
- * <p>职责边界：落库 audit_api_log 便于排查单次请求；耗时、成功率等聚合指标交给 BusinessMetrics。</p>
+ * <p>职责边界：落库 audit_api_log 便于排查单次请求；耗时、成功率等聚合指标交给 EasyAdminMetrics。</p>
  */
 @Aspect
 @Component
@@ -44,7 +44,7 @@ public class EasyApiAccessLogAspect {
     private final AuditRequestPayloadFormatter requestPayloadFormatter;
     private final EasySensitiveDataMasker masker;
     private final IAuditApiLogService auditApiLogService;
-    private final BusinessMetrics businessMetrics;
+    private final EasyAdminMetrics businessMetrics;
 
     @Pointcut("@annotation(com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog) " +
             "|| @within(com.laker.admin.infrastructure.observability.apilog.EasyApiAccessLog)")

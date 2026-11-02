@@ -22,6 +22,8 @@ class PermissionSeedSqlTest {
     private static final Pattern COMPONENT_PATH_PATTERN = Pattern.compile("'(@/views/[^']+\\.vue)'");
     private static final String RETIRED_ASSISTANT_STREAM_DEBUG_VIEW =
             "@/views/assistant/AssistantStreamDebugView.vue";
+    private static final String RETIRED_ADVANCED_DIAGNOSIS_VIEW =
+            "@/views/monitor/AdvancedDiagnosisView.vue";
 
     @Test
     void builtInPermissionCodesShouldExistInBackendFrontendAndSeedSql() throws Exception {
@@ -52,6 +54,13 @@ class PermissionSeedSqlTest {
         assertThat(componentPaths.remove(RETIRED_ASSISTANT_STREAM_DEBUG_VIEW))
                 .as("V1 历史菜单允许由 V2 明确下线，但不能要求已删除页面继续存在")
                 .isTrue();
+        assertThat(componentPaths.remove(RETIRED_ADVANCED_DIAGNOSIS_VIEW))
+                .as("V4 历史菜单允许由 V6 明确下线，但不能要求已删除页面继续存在")
+                .isTrue();
+        assertThat(Files.readString(MYSQL_MIGRATION_DIR.resolve("V6__remove_legacy_runtime_diagnostics.sql")))
+                .contains("monitor:diagnosis:advanced-view");
+        assertThat(Files.readString(H2_MIGRATION_DIR.resolve("V6__remove_legacy_runtime_diagnostics.sql")))
+                .contains("monitor:diagnosis:advanced-view");
 
         assertThat(componentPaths)
                 .contains(

@@ -20,11 +20,10 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(name = "MonitorStatisticsOverview", description = "接口、在线用户、远程调用和任务执行统计")
+@Schema(name = "MonitorStatisticsOverview", description = "接口、在线用户和任务执行统计")
 public class MonitorStatisticsOverview {
     private ApiStatistics api;
     private OnlineUserStatistics onlineUsers;
-    private List<RemoteCallStatistics> remoteCalls;
     private JobStatistics jobs;
 
     @Data
@@ -67,21 +66,6 @@ public class MonitorStatisticsOverview {
     public static class OnlineUserStatistics {
         private Long totalCount;
         private List<OnlineSessionView> records;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class RemoteCallStatistics {
-        private String target;
-        private String method;
-        private Long totalCount;
-        private Long successCount;
-        private Long failureCount;
-        private Double avgCostMs;
-        private Double maxCostMs;
-        private Integer successRate;
     }
 
     @Data

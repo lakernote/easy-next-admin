@@ -505,39 +505,22 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 - 请求参数先由 `AuditRequestPayloadFormatter` 过滤框架对象和空值，再交给 `EasySensitiveDataMasker` 入库；GET 查询也要记录为有字段名的 JSON，不记录裸数组。
 - 审计中心查询必须通过 `AuditVisibilitySupport` 收口数据范围。普通数据范围账号只能看到自己或可见组织内用户产生的审计记录；全局统计只对全部数据范围开放，避免局部运维账号反推出全局访问量和异常分布。
 
-## 轻量链路与慢入口
+## 链路追踪与运行指标
 
-项目保留自研轻量 `X-Trace-Id` 和本地 Trace Tree；指标仍通过 Micrometer，框架 Observation 由 Starter 桥接进自研 Trace。Starter 的 `TraceIdFilter` 接收或生成链路号并写入响应头和 MDC；认证成功后 `EasyAuthFilter` 再把 `userId` 放入 MDC。异步线程池、Feign、RestClient 和 Kafka 生产端继续透传同一个链路号，Kafka 消费入口如果没有 traceId 会新建 traceId，日志通过 `logback.xml` 输出 `[user:%X{userId:-} trace:%X{traceId:-}]`。
+EasyNextAdmin 使用独立发布的 Easy Observability Starter 提供 HTTP、数据库、事务、Redis、Kafka、定时任务和异步线程的 Trace/Metrics 能力。当前依赖版本由根 `pom.xml` 的 `easy-observability.version` 统一管理。Starter 提供 `/easy-observability/` 页面、只读 API、Trace 历史和通用低基数指标；应用通过 `ObservabilityAccessPolicy` 复用登录身份和 `monitor:diagnosis:view` 权限保护诊断 API。
 
-通用实现作为独立项目发布到 Maven Central，EasyNextAdmin 通过 `io.github.lakernote:easy-observability-spring-boot-3-starter` 依赖接入。它提供 `TraceContext`、`TraceIdContext`、`MdcContext`、显式 `@TraceSpan`、`BusinessMetrics`、Micrometer Observation 桥接、RRD4J 指标历史、Slow/Error 与慢错 Trace 持久化，以及 JAR 内的 `/easy-observability/` 页面和只读 API。框架扩展点覆盖 HTTP Observation、MyBatis Interceptor、Kafka Producer/Consumer Interceptor、Redis/Lettuce Observation、Feign RequestInterceptor、事务监听器、`@Scheduled` Observation 和 Spring 线程池指标绑定。操作记录包含线程 ID、CPU 时间和线程分配字节数；宿主继续负责 JFR、线程现场、权限和业务专用诊断数据。EasyNextAdmin 通过 `ObservabilityAccessPolicy` 将监控 API 接入运行诊断权限；配置统一位于 `easy.observability.*` 前缀。
+应用配置放在 `easy.observability.*`。入口慢阈值分别适用于 HTTP、任务和 Kafka Consumer；公共 SQL、事务、Redis、HTTP 出口等 span 默认采集，并由 Starter 负责统一呈现。EasyNextAdmin 不再复制一套慢错事件库、操作资源采样、线程锁/堆栈现场或 JFR 录制。动态调度任务不是 Spring `@Scheduled`，因此 `ScheduleJobLogCallback` 通过 Micrometer Observation 把任务执行作为 Starter Trace 入口，同时继续记录业务任务执行日志和 `easy.schedule.jobs` 指标。
 
-慢入口、事务、SQL 和远程调用的阈值集中放在 `easy.trace`：
-
-```yaml
-easy:
-  trace:
-    enabled: true
-    http-slow-threshold-ms: 3000
-    max-depth: 8
-    min-node-cost-ms: 1
-    schedule-slow-threshold-ms: 10000
-    kafka-consumer-slow-threshold-ms: 30000
-    transaction-slow-threshold-ms: 1000
-    sql-slow-threshold-ms: 500
-    remote-slow-threshold-ms: 3000
-```
-
-Starter 的 `ObservationTraceHandler` 通过 Micrometer Observation 接入 HTTP、Kafka、HTTP client、JDBC 和事务请求，MyBatis 插件记录 Mapper 节点；线程池使用 `TraceContextTaskDecorator` 传播 Trace ID 与 MDC。Service 节点通过显式 `@TraceSpan` 或 `TraceBlock` 接入，不自动拦截所有 Service 方法。EasyNextAdmin 的 `EasyHttpDiagnosticInterceptor`、`EasyKafkaConsumerSlowAspect` 和 `EasyMybatisDiagnosticInterceptor` 只保留 JFR、异步 Servlet 生命周期和本地诊断存储，不重复记录通用指标；数据权限、乐观锁和分页仍由宿主 MyBatis-Plus 插件链负责。Starter 不保存 SQL 绑定参数、HTTP 请求体或 Kafka 消息体。连续重复的叶子节点会在渲染时聚合为 `count/total/min/max`，慢/错误样本和调用树通过有界本地记录保存。`max-depth` 限制树深度，达到深度或节点上限会记录 `TRACE_TRUNCATED`。
-`easy.trace.enabled=false` 会关闭轻量 Trace Tree 的采集和打印，但不影响 `X-Trace-Id` 响应头、MDC 和审计表中的链路号。
+Trace ID 与认证用户上下文仍由 Starter 及应用的认证/Kafka 适配器传播。`EasyKafkaConsumerContextAspect` 只补充 Kafka 消息中的 `userId` MDC；Trace ID 和通用 Consumer 观测由 Starter 负责。MyBatis-Plus 数据权限、乐观锁、分页和 API/业务审计仍归 EasyNextAdmin 所有。
 
 ## API 访问日志和标准指标
 
 API 访问日志与指标分开维护：
 
 - `@EasyApiAccessLog` / `EasyApiAccessLogAspect` 只负责写入 `audit_api_log`，用于按单次请求排查“谁、何时、从哪里、请求了什么、耗时多少、是否失败”。该表属于审计和排障数据，不作为标准指标后端。
-- `BusinessMetrics` 是业务指标统一入口，基于 Micrometer 记录 `easy.api.requests`、`easy.remote.calls`、`easy.rate_limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用 `controller/action/result`、`target/method/result`、`job/result`、`operation/status` 这类低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
-- Starter 通过 HTTP client Observation 接入远程调用指标和 Trace；EasyNextAdmin 的 `RemoteCallDiagnosticAspect` 仅为兼容慢/失败调用 MySQL 明细，不再额外记一份 Micrometer 指标或 Trace span。明细默认关闭，显式开启后异步写入，不参与全量统计。
-- RRD4J 是默认的本地指标历史存储，按固定行数循环覆盖并保存多精度归档；InfluxDB 仍是可选外部指标后端。应用侧始终通过 Micrometer 建模，后续接入 Prometheus 或 OTLP 时只新增 registry/exporter，不改业务埋点。
+- `EasyAdminMetrics` 是应用内业务指标入口，基于 Micrometer 记录 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用稳定、低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
+- Starter 通过 HTTP client Observation 接入远程调用指标和 Trace；远程调用趋势在 Easy Observability Metrics 页面查看，应用不再维护重复统计接口或诊断明细表。
+- Micrometer 是指标采集门面。公共指标历史由 Easy Observability Starter 管理；外部 Prometheus/OTLP 导出通过独立 registry 配置。
 
 脱敏分层：
 
