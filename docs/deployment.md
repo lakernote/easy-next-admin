@@ -94,7 +94,7 @@ java \
 - 使用外部 MySQL 和 Redis，避免把生产状态放在应用容器内。
 - Redis 使用能力级开关 `easy.features.redis=true`。开启后缓存、会话、验证码、重复请求、幂等、限流和分布式锁会自动切到 Redis/Redisson 实现。
 - Kafka 使用能力级开关 `easy.features.kafka=true`。未开启时不会创建 Kafka Producer、Consumer、Topic Admin 和健康检查，避免单机开发误连 `localhost:9092`。
-- Feign、调度、监控、WebLog、OSS 和本地消息也都通过 `easy.features.*` 控制。生产只开启实际需要的能力；Influx 指标导出默认关闭，需要接入外部指标库时再显式配置。EasyNextAdmin 通过 Micrometer 输出 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs` 等低基数业务指标；HTTP 出口等通用指标由 Easy Observability Starter 负责采集。
+- Feign、调度、监控、WebLog、OSS 和本地消息也都通过 `easy.features.*` 控制。生产只开启实际需要的能力；Influx 指标导出默认关闭，需要接入外部指标库时再显式配置。EasyNextAdmin 通过 Micrometer 输出 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs` 等低基数业务指标；HTTP 出口等通用指标由 Meerkat Starter 负责采集。
 - 通过环境变量、启动参数或配置中心覆盖数据库密码、Redis 密码、对象存储配置。
 - 按企业安全策略配置会话超时：`EASY_AUTH_SESSION_IDLE_TIMEOUT` 默认 `30m`，`EASY_AUTH_SESSION_ABSOLUTE_TIMEOUT` 默认 `8h`。普通企业后台绝对超时通常为 8-12 小时，公网或高权限后台建议 4-8 小时。
 - 按真实前端域名覆盖 `easy.web.cors.allowed-origins` 或 `easy.web.cors.allowed-origin-patterns`，不要在生产环境继续使用本地开发 Origin，也不要开放 `*` 且携带凭证。
@@ -134,7 +134,7 @@ npm run build
 easy-next-admin-web/dist
 ```
 
-默认构建后的前端仍通过相对路径 `/api` 访问后端。生产部署时，应由 Nginx 或网关把 `/api/` 反向代理到后端服务。
+默认构建后的前端仍通过相对路径 `/api` 访问后端，运行诊断 iframe 通过 `/meerkat/` 加载 Starter 页面。生产部署时，应由 Nginx 或网关把 `/api/` 和 `/meerkat/` 同域反向代理到后端服务。
 
 ## Nginx 静态部署
 
@@ -158,13 +158,26 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    location = /meerkat {
+        return 301 /meerkat/;
+    }
+
+    location ^~ /meerkat/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
 }
 ```
 
-注意 `proxy_pass http://127.0.0.1:8080;` 不带末尾 `/`，这样会保留 `/api` 前缀，匹配当前后端控制器路径。`proxy_read_timeout 75s` 用于给普通业务查询、导入导出和工作流详情留出反向代理读取时间，避免代理先于应用正常响应断开。
+注意 `proxy_pass http://127.0.0.1:8080;` 不带末尾 `/`，这样会保留 `/api` 和 `/meerkat` 前缀，匹配当前后端接口与 Starter 静态资源路径。`proxy_read_timeout 75s` 用于给普通业务查询、导入导出和工作流详情留出反向代理读取时间，避免代理先于应用正常响应断开。
 
 ## Docker 构建
 
@@ -173,7 +186,7 @@ server {
 - 应用镜像和依赖镜像分开发布，MySQL、Redis 优先使用托管服务或独立高可用集群。
 - 镜像使用明确 tag，生产发布清单固定 digest；升级通过预发验证和回滚方案管理。
 - 密码、Token、对象存储密钥使用 Secret/配置中心，不写入镜像、不提交 `.env`。
-- Trace 与公共 Metrics 由 Easy Observability Starter 管理，配置统一使用 `easy.observability.*`；`/monitor/diagnosis` 嵌入 Starter 页面，并通过应用权限策略保护其只读 API。EasyNextAdmin 不再维护重复的本地诊断历史、活动操作采样、JFR 录制或线程锁现场接口。需要持久化 Trace 历史时，按 `easy.observability.trace.*` 为每个实例挂载独立数据卷；多实例汇总应交给 Prometheus、InfluxDB 或 Grafana 等外部平台。
+- Trace 与公共 Metrics 由 Meerkat Starter 管理，配置统一使用 `meerkat.*`；`/monitor/diagnosis` 嵌入 `/meerkat/` 页面，并通过应用权限策略保护 `/api/meerkat/**` 查询 API。EasyNextAdmin 不再维护重复的本地诊断历史、活动操作采样、JFR 录制或线程锁现场接口。需要持久化 Trace 和指标历史时，将 `meerkat.storage.directory` 指向持久化目录，并为每个实例配置独占目录或数据卷；多实例汇总应交给 Prometheus、InfluxDB 或 Grafana 等外部平台。
 - 容器以非 root 用户运行，限制运行权限，保留健康检查、资源限制和日志轮转。
 - 数据目录、上传文件和日志进入持久化卷或外部服务，备份恢复流程要定期演练。
 - 业务应用实例保持无状态，横向扩容依赖外部 Redis、数据库和对象存储。

@@ -6,11 +6,11 @@ const viewSource = readFileSync(fileURLToPath(new URL('./RuntimeDiagnosisView.vu
 
 describe('runtime diagnosis embedding', () => {
   it('keeps the standalone dashboard in an iframe and forwards auth only to that same-origin frame', () => {
-    expect(viewSource).toContain('src="/easy-observability/"')
+    expect(viewSource).toContain('src="/meerkat/"')
     expect(viewSource).toContain("event.origin !== window.location.origin")
     expect(viewSource).toContain('event.source !== frame.value?.contentWindow')
-    expect(viewSource).toContain("event.data?.type !== 'easy-observability:auth-request'")
-    expect(viewSource).toContain("type: 'easy-observability:auth-response'")
+    expect(viewSource).toContain("event.data?.type !== 'meerkat:auth-request'")
+    expect(viewSource).toContain("type: 'meerkat:auth-response'")
     expect(viewSource).toContain('token: auth.accessToken')
     expect(viewSource).not.toMatch(/src=.*accessToken/)
   })

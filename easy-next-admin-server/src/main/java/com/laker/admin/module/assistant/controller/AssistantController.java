@@ -3,8 +3,6 @@ package com.laker.admin.module.assistant.controller;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
-import io.github.lakernote.observability.trace.TraceIdContext;
-import io.github.lakernote.observability.trace.TraceContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
@@ -17,6 +15,7 @@ import com.laker.admin.module.assistant.dto.AssistantMessageRequest;
 import com.laker.admin.module.assistant.stream.AssistantChatSseEventSink;
 import com.laker.admin.module.assistant.stream.AssistantUserStreamEventAdapter;
 import com.laker.admin.module.assistant.turn.AgentTurnService;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -67,17 +66,13 @@ public class AssistantController {
     public SseEmitter streamUserChat(@Valid @RequestBody AssistantMessageRequest request) {
         SseEmitter emitter = new SseEmitter(runtimeProperties.getStreamTimeout().toMillis());
         AuthPrincipal principal = EasySecurityContext.getPrincipal();
-        String traceId = TraceIdContext.getOrCreateTraceId();
-        TraceContext.Snapshot traceContext = TraceContext.capture();
+        String traceId = TraceIdContext.currentTraceId();
         AssistantChatSseEventSink eventSink = new AssistantChatSseEventSink(emitter, traceId);
         AssistantUserStreamEventAdapter userEventAdapter = new AssistantUserStreamEventAdapter(eventSink);
         streamExecutor.execute(() -> {
-            TraceIdContext.putTraceId(traceId);
             EasySecurityContext.setPrincipal(principal);
             try {
-                try (TraceContext.Scope ignored = TraceContext.makeCurrent(traceContext)) {
-                    agentTurnService.run(request, userEventAdapter);
-                }
+                agentTurnService.run(request, userEventAdapter);
                 // AgentTurnService 已通过安全适配器发送 done 事件；这里只负责关闭连接。
                 // 先释放 worker Trace 上下文，再触发 Servlet 异步完成分派。
                 eventSink.complete();
@@ -91,7 +86,6 @@ public class AssistantController {
             } finally {
                 // 异步线程会复用，必须清理 ThreadLocal 上下文
                 EasySecurityContext.clear();
-                TraceIdContext.clear();
             }
         });
         eventSink.startHeartbeat(heartbeatScheduler, runtimeProperties.getHeartbeatInterval());

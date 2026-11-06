@@ -1,6 +1,5 @@
 package com.laker.admin.module.assistant.config;
 
-import io.github.lakernote.observability.trace.MdcContext;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +26,6 @@ public class AssistantRuntimeConfiguration {
         taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
         taskExecutor.setAwaitTerminationSeconds(executor.getAwaitTerminationSeconds());
         taskExecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
-        taskExecutor.setTaskDecorator(runnable -> MdcContext.wrap(runnable, MdcContext.copy()));
         return taskExecutor;
     }
 

@@ -40,7 +40,7 @@
 | 文件中心 | 在 `/system/files` 上传、预览、下载和清理文件；图片、PDF 和文本类文件可直接预览。 | 业务模块通过文件 API 保存文件元数据，预览和下载复用鉴权下载接口，不在页面拼接裸地址。上传会校验大小、扩展名、MIME 和常见文件头签名，拒绝把可执行文件伪装成图片、PDF 或压缩包；病毒扫描和敏感内容检测应在企业网关或对象存储侧继续补齐。 |
 | 编号规则 | 在 `/system/business-numbers` 维护申请单号、工单号、采购单号等业务可读编号规则；业务代码通过 `BusinessNumberService#nextNumber(ruleCode)` 取号。 | 业务编号是应用内组件，不替代表主键或分布式 ID。规则表维护前缀、日期周期、分隔符、流水位数、递增步长和启停状态；计数器表按规则和日期段独立计数，通过数据库原子递增保证多实例并发取号不重复。 |
 | 报表中心 | 在 `/reports/enterprise` 查看组织人员台账和采购流程复核两张 A4 纸质报表，并可使用浏览器打印。 | 报表接口只读，走 `report:view` 权限和当前账号数据范围；页面用固定版式表格、签核栏和报表编号呈现，不做 BI 配置器或大屏图表。 |
-| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户、实时日志和运行诊断。 | 运行诊断嵌入 Easy Observability Starter 的 Trace/Metrics 页面；通用采集与历史由 Starter 管理，EasyNextAdmin 保留业务审计、任务执行记录和应用专属指标。 |
+| 运行监控 | 在监控菜单查看服务器、缓存、缓存列表、在线用户、实时日志和运行诊断。 | 运行诊断嵌入 Meerkat Starter 的 Trace、调用排行、Metrics 与实时诊断页面；通用采集与历史由 Starter 管理，EasyNextAdmin 保留业务审计、任务执行记录和应用专属指标。 |
 | 审计中心 | 在 `/audit/behavior` 查询登录、操作、异常、接口访问和敏感数据变更记录。 | 关键接口用 `@EasyAudit` 或审计采集器记录；审计查询通过 `AuditVisibilitySupport` 按当前账号数据范围过滤操作者或登录用户，只有全部数据范围可看全局统计；敏感字段在入库前统一交给 `EasySensitiveDataMasker` 脱敏。 |
 | 任务调度 | 在 `/schedule/jobs` 查看和维护动态任务。 | 任务通过 `@EasyJob` 声明，数据库维护 Cron、锁租约、`SINGLETON / BROADCAST` 执行模式、启停状态和执行日志；多实例节点定期心跳并对齐数据库目标状态。单实例模式使用分布式锁互斥，广播模式让每个在线实例进入 Handler。 |
 | 批处理任务 | 在 `/batch/tasks` 查看长任务进度、失败明细、执行 Worker 和租约，对运行中任务请求取消，并可按日期触发采购流程状态对账。 | `EasyBatchRunner` 提供 PageReader / ItemDecoder / Processor、参数、失败策略和固定账期分布式模式；准备者只执行一次 Reader，Worker 直接消费持久化 `input_json`，通过 Claim/Lease 动态分工并接管失效实例。一次执行由 `businessKey + runNo` 标识，终态历史不原地重置。 |
@@ -91,13 +91,13 @@
 | 缓存 | `/api/monitor/cache`、业务命名缓存 | `EasyCacheConfig`、`CacheMonitorService` | 命名缓存统一 TTL，监控页展示命中率、容量和脱敏 value 预览；敏感或强数据权限详情不做共享缓存。 |
 | 审计 | 退出登录、清理缓存、角色授权 | `@EasyAudit`、`AuditLogCollector`、`SensitiveAuditService` | 操作审计走注解，敏感数据变更走显式服务。 |
 | 脱敏 | 审计参数、接口访问日志、实时日志 | `EasySensitiveDataMasker`、`@EasyMask` | DTO 输出用注解，Map/请求参数/日志文本用组件。 |
-| Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | Starter `TraceIdFilter`、`TraceContextTaskDecorator`、Kafka/Feign 适配器、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建；线程池、Kafka 生产消费和 Feign 远程调用透传，日志打印 `traceId` 和认证后的 `userId`。 |
+| Trace / MDC | HTTP、定时任务、Kafka、异步线程池 | Starter `TraceIdFilter`、`TraceContextTaskDecorator`、Kafka/Feign 适配器、`logback.xml` | 入口没有 `X-Trace-Id` 时统一创建；线程池、Kafka 生产消费和 Feign 远程调用透传，日志打印 Meerkat Trace ID 和认证后的 `userId`。 |
 | API 访问日志 | 用户管理、审计、监控 Controller | `@EasyApiAccessLog`、`EasyApiAccessLogAspect` | 写入 `audit_api_log`，保存 traceId、请求摘要、响应摘要、状态和耗时；它是访问日志，不承担标准指标命名职责。 |
-| 标准业务指标 | API 访问、限流、调度任务、Outbox | `EasyAdminMetrics`、Micrometer | 使用低基数标签输出 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`；公共 HTTP、远程调用、JVM、Redis、Kafka 和线程池指标由 Easy Observability Starter 管理。 |
-| 可复用监控 Starter | Spring Boot 应用的 Trace 与 Metrics 采集及诊断页 | `io.github.lakernote:easy-observability-spring-boot-3-starter`、Micrometer Observation、`TraceContext` | 版本由根 `pom.xml` 的 `easy-observability.version` 管理；Starter JAR 提供 `/easy-observability/` 页面、只读 API、公共指标和 Trace 历史。EasyNextAdmin 通过宿主访问策略保护监控 API。 |
-| 运行诊断 | HTTP、SQL、事务、定时任务、Kafka Consumer | Easy Observability Starter、`ObservabilityAccessPolicy` | `/monitor/diagnosis` 嵌入 Starter 页面；公共 Trace、Slow/Error 视图、Metrics 与本地历史由 Starter 提供。EasyNextAdmin 不维护重复诊断存储、活动操作采样、JVM 锁/堆栈现场或 JFR 控制 API。 |
+| 标准业务指标 | API 访问、限流、调度任务、Outbox | `EasyAdminMetrics`、Micrometer | 使用低基数标签输出 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`；公共 HTTP、远程调用、JVM、Redis、Kafka 和线程池指标由 Meerkat Starter 管理。 |
+| 可复用监控 Starter | Spring Boot 应用的 Trace 与 Metrics 采集及诊断页 | `io.github.lakernote:meerkat-spring-boot-3-starter:0.1.0-alpha.4`、Micrometer Observation、`TraceIdContext` | 版本由根 `pom.xml` 的 `meerkat.version` 管理；Starter JAR 提供 `/meerkat/` 页面、`/api/meerkat/**` 查询 API、公共指标和 Trace 历史。EasyNextAdmin 通过宿主访问策略保护监控 API。 |
+| 运行诊断 | HTTP、SQL、事务、定时任务、Kafka Consumer | Meerkat Starter、`ObservabilityAccessPolicy` | `/monitor/diagnosis` 嵌入 Starter 页面；公共 Trace、调用排行、Metrics、实时请求与线程诊断由 Starter 提供。EasyNextAdmin 不维护重复诊断存储、活动操作采样、JVM 锁/堆栈现场或 JFR 控制 API。 |
 | 前端观测事件 | Vue 全局错误、路由错误、Axios 失败 | `src/features/observability/events.ts`、`src/api/request.ts`、`src/main.ts` | 记录白屏类错误、未处理 Promise、路由加载失败和 API 失败；本地有界缓冲，保留 traceId，不保留完整 query 参数，后续再接事件上报通道。 |
-| 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | Starter Observation 集成、`TraceContext`、`@TraceSpan`、`TraceBlock` | HTTP/Kafka/数据库/事务等框架 Observation 和显式业务节点组成调用树；动态调度任务通过 Micrometer Observation 接入。Trace 历史由 Starter 保存。 |
+| 轻量 Trace Tree | HTTP、定时任务、Kafka Consumer、MyBatis 查询/更新 | Starter Observation 集成、`TraceIdContext`、`@TraceSpan`、`TraceBlock` | HTTP/Kafka/数据库/事务等框架 Observation 和显式业务节点组成调用树；动态调度任务通过 Micrometer Observation 接入。Trace 历史由 Starter 保存。 |
 | 定时任务 | 本地消息恢复、固定账期批处理 | `@EasyJob`、`JobExecutionMode`、`ScheduleJobManager`、`schedule_instance` | 默认 `SINGLETON` 通过分布式锁互斥；`BROADCAST` 可唤醒 Batch Worker，也可让每个实例直接从源队列表 Claim。 |
 | 批处理治理 | 用户导入、批量同步、报表生成、每日对账等固定数据集 | `BatchTaskService`、`EasyBatchRunner`、`EasyBatchBusinessKeys`、`batch_task`、`batch_task_item` | 普通模式支持分页/游标；分布式模式只由准备者执行 Reader，Worker 通过持久化 `input_json`、ItemDecoder、Claim/Lease 实现 item 级断点续跑。补跑创建新 `runNo`，持续流入数据不复制为 Batch 分区。 |
 | 本地消息 | 事务后即时发送、失败重试和崩溃恢复 | `EasyLocalMessageTemplate`、`LocalMessageDeliveryService`、`LocalMessageRetryJob` | 本地事务内只落 `PENDING`，提交后线程池立即 Claim 并发送；失败回到 `PENDING` 并退避，广播任务直接 Claim 源表兜底。 |
@@ -668,7 +668,7 @@ infrastructure/observability
 
 服务监控读取 JVM、CPU、内存、线程、磁盘和 GC 水位；实时日志读取当前文件日志的尾部快照，支持关键词、级别和行数过滤。服务监控页面不展示 Actuator 明细清单。
 
-`/monitor/diagnosis` 嵌入 Easy Observability Starter 页面。HTTP、SQL、事务、Redis、远程调用、Kafka、线程池、JVM 指标和 Trace 均由 Starter 采集与保存，Trace 页面展示慢调用、错误及调用时间线。应用通过 `ObservabilityAccessPolicy` 将 Starter API 纳入现有登录权限控制。
+`/monitor/diagnosis` 嵌入 Meerkat Starter 页面。HTTP、SQL、事务、Redis、远程调用、Kafka、线程池、JVM 指标和 Trace 均由 Starter 采集与保存；页面提供慢调用与错误 Trace、调用排行、资源指标趋势、实时请求和线程诊断。应用通过 `ObservabilityAccessPolicy` 将 `/api/meerkat/**` 纳入现有登录权限控制。
 
 EasyNextAdmin 只在需要表达应用语义时补充观测：`ScheduleJobLogCallback` 为动态定时任务创建 Micrometer Observation，使其成为 Trace 入口；`EasyAdminMetrics` 记录 API、限流、任务和 Outbox 等业务指标；业务执行日志与审计记录继续落各自业务表。宿主不再复制 Trace 历史、活动操作采样、锁和线程栈现场、JFR 分析或下载能力。
 

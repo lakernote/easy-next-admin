@@ -1,10 +1,11 @@
 package com.laker.admin.infrastructure.mq.kafka;
 
-import io.github.lakernote.observability.integration.kafka.TraceIdRecordInterceptor;
+import io.github.lakernote.meerkat.integration.kafka.TraceIdRecordInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -27,12 +28,13 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "easy.features", name = "kafka", havingValue = "true")
 public class EasyKafkaConsumerConfig {
     private final EasyKafkaConfig easyKafkaConfig;
-    private final TraceIdRecordInterceptor traceIdRecordInterceptor;
+    private final ObjectProvider<TraceIdRecordInterceptor<Object, Object>> traceIdRecordInterceptorProvider;
 
     public EasyKafkaConsumerConfig(EasyKafkaConfig easyKafkaConfig,
-                                   TraceIdRecordInterceptor traceIdRecordInterceptor) {
+                                   ObjectProvider<TraceIdRecordInterceptor<Object, Object>>
+                                           traceIdRecordInterceptorProvider) {
         this.easyKafkaConfig = easyKafkaConfig;
-        this.traceIdRecordInterceptor = traceIdRecordInterceptor;
+        this.traceIdRecordInterceptorProvider = traceIdRecordInterceptorProvider;
     }
 
     @Bean
@@ -65,10 +67,14 @@ public class EasyKafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        @SuppressWarnings("unchecked")
-        RecordInterceptor<String, String> traceInterceptor =
-                (RecordInterceptor<String, String>) (RecordInterceptor<?, ?>) traceIdRecordInterceptor;
-        factory.setRecordInterceptor(traceInterceptor);
+        TraceIdRecordInterceptor<Object, Object> traceIdRecordInterceptor =
+                traceIdRecordInterceptorProvider.getIfAvailable();
+        if (traceIdRecordInterceptor != null) {
+            @SuppressWarnings("unchecked")
+            RecordInterceptor<String, String> traceInterceptor =
+                    (RecordInterceptor<String, String>) (RecordInterceptor<?, ?>) traceIdRecordInterceptor;
+            factory.setRecordInterceptor(traceInterceptor);
+        }
 
         // 为监听器添加消息过滤器
 //        factory.setRecordFilterStrategy(

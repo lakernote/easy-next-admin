@@ -1,8 +1,10 @@
 package com.laker.admin.config.remote;
 
 import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
+import io.github.lakernote.meerkat.trace.TraceContextTaskDecorator;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cloud.circuitbreaker.resilience4j.Resilience4JCircuitBreakerFactory;
 import org.springframework.cloud.circuitbreaker.resilience4j.Resilience4JConfigBuilder;
 import org.springframework.cloud.client.circuitbreaker.Customizer;
@@ -17,15 +19,19 @@ import java.time.Duration;
 @Configuration
 public class EasyCircuitBreakerConfig {
     @Bean
-    public Customizer<Resilience4JCircuitBreakerFactory> defaultCustomizer() {
+    public Customizer<Resilience4JCircuitBreakerFactory> defaultCustomizer(
+            ObjectProvider<TraceContextTaskDecorator> traceTaskDecorators) {
+        TraceContextTaskDecorator traceTaskDecorator = traceTaskDecorators.getIfAvailable();
         return factory -> {
             factory.configureDefault(id -> new Resilience4JConfigBuilder(id)
                     .timeLimiterConfig(TimeLimiterConfig.custom().timeoutDuration(Duration.ofSeconds(10)).build())
                     .circuitBreakerConfig(CircuitBreakerConfig.ofDefaults())
                     .build());
 
-            factory.configureGroupExecutorService(group -> new EasyNextAdminMdcThreadPoolExecutor(3, 3, group));
-            factory.configureExecutorService(new EasyNextAdminMdcThreadPoolExecutor(3, 3, "easy-feign"));
+            factory.configureGroupExecutorService(group ->
+                    new EasyNextAdminMdcThreadPoolExecutor(3, 3, group, traceTaskDecorator));
+            factory.configureExecutorService(
+                    new EasyNextAdminMdcThreadPoolExecutor(3, 3, "easy-feign", traceTaskDecorator));
         };
     }
 }

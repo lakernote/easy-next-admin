@@ -1,7 +1,7 @@
 package com.laker.admin.config.web;
 
 import com.laker.admin.infrastructure.security.interceptor.EasyPermissionInterceptor;
-import io.github.lakernote.observability.web.ObservabilityAccessPolicy;
+import io.github.lakernote.meerkat.web.ObservabilityAccessPolicy;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
 import lombok.RequiredArgsConstructor;

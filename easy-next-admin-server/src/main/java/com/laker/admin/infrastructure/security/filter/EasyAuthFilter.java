@@ -8,12 +8,12 @@ import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.infrastructure.security.service.EasyAuthService;
 import com.laker.admin.infrastructure.security.support.EasyAuthRequestAttributes;
 import com.laker.admin.infrastructure.security.support.EasySecurityHeaders;
-import io.github.lakernote.observability.trace.MdcContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import org.springframework.util.StringUtils;
@@ -45,14 +45,14 @@ public class EasyAuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             // Servlet 容器会复用线程，请求结束必须清理，避免串用户。
-            MdcContext.remove(EasyNextAdminConstants.USER_ID);
+            MDC.remove(EasyNextAdminConstants.USER_ID);
             EasySecurityContext.clear();
         }
     }
 
     private void authenticateIfPresent(HttpServletRequest request) {
         try {
-            MdcContext.remove(EasyNextAdminConstants.USER_ID);
+            MDC.remove(EasyNextAdminConstants.USER_ID);
             String accessToken = resolveAccessToken(request);
             if (!StringUtils.hasText(accessToken)) {
                 return;
@@ -60,8 +60,11 @@ public class EasyAuthFilter extends OncePerRequestFilter {
             AuthPrincipal principal = authService.authenticate(accessToken);
             EasySecurityContext.setPrincipal(principal);
             EasySecurityContext.setAccessToken(accessToken);
-            MdcContext.putOrRemove(EasyNextAdminConstants.USER_ID,
-                    principal.getUserId() == null ? null : String.valueOf(principal.getUserId()));
+            if (principal.getUserId() == null) {
+                MDC.remove(EasyNextAdminConstants.USER_ID);
+            } else {
+                MDC.put(EasyNextAdminConstants.USER_ID, String.valueOf(principal.getUserId()));
+            }
         } catch (EasyAuthException | EasyForbiddenException ex) {
             request.setAttribute(EasyAuthRequestAttributes.AUTH_FAILURE, ex);
         }

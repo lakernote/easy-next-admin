@@ -1,18 +1,15 @@
 package com.laker.admin.module.schedule.core.impl;
 
-import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.infrastructure.observability.metrics.EasyAdminMetrics;
 import com.laker.admin.module.schedule.core.ScheduleJobCallback;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.core.ScheduleJobRunContext;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;
 import com.laker.admin.module.schedule.service.IScheduleJobLogService;
-import io.github.lakernote.observability.trace.ObservationSuppression;
-import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -42,7 +39,14 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
     @Override
     public void start(ScheduleJobDefinition jobDefinition) {
         failureContext.remove();
-        String traceId = TraceIdContext.getOrCreateTraceId();
+        Observation observation = Observation.createNotStarted("tasks.scheduled.execution", observationRegistry)
+                .lowCardinalityKeyValue("code.function", jobDefinition.getJobCode())
+                .contextualName(jobDefinition.getJobCode())
+                .start();
+        observationContext.set(observation);
+        observationScopeContext.set(observation.openScope());
+
+        String traceId = TraceIdContext.currentTraceId();
         ScheduleJobLog jobLog = new ScheduleJobLog();
         jobLog.setStartTime(LocalDateTime.now());
         jobLog.setJobCode(jobDefinition.getJobCode());
@@ -56,20 +60,13 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
         }
         jobLog.setStatus(1);
         jobLog.setThreadName(Thread.currentThread().getName());
-        try (ObservationSuppression.Scope ignored = ObservationSuppression.enter()) {
+        try {
             scheduleJobLogService.save(jobLog);
         } catch (Throwable persistenceFailure) {
             log.debug("保存任务执行日志失败，不影响任务执行: code={}, type={}",
                     jobDefinition.getJobCode(), persistenceFailure.getClass().getName());
         }
         jobLogContext.set(jobLog);
-
-        Observation observation = Observation.createNotStarted("tasks.scheduled.execution", observationRegistry)
-                .lowCardinalityKeyValue("code.function", jobDefinition.getJobCode())
-                .contextualName(jobDefinition.getJobCode())
-                .start();
-        observationContext.set(observation);
-        observationScopeContext.set(observation.openScope());
         jobLog.setStartTime(LocalDateTime.now());
         log.debug("Schedule job started, code={}, name={}", jobDefinition.getJobCode(), jobDefinition.getJobName());
     }
@@ -105,7 +102,7 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
             if (observation != null) observation.stop();
 
             if (jobLog != null) {
-                try (ObservationSuppression.Scope ignored = ObservationSuppression.enter()) {
+                try {
                     scheduleJobLogService.updateById(jobLog);
                 } catch (Throwable persistenceFailure) {
                     log.debug("更新任务执行日志失败，不影响任务结果: code={}, type={}",
@@ -120,7 +117,6 @@ public class ScheduleJobLogCallback implements ScheduleJobCallback {
             failureContext.remove();
             observationContext.remove();
             observationScopeContext.remove();
-            MDC.remove(EasyNextAdminConstants.TRACE_ID);
         }
     }
 

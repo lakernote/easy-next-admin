@@ -31,6 +31,8 @@ spring:
 easy:
   features:
     redis: false
-  monitor:
-    diagnosis:
-      storage-dir: ./target/test-data/diagnosis
+
+meerkat:
+  storage:
+    # Spring may keep several test contexts alive; each one needs an exclusive history directory.
+    directory: ./target/test-data/meerkat/${random.uuid}

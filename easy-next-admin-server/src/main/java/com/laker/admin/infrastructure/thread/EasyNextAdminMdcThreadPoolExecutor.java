@@ -1,22 +1,22 @@
 package com.laker.admin.infrastructure.thread;
 
-import io.github.lakernote.observability.trace.MdcContext;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.TaskDecorator;
 
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * 自定义扩展线程池用于捕获执行中异常，防止异常被吞 + 解决MDC参数问题。
+ * 自定义扩展线程池用于捕获执行中异常，防止异常被吞。
+ * Trace 与 MDC 传播只使用 Meerkat 提供的可选 {@link TaskDecorator}。
  *
  * @author laker
  */
 @Slf4j
 public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolExecutor {
+    private final TaskDecorator taskDecorator;
     /**
      * 简易线程池构造器
      *
@@ -25,7 +25,18 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
      * @param prefix    线程名前缀,e.g:MCP-POOL
      */
     public EasyNextAdminMdcThreadPoolExecutor(int poolSize, int queueSize, String prefix) {
+        this(poolSize, queueSize, prefix, null);
+    }
+
+    /**
+     * Creates an executor that optionally propagates Meerkat Trace/MDC context.
+     *
+     * @param traceTaskDecorator optional decorator supplied by the enabled observability Starter
+     */
+    public EasyNextAdminMdcThreadPoolExecutor(int poolSize, int queueSize, String prefix,
+                                              TaskDecorator traceTaskDecorator) {
         super(poolSize, queueSize, prefix);
+        this.taskDecorator = traceTaskDecorator;
         // 非核心线程如果处于闲置状态超过该值，就会被销毁。如果设置allowCoreThreadTimeOut(true)，则会也作用于核心线程。
         this.allowCoreThreadTimeOut(true);
     }
@@ -37,34 +48,23 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
      */
     @Override
     public void execute(Runnable command) {
-        if (command instanceof RunnableFuture) {
+        Runnable decorated = taskDecorator == null ? command : taskDecorator.decorate(command);
+        if (command instanceof RunnableFuture<?> future) {
             // submit future
-            super.execute(new EasyNextAdminFuture((RunnableFuture) command, MdcContext.copy()));
+            super.execute(new EasyNextAdminFuture<>(future, decorated));
         } else {
-            super.execute(wrapExecuteRunnable(command, MdcContext.copy()));
+            super.execute(decorated);
         }
-
-    }
-
-
-    /**
-     * 封装任务，加入TraceId，无返回值
-     *
-     * @param runnable
-     * @param threadContext
-     * @return
-     */
-    private static Runnable wrapExecuteRunnable(final Runnable runnable, final Map<String, String> threadContext) {
-        return wrapWithTrace(runnable, threadContext);
     }
 
     private static class EasyNextAdminFuture<T> implements RunnableFuture<T> {
         private final RunnableFuture<T> future;
-        private final Map<String, String> threadContext;
+        private final Runnable decorated;
 
-        public EasyNextAdminFuture(RunnableFuture<T> future, Map<String, String> threadContext) {
-            this.future = future;
-            this.threadContext = threadContext;
+        @SuppressWarnings("unchecked")
+        public EasyNextAdminFuture(RunnableFuture<?> future, Runnable decorated) {
+            this.future = (RunnableFuture<T>) future;
+            this.decorated = decorated;
         }
 
         @Override
@@ -94,19 +94,8 @@ public class EasyNextAdminMdcThreadPoolExecutor extends EasyNextAdminThreadPoolE
 
         @Override
         public void run() {
-            try (MdcContext.Scope ignored = MdcContext.withContext(threadContext)) {
-                TraceIdContext.getOrCreateTraceId();
-                future.run();
-            }
-
+            decorated.run();
         }
 
-    }
-
-    private static Runnable wrapWithTrace(Runnable runnable, Map<String, String> contextMap) {
-        return MdcContext.wrap(() -> {
-            TraceIdContext.getOrCreateTraceId();
-            runnable.run();
-        }, contextMap);
     }
 }

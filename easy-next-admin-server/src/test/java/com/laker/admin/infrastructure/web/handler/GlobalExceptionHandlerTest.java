@@ -112,7 +112,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void shouldPreserveForbiddenStatusFromFrameworkComponents() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/easy-observability/metrics");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/meerkat/metrics");
 
         ResponseEntity<Response<Void>> response = handler.handleResponseStatusException(
                 new ResponseStatusException(HttpStatus.FORBIDDEN), request);

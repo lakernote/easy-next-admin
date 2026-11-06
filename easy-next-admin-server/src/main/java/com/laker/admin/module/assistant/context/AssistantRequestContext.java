@@ -41,7 +41,7 @@ import java.util.Set;
  *
  * <ul>
  *   <li>{@code runId}：一次 Agent Turn 的唯一编号，用于关联本轮 Plan、模型调用和 Tool 执行。</li>
- *   <li>{@code traceId}：整个 HTTP/异步调用链的编号，同一链路上的日志共用它。</li>
+ *   <li>{@code traceId}：整个 HTTP/异步调用链的编号；观测关闭或不在 Trace 边界内时为空。</li>
  *   <li>{@code conversationId}：多轮会话编号，用于读取同一份版本化 Conversation State。</li>
  *   <li>{@code normalizedMessage}：只统一换行并删除首尾空白，内部列表、缩进和多行结构保持不变。</li>
  *   <li>{@code requestInstant + zoneId}：本轮唯一时间基准；{@link #today()} 和 {@link #now()} 均由它们推导。</li>
@@ -62,7 +62,7 @@ public record AssistantRequestContext(
 
     public AssistantRequestContext {
         runId = requireText(runId, "runId");
-        traceId = requireText(traceId, "traceId");
+        traceId = traceId == null ? "" : traceId.trim();
         if (conversationId == null
                 || conversationId <= 0
                 || conversationId > MAX_SAFE_CONVERSATION_ID) {

@@ -1,12 +1,14 @@
 package com.laker.admin.config.thread;
 
-import io.github.lakernote.observability.trace.TraceContextTaskDecorator;
 import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
+import io.github.lakernote.meerkat.trace.TraceContextTaskDecorator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
@@ -20,14 +22,25 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class EasyThreadPoolConfig {
 
     private final EasyThreadPoolProperties properties;
+    private final TaskDecorator traceTaskDecorator;
 
     @Autowired
-    public EasyThreadPoolConfig(EasyThreadPoolProperties properties) {
+    public EasyThreadPoolConfig(EasyThreadPoolProperties properties,
+                                ObjectProvider<TraceContextTaskDecorator> traceTaskDecorators) {
+        this(properties, traceTaskDecorators.getIfAvailable());
+    }
+
+    EasyThreadPoolConfig(EasyThreadPoolProperties properties, TaskDecorator traceTaskDecorator) {
         this.properties = properties;
+        this.traceTaskDecorator = traceTaskDecorator;
+    }
+
+    EasyThreadPoolConfig(EasyThreadPoolProperties properties) {
+        this(properties, (TaskDecorator) null);
     }
 
     EasyThreadPoolConfig() {
-        this(new EasyThreadPoolProperties());
+        this(new EasyThreadPoolProperties(), (TaskDecorator) null);
     }
 
     static {
@@ -49,7 +62,6 @@ public class EasyThreadPoolConfig {
         threadPoolTaskScheduler.setWaitForTasksToCompleteOnShutdown(scheduler.isWaitForTasksToCompleteOnShutdown());
         threadPoolTaskScheduler.setAwaitTerminationSeconds(scheduler.getAwaitTerminationSeconds());
         threadPoolTaskScheduler.setRejectedExecutionHandler(new CustomRejectedExecutionHandler());
-        threadPoolTaskScheduler.setTaskDecorator(new TraceContextTaskDecorator());
         return threadPoolTaskScheduler;
     }
 
@@ -67,7 +79,6 @@ public class EasyThreadPoolConfig {
         threadPoolTaskExecutor.setWaitForTasksToCompleteOnShutdown(business.isWaitForTasksToCompleteOnShutdown());
         threadPoolTaskExecutor.setAwaitTerminationSeconds(business.getAwaitTerminationSeconds());
         threadPoolTaskExecutor.setRejectedExecutionHandler(new CustomRejectedExecutionHandler());
-        threadPoolTaskExecutor.setTaskDecorator(new TraceContextTaskDecorator());
         return threadPoolTaskExecutor;
     }
 
@@ -77,7 +88,8 @@ public class EasyThreadPoolConfig {
     @Bean
     public EasyNextAdminMdcThreadPoolExecutor businessMdcThreadPool() {
         EasyThreadPoolProperties.BusinessMdc businessMdc = properties.getBusinessMdc();
-        return new EasyNextAdminMdcThreadPoolExecutor(businessMdc.getPoolSize(), businessMdc.getQueueSize(), businessMdc.getThreadNamePrefix());
+        return new EasyNextAdminMdcThreadPoolExecutor(businessMdc.getPoolSize(), businessMdc.getQueueSize(),
+                businessMdc.getThreadNamePrefix(), traceTaskDecorator);
     }
 
     // 自定义的拒绝执行处理器，以更好地处理任务被拒绝的情况

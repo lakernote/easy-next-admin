@@ -2,16 +2,20 @@ package com.laker.admin.config.thread;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
 import com.laker.admin.infrastructure.thread.EasyNextAdminMdcThreadPoolExecutor;
+import io.github.lakernote.meerkat.trace.TraceContextTaskDecorator;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +25,7 @@ import static org.mockito.Mockito.mock;
 class EasyThreadPoolConfigTest {
 
     @Test
-    void shouldCreateTraceIdWhenMdcContextIsEmpty() throws InterruptedException {
+    void shouldNotCreateTraceIdWhenObservabilityDecoratorIsUnavailable() throws InterruptedException {
         MDC.clear();
         ThreadPoolTaskExecutor executor = new EasyThreadPoolConfig().easyThreadPool();
         executor.initialize();
@@ -41,56 +45,33 @@ class EasyThreadPoolConfigTest {
 
         assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
         assertThat(error).hasValue(null);
-        assertThat(traceId.get()).hasSize(32);
+        assertThat(traceId.get()).isNull();
         executor.shutdown();
     }
 
     @Test
-    void shouldCreateTraceIdAndKeepUserIdWhenCopiedContextHasNoTraceId() throws InterruptedException {
-        MDC.clear();
-        MDC.put(EasyNextAdminConstants.USER_ID, "7");
-        ThreadPoolTaskExecutor executor = new EasyThreadPoolConfig().easyThreadPool();
-        executor.initialize();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<String> traceId = new AtomicReference<>();
-        AtomicReference<String> userId = new AtomicReference<>();
-
-        executor.execute(() -> {
-            traceId.set(MDC.get(EasyNextAdminConstants.TRACE_ID));
-            userId.set(MDC.get(EasyNextAdminConstants.USER_ID));
-            latch.countDown();
-        });
-
-        assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
-        assertThat(traceId.get()).hasSize(32);
-        assertThat(userId).hasValue("7");
-        executor.shutdown();
-        MDC.clear();
-    }
-
-    @Test
-    void shouldPropagateMdcContextToBusinessExecutor() throws InterruptedException {
-        MDC.put(EasyNextAdminConstants.TRACE_ID, "trace-1");
-        ThreadPoolTaskExecutor executor = new EasyThreadPoolConfig().easyThreadPool();
-        executor.initialize();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<String> traceId = new AtomicReference<>();
-
-        executor.execute(() -> {
-            traceId.set(MDC.get(EasyNextAdminConstants.TRACE_ID));
-            latch.countDown();
-        });
-
-        assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
-        assertThat(traceId).hasValue("trace-1");
-        executor.shutdown();
-        MDC.clear();
-    }
-
-    @Test
-    void shouldCreateTraceIdInBusinessMdcExecutorWhenCallerHasNoTraceId() throws InterruptedException {
+    void shouldNotCreateTraceIdInRawExecutorWithoutObservabilityDecorator() throws InterruptedException {
         MDC.clear();
         EasyNextAdminMdcThreadPoolExecutor executor = new EasyThreadPoolConfig().businessMdcThreadPool();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> traceId = new AtomicReference<>();
+
+        executor.execute(() -> {
+            traceId.set(MDC.get(EasyNextAdminConstants.TRACE_ID));
+            latch.countDown();
+        });
+
+        assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
+        assertThat(traceId.get()).isNull();
+        executor.shutdownNow();
+    }
+
+    @Test
+    void shouldCreateTraceIdInRawExecutorWhenObservabilityDecoratorIsAvailable() throws InterruptedException {
+        MDC.clear();
+        EasyThreadPoolConfig config = new EasyThreadPoolConfig(
+                new EasyThreadPoolProperties(), new TraceContextTaskDecorator());
+        EasyNextAdminMdcThreadPoolExecutor executor = config.businessMdcThreadPool();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> traceId = new AtomicReference<>();
 
@@ -105,20 +86,24 @@ class EasyThreadPoolConfigTest {
     }
 
     @Test
-    void shouldCreateTraceIdInSchedulerExecutorWhenTaskHasNoTraceId() throws InterruptedException {
-        MDC.clear();
+    void periodicSchedulerShouldNotInheritRegistrationRequestTrace() throws InterruptedException {
+        String registrationTraceId = "0123456789abcdef0123456789abcdef";
+        MDC.put(EasyNextAdminConstants.TRACE_ID, registrationTraceId);
         ThreadPoolTaskScheduler scheduler = new EasyThreadPoolConfig().easyTaskThreadPool();
         scheduler.initialize();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<String> traceId = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(2);
+        AtomicBoolean inheritedRegistrationTrace = new AtomicBoolean();
 
-        scheduler.schedule(() -> {
-            traceId.set(MDC.get(EasyNextAdminConstants.TRACE_ID));
+        ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+            inheritedRegistrationTrace.compareAndSet(false,
+                    registrationTraceId.equals(MDC.get(EasyNextAdminConstants.TRACE_ID)));
             latch.countDown();
-        }, Instant.now());
+        }, Instant.now().plusMillis(100), Duration.ofMillis(20));
+        MDC.clear();
 
         assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
-        assertThat(traceId.get()).hasSize(32);
+        assertThat(inheritedRegistrationTrace).isFalse();
+        future.cancel(true);
         scheduler.shutdown();
     }
 

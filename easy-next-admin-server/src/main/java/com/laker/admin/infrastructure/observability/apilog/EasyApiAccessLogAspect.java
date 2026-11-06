@@ -5,12 +5,12 @@ import com.laker.admin.infrastructure.audit.AuditRequestPayloadFormatter;
 import com.laker.admin.infrastructure.json.EasyJsonCodec;
 import com.laker.admin.infrastructure.json.EasyJsonException;
 import com.laker.admin.infrastructure.observability.metrics.EasyAdminMetrics;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.masking.EasySensitiveDataMasker;
 import com.laker.admin.infrastructure.web.context.EasyRequestContext;
 import com.laker.admin.module.audit.entity.AuditApiLog;
 import com.laker.admin.module.audit.service.IAuditApiLogService;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -83,7 +83,7 @@ public class EasyApiAccessLogAspect {
 
     private AuditApiLog newAccessLog(String requestPayload) {
         AuditApiLog accessLog = new AuditApiLog();
-        accessLog.setTraceId(TraceIdContext.getOrCreateTraceId());
+        accessLog.setTraceId(TraceIdContext.currentTraceId());
         accessLog.setIp(EasyRequestContext.currentRemoteIp());
         accessLog.setUri(EasyRequestContext.currentRequestUri());
         accessLog.setUserId(EasySecurityContext.getUserId());

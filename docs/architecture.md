@@ -6,7 +6,7 @@ EasyNextAdmin 是单体优先的企业后台脚手架。后端按模块分层，
 
 ```text
 easy-next-admin
-├── easy-next-admin-server   # Spring Boot 3 服务端，观测能力依赖 Maven Central 上的 Easy Observability
+├── easy-next-admin-server   # Spring Boot 3 服务端，观测能力依赖 Maven Central 上的 Meerkat
 │   ├── common          # 统一响应、异常、常量、工具
 │   ├── config          # Spring、MyBatis、WebMVC、OpenAPI、线程池等配置
 │   ├── infrastructure  # 认证、权限、数据范围、审计、缓存、锁、幂等、限流、观测性、AI 模型适配
@@ -507,20 +507,20 @@ EasyNextAdmin 使用“角色拥有权限，用户绑定角色”的模型：
 
 ## 链路追踪与运行指标
 
-EasyNextAdmin 使用独立发布的 Easy Observability Starter 提供 HTTP、数据库、事务、Redis、Kafka、定时任务和异步线程的 Trace/Metrics 能力。当前依赖版本由根 `pom.xml` 的 `easy-observability.version` 统一管理。Starter 提供 `/easy-observability/` 页面、只读 API、Trace 历史和通用低基数指标；应用通过 `ObservabilityAccessPolicy` 复用登录身份和 `monitor:diagnosis:view` 权限保护诊断 API。
+EasyNextAdmin 使用独立发布的 Meerkat Starter 提供 HTTP、数据库、事务、Redis、Kafka、定时任务和异步线程的 Trace/Metrics 能力。Spring Boot 3 依赖为 `io.github.lakernote:meerkat-spring-boot-3-starter:0.1.0-alpha.4`，版本由根 `pom.xml` 的 `meerkat.version` 统一管理。Starter 提供 `/meerkat/` 页面、`/api/meerkat/**` 查询 API、Trace 历史、调用排行、通用低基数指标和实时诊断；应用通过 `ObservabilityAccessPolicy` 复用登录身份和 `monitor:diagnosis:view` 权限保护诊断 API。
 
-应用配置放在 `easy.observability.*`。入口慢阈值分别适用于 HTTP、任务和 Kafka Consumer；公共 SQL、事务、Redis、HTTP 出口等 span 默认采集，并由 Starter 负责统一呈现。EasyNextAdmin 不再复制一套慢错事件库、操作资源采样、线程锁/堆栈现场或 JFR 录制。动态调度任务不是 Spring `@Scheduled`，因此 `ScheduleJobLogCallback` 通过 Micrometer Observation 把任务执行作为 Starter Trace 入口，同时继续记录业务任务执行日志和 `easy.schedule.jobs` 指标。
+应用配置放在 `meerkat.*`，每个实例独占的本地存储目录由 `meerkat.storage.directory` 指定。入口慢阈值分别适用于 HTTP、任务和 Kafka Consumer；公共 SQL、事务、Redis、HTTP 出口等 span 默认采集，并由 Starter 负责统一呈现。EasyNextAdmin 不再复制一套慢错事件库、操作资源采样、线程锁/堆栈现场或 JFR 录制。动态调度任务不是 Spring `@Scheduled`，因此 `ScheduleJobLogCallback` 通过 Micrometer Observation 把任务执行作为 Starter Trace 入口，同时继续记录业务任务执行日志和 `easy.schedule.jobs` 指标。
 
-Trace ID 与认证用户上下文仍由 Starter 及应用的认证/Kafka 适配器传播。`EasyKafkaConsumerContextAspect` 只补充 Kafka 消息中的 `userId` MDC；Trace ID 和通用 Consumer 观测由 Starter 负责。MyBatis-Plus 数据权限、乐观锁、分页和 API/业务审计仍归 EasyNextAdmin 所有。
+Trace ID 与认证用户上下文仍由 Starter 及应用的认证/Kafka 适配器传播。业务代码只通过 `TraceIdContext.currentTraceId()` 读取当前链路，不自行生成 Trace ID 或写入 MDC；观测关闭或代码不在 Trace 边界内时允许为空，不能影响业务执行。`EasyKafkaConsumerContextAspect` 只补充 Kafka 消息中的 `userId` MDC；Trace ID 和通用 Consumer 观测由 Starter 负责。MyBatis-Plus 数据权限、乐观锁、分页和 API/业务审计仍归 EasyNextAdmin 所有。
 
 ## API 访问日志和标准指标
 
 API 访问日志与指标分开维护：
 
 - `@EasyApiAccessLog` / `EasyApiAccessLogAspect` 只负责写入 `audit_api_log`，用于按单次请求排查“谁、何时、从哪里、请求了什么、耗时多少、是否失败”。该表属于审计和排障数据，不作为标准指标后端。
-- `EasyAdminMetrics` 是应用内业务指标入口，基于 Micrometer 记录 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。指标只使用稳定、低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
-- Starter 通过 HTTP client Observation 接入远程调用指标和 Trace；远程调用趋势在 Easy Observability Metrics 页面查看，应用不再维护重复统计接口或诊断明细表。
-- Micrometer 是指标采集门面。公共指标历史由 Easy Observability Starter 管理；外部 Prometheus/OTLP 导出通过独立 registry 配置。
+- `EasyAdminMetrics` 是应用内业务指标入口，基于 Micrometer 记录 `easy.api.requests`、`easy.rate.limit.blocked`、`easy.schedule.jobs`、`easy.outbox.messages`。它只受 `easy.features.monitor` 控制，不依赖 `meerkat.enabled`；指标只使用稳定、低基数标签，不写真实 URL、用户 ID、traceId、IP、文件名或请求参数。
+- Starter 通过 HTTP client Observation 接入远程调用指标和 Trace；远程调用趋势在 Meerkat Metrics 页面查看，应用不再维护重复统计接口或诊断明细表。
+- Micrometer 是指标采集门面。公共指标历史由 Meerkat Starter 管理；外部 Prometheus/OTLP 导出通过独立 registry 配置。
 
 脱敏分层：
 

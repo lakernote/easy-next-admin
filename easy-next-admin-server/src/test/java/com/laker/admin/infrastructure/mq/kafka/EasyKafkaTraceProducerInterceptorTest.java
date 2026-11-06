@@ -21,14 +21,14 @@ class EasyKafkaTraceProducerInterceptorTest {
     }
 
     @Test
-    void onSendShouldCreateTraceIdWhenMissing() {
+    void onSendShouldNotCreateTraceIdOutsideMeerkatBoundary() {
         ProducerRecord<String, String> record = new ProducerRecord<>("topic", "key", "value");
 
         ProducerRecord<String, String> result = interceptor.onSend(record);
 
         Header traceHeader = result.headers().lastHeader(EasyNextAdminConstants.TRACE_ID_HEADER);
-        assertThat(headerValue(traceHeader)).hasSize(32);
-        assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isEqualTo(headerValue(traceHeader));
+        assertThat(traceHeader).isNull();
+        assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
     }
 
     @Test

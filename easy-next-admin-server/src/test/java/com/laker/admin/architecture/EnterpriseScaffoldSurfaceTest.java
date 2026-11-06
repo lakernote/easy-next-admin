@@ -209,6 +209,10 @@ class EnterpriseScaffoldSurfaceTest {
                 .doesNotExist();
         assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyMetricsAspect.java"))
                 .doesNotExist();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/EasyTraceIds.java"))
+                .doesNotExist();
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/MeerkatConfig.java"))
+                .doesNotExist();
         assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLog.java"))
                 .exists();
         assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"))
@@ -217,6 +221,15 @@ class EnterpriseScaffoldSurfaceTest {
         String moduleControllers = readSourceTree(Path.of("src/main/java/com/laker/admin/module"));
         String apiAccessLogAspect = Files.readString(
                 Path.of("src/main/java/com/laker/admin/infrastructure/observability/apilog/EasyApiAccessLogAspect.java"));
+        String metricsConfig = Files.readString(
+                Path.of("src/main/java/com/laker/admin/infrastructure/observability/metrics/EasyAdminMetricsConfig.java"));
+        String threadPoolConfig = Files.readString(
+                Path.of("src/main/java/com/laker/admin/config/thread/EasyThreadPoolConfig.java"));
+        String assistantRuntimeConfig = Files.readString(
+                Path.of("src/main/java/com/laker/admin/module/assistant/config/AssistantRuntimeConfiguration.java"));
+        String mdcExecutor = Files.readString(
+                Path.of("src/main/java/com/laker/admin/infrastructure/thread/EasyNextAdminMdcThreadPoolExecutor.java"));
+        String serverSources = readSourceTree(Path.of("src/main/java/com/laker/admin"));
         String observabilityDependency = Files.readString(Path.of("pom.xml"));
 
         assertThat(moduleControllers)
@@ -225,8 +238,19 @@ class EnterpriseScaffoldSurfaceTest {
         assertThat(apiAccessLogAspect)
                 .contains("audit_api_log", "EasyApiAccessLog")
                 .doesNotContain("class EasyMetricsAspect");
+        assertThat(metricsConfig)
+                .contains("config.getFeatures().isMonitor()")
+                .doesNotContain("meerkat.enabled");
+        assertThat(threadPoolConfig + assistantRuntimeConfig)
+                .doesNotContain("setTaskDecorator", "new TraceContextTaskDecorator()");
+        assertThat(mdcExecutor)
+                .doesNotContain("EasyMdcTaskDecorator", "new TraceContextTaskDecorator()");
+        assertThat(Path.of("src/main/java/com/laker/admin/infrastructure/thread/EasyMdcTaskDecorator.java"))
+                .doesNotExist();
+        assertThat(serverSources)
+                .doesNotContain("EasyTraceIds", "getOrCreateTraceId");
         assertThat(observabilityDependency)
-                .contains("io.github.lakernote", "easy-observability-spring-boot-3-starter")
+                .contains("io.github.lakernote", "meerkat-spring-boot-3-starter")
                 .doesNotContain("com.laker.observability");
     }
 

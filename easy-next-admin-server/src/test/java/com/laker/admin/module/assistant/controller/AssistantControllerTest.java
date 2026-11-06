@@ -1,7 +1,8 @@
 package com.laker.admin.module.assistant.controller;
 
 import com.laker.admin.common.model.Response;
-import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
+import io.github.lakernote.meerkat.trace.TraceContextTaskDecorator;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
 import com.laker.admin.module.assistant.config.AssistantRuntimeProperties;
@@ -10,6 +11,7 @@ import com.laker.admin.module.assistant.dto.AssistantMessageRequest;
 import com.laker.admin.module.assistant.turn.AgentTurnService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.scheduling.TaskScheduler;
 
 import java.time.Duration;
@@ -36,7 +38,7 @@ class AssistantControllerTest {
     @AfterEach
     void clearContexts() {
         EasySecurityContext.clear();
-        TraceIdContext.clear();
+        MDC.clear();
     }
 
     @Test
@@ -65,7 +67,8 @@ class AssistantControllerTest {
         CountDownLatch executionCompleted = new CountDownLatch(1);
         EasySecurityContext.setPrincipal(principal);
         EasySecurityContext.setAccessToken("token-for-test");
-        TraceIdContext.putTraceId("trace-sse-test");
+        String requestTraceId = "0123456789abcdef0123456789abcdef";
+        MDC.put(TraceIdContext.MDC_KEY, requestTraceId);
         doAnswer(invocation -> {
             try {
                 workerPrincipal.set(EasySecurityContext.getPrincipal());
@@ -84,7 +87,7 @@ class AssistantControllerTest {
             verify(agentTurnService, timeout(2_000)).run(eq(request), any());
             assertThat(workerPrincipal.get()).isSameAs(principal);
             assertThat(workerAccessToken.get()).as("原始登录 Token 不应传播给 Agent 线程").isNull();
-            assertThat(workerTraceId.get()).isEqualTo("trace-sse-test");
+            assertThat(workerTraceId.get()).isEqualTo(requestTraceId);
 
             Future<?> contextCheck = executor.submit(() -> {
                 assertThat(EasySecurityContext.getPrincipal()).isNull();
@@ -107,6 +110,10 @@ class AssistantControllerTest {
         ScheduledFuture<?> heartbeat = mock(ScheduledFuture.class);
         doReturn(heartbeat).when(scheduler)
                 .scheduleAtFixedRate(any(Runnable.class), any(Duration.class));
-        return new AssistantController(agentTurnService, executor, scheduler, new AssistantRuntimeProperties());
+        TraceContextTaskDecorator traceDecorator = new TraceContextTaskDecorator();
+        org.springframework.core.task.TaskExecutor decoratedExecutor =
+                task -> executor.execute(traceDecorator.decorate(task));
+        return new AssistantController(agentTurnService, decoratedExecutor, scheduler,
+                new AssistantRuntimeProperties());
     }
 }

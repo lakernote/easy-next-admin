@@ -2,9 +2,9 @@ package com.laker.admin.module.assistant.context;
 
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.exception.EasyAuthException;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -38,7 +38,7 @@ class AssistantContextBuilderTest {
 
     @Test
     void shouldBuildStableRequestContextFromPrincipalMessageAndClock() {
-        TraceIdContext.putTraceId("trace-fixed-001");
+        MDC.put(TraceIdContext.MDC_KEY, "trace-fixed-001");
         AssistantRequestContext context = contextBuilder.build(
                 principal(),
                 " \r\n请分别处理：\r\n  1. 查询待办\r\n  2. 今天下午请假\t ",
@@ -68,6 +68,8 @@ class AssistantContextBuilderTest {
         AssistantRequestContext context = contextBuilder.build(principal(), "查一下我的待办", null);
 
         assertThat(context.conversationId()).isEqualTo(77L);
+        assertThat(context.traceId()).isEmpty();
+        assertThat(TraceIdContext.currentTraceId()).isNull();
     }
 
     @Test

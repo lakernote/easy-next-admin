@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laker.admin.common.model.PageResponse;
 import com.laker.admin.common.model.Response;
 import com.laker.admin.infrastructure.audit.EasyAudit;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.annotation.EasyPermission;
 import com.laker.admin.infrastructure.security.context.EasySecurityContext;
 import com.laker.admin.infrastructure.security.permission.EasyPermissions;
@@ -14,6 +13,7 @@ import com.laker.admin.module.audit.service.IAuditApiLogService;
 import com.laker.admin.module.system.dto.SysFileView;
 import com.laker.admin.module.system.entity.SysFile;
 import com.laker.admin.module.system.service.storage.EasyStorageFacade;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -147,7 +147,7 @@ public class SysFileController {
 
     private void recordDownloadAudit(Long fileId, SysFile sysFile, boolean success, long costMs, String errorMessage) {
         AuditApiLog auditLog = new AuditApiLog();
-        auditLog.setTraceId(TraceIdContext.getOrCreateTraceId());
+        auditLog.setTraceId(TraceIdContext.currentTraceId());
         auditLog.setUserId(EasySecurityContext.getUserId());
         auditLog.setIp(EasyRequestContext.currentRemoteIp());
         auditLog.setClient(EasyRequestContext.currentUserAgentSummary());

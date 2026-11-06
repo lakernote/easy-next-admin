@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true
         },
-        '/easy-observability': {
+        '/meerkat': {
           target: apiProxyTarget,
           changeOrigin: true
         },

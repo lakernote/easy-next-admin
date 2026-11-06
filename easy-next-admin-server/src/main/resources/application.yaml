@@ -114,24 +114,33 @@ mybatis-plus:
   global-config:
     # 是否开启print logo
     banner: false
+meerkat:
+  # Meerkat supplies Trace capture, Micrometer-backed metric history and the embedded dashboards.
+  # Follow the application capability switch by default; --meerkat.enabled can still override it independently.
+  enabled: ${easy.features.monitor:true}
+  storage:
+    # Each running instance must use its own directory.
+    directory: ${MEERKAT_STORAGE_DIRECTORY:./data/meerkat/easy-next-admin}
+  metrics:
+    enabled: true
+    max-operations: ${MEERKAT_METRICS_MAX_OPERATIONS:1000}
+    retention: ${MEERKAT_METRICS_RETENTION:30d}
+    max-storage-size: ${MEERKAT_METRICS_MAX_STORAGE_SIZE:64MB}
+  trace:
+    enabled: true
+    header-name: X-Trace-Id
+    http-slow-threshold: ${MEERKAT_TRACE_HTTP_SLOW_THRESHOLD:3s}
+    job-slow-threshold: ${MEERKAT_TRACE_JOB_SLOW_THRESHOLD:10s}
+    kafka-consumer-slow-threshold: ${MEERKAT_TRACE_KAFKA_CONSUMER_SLOW_THRESHOLD:30s}
+    cpu-threshold: ${MEERKAT_TRACE_CPU_THRESHOLD:500ms}
+    allocated-memory-threshold: ${MEERKAT_TRACE_ALLOCATED_MEMORY_THRESHOLD:50MB}
+    retention: ${MEERKAT_TRACE_RETENTION:7d}
+    max-storage-size: ${MEERKAT_TRACE_MAX_STORAGE_SIZE:128MB}
+    max-memory-size: ${MEERKAT_TRACE_MAX_MEMORY_SIZE:32MB}
+  web:
+    enabled: true
 easy:
   log-file-path: ${EASY_LOG_FILE_PATH:logs/easy-next-admin.log}
-  observability:
-    # Easy Observability supplies Trace capture, metrics history and the embedded dashboards.
-    enabled: ${easy.features.monitor:true}
-    trace:
-      enabled: true
-      http-slow-threshold-ms: 3000
-      job-slow-threshold-ms: 10000
-      kafka-consumer-slow-threshold-ms: 30000
-      cpu-threshold-ms: ${EASY_TRACE_CPU_THRESHOLD_MS:500}
-      allocated-memory-threshold: ${EASY_TRACE_ALLOCATED_MEMORY_THRESHOLD:50MB}
-      diagnostic-trace-file: ${EASY_OBSERVABILITY_TRACE_FILE:./data/easy-observability/traces.jsonl}
-      diagnostic-history-limit: ${EASY_OBSERVABILITY_TRACE_HISTORY_LIMIT:1000}
-      diagnostic-max-bytes: ${EASY_OBSERVABILITY_TRACE_MAX_BYTES:8MB}
-    web:
-      enabled: true
-      allow-anonymous: ${EASY_OBSERVABILITY_ALLOW_ANONYMOUS:false}
   features:
     # 能力级开关集中在这里，避免 Redis/Kafka/OSS 等可选依赖被误装配。
     redis: ${EASY_FEATURE_REDIS:true}
@@ -282,7 +291,7 @@ management:
   endpoints:
     web:
       exposure:
-        # 指标和 Trace 由 Easy Observability 页面提供；不直接暴露 Actuator 明细端点。
+        # 指标和 Trace 由 Meerkat 页面提供；不直接暴露 Actuator 明细端点。
         include: health,info
   info:
     build:

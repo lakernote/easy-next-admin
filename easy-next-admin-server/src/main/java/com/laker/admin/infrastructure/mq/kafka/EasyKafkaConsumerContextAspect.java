@@ -1,8 +1,6 @@
 package com.laker.admin.infrastructure.mq.kafka;
 
 import com.laker.admin.common.constant.EasyNextAdminConstants;
-import io.github.lakernote.observability.trace.MdcContext;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -13,10 +11,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.slf4j.MDC;
 
 import java.nio.charset.StandardCharsets;
 
-/** Propagates application identity alongside the Trace ID restored by the observability starter. */
+/** Propagates application identity alongside the Trace ID restored by Meerkat. */
 @Aspect
 @Component
 @ConditionalOnClass(KafkaListener.class)
@@ -26,10 +25,15 @@ public class EasyKafkaConsumerContextAspect {
     @Around(value = "@annotation(kafkaListener)", argNames = "joinPoint,kafkaListener")
     public Object propagateMessageContext(ProceedingJoinPoint joinPoint, KafkaListener kafkaListener) throws Throwable {
         Object[] args = joinPoint.getArgs();
-        try (MdcContext.Scope ignored = MdcContext.scope()) {
-            TraceIdContext.putOrCreateTraceId(header(args, EasyNextAdminConstants.TRACE_ID_HEADER));
-            MdcContext.putOrRemove(EasyNextAdminConstants.USER_ID, header(args, EasyNextAdminConstants.USER_ID));
+        String previousUserId = MDC.get(EasyNextAdminConstants.USER_ID);
+        try {
+            String userId = header(args, EasyNextAdminConstants.USER_ID);
+            if (StringUtils.hasText(userId)) MDC.put(EasyNextAdminConstants.USER_ID, userId);
+            else MDC.remove(EasyNextAdminConstants.USER_ID);
             return joinPoint.proceed();
+        } finally {
+            if (StringUtils.hasText(previousUserId)) MDC.put(EasyNextAdminConstants.USER_ID, previousUserId);
+            else MDC.remove(EasyNextAdminConstants.USER_ID);
         }
     }
 

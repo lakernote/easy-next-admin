@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Logback 主配置：同时输出控制台和滚动文件，MDC 中保留用户 ID 与 traceId 便于排查问题。 -->
+<!-- Logback 主配置：同时输出控制台和滚动文件，MDC 中保留用户 ID 与 Meerkat Trace ID 便于排查问题。 -->
 <configuration scan="true" scanPeriod="60 seconds" debug="false">
   <!-- 默认写入项目 logs 目录；生产环境可通过挂载目录或 EASY_LOG_FILE_PATH 配合应用配置调整。 -->
   <property name="LOG_HOME" value="logs"/>
   <property name="ENCODING" value="UTF-8"/>
-  <property name="LOG_MDC_PATTERN" value="[%X{userId:-} %X{traceId:-}]"/>
+  <property name="LOG_MDC_PATTERN" value="[%X{userId:-} %X{meerkatTraceId:-}]"/>
 
   <!-- 业务日志文件：按日期和大小切分，保留 15 天，最多占用 20GB。 -->
   <appender name="DEFAULT" class="ch.qos.logback.core.rolling.RollingFileAppender">

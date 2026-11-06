@@ -2,20 +2,29 @@ package com.laker.admin.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.laker.admin.common.constant.EasyNextAdminConstants;
+import com.laker.admin.module.assistant.config.AssistantRuntimeConfiguration;
 import com.laker.admin.module.system.dto.auth.AuthLoginRequest;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -42,6 +51,14 @@ class APIIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    @Qualifier("easyThreadPool")
+    private ThreadPoolTaskExecutor easyThreadPool;
+
+    @Autowired
+    @Qualifier(AssistantRuntimeConfiguration.STREAM_EXECUTOR_BEAN)
+    private ThreadPoolTaskExecutor assistantStreamExecutor;
+
     @Test
     void testLogin() {
         AuthLoginRequest loginRequest = new AuthLoginRequest();
@@ -64,16 +81,16 @@ class APIIT {
     }
 
     @Test
-    void observabilityPageLoadsAndTraceApiRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/easy-observability/"))
+    void meerkatPageLoadsAndTraceApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/meerkat/"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Easy Observability")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Meerkat")));
 
-        mockMvc.perform(get("/easy-observability/assets/dashboard.js"))
+        mockMvc.perform(get("/meerkat/assets/common.js"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/easy-observability")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("api/meerkat")));
 
-        mockMvc.perform(get("/api/easy-observability/traces"))
+        mockMvc.perform(get("/api/meerkat/traces"))
                 .andExpect(status().isUnauthorized());
 
         String loginResponse = mockMvc.perform(MockMvcRequestBuilders.post("/api/auth/login")
@@ -90,11 +107,43 @@ class APIIT {
         mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, authorization))
                 .andExpect(status().isOk());
 
-        String tracesResponse = mockMvc.perform(get("/api/easy-observability/traces")
+        String tracesResponse = mockMvc.perform(get("/api/meerkat/traces")
                         .header(HttpHeaders.AUTHORIZATION, authorization))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         JsonNode traces = objectMapper.readTree(tracesResponse);
-        org.junit.jupiter.api.Assertions.assertTrue(traces.isArray(), "trace API should return a JSON array");
+        org.junit.jupiter.api.Assertions.assertTrue(traces.isObject(), "trace API should return a page object");
+        org.junit.jupiter.api.Assertions.assertTrue(traces.path("items").isArray(),
+                "trace page should contain an items array");
+    }
+
+    @Test
+    void meerkatDecoratesApplicationThreadPools() throws InterruptedException {
+        assertMeerkatContextPropagation(easyThreadPool);
+        assertMeerkatContextPropagation(assistantStreamExecutor);
+    }
+
+    private static void assertMeerkatContextPropagation(ThreadPoolTaskExecutor executor)
+            throws InterruptedException {
+        String traceId = "0123456789abcdef0123456789abcdef";
+        String userId = "7";
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> workerTraceId = new AtomicReference<>();
+        AtomicReference<String> workerUserId = new AtomicReference<>();
+        try {
+            MDC.put(EasyNextAdminConstants.TRACE_ID, traceId);
+            MDC.put(EasyNextAdminConstants.USER_ID, userId);
+            executor.execute(() -> {
+                workerTraceId.set(MDC.get(EasyNextAdminConstants.TRACE_ID));
+                workerUserId.set(MDC.get(EasyNextAdminConstants.USER_ID));
+                latch.countDown();
+            });
+        } finally {
+            MDC.clear();
+        }
+
+        org.junit.jupiter.api.Assertions.assertTrue(latch.await(3, TimeUnit.SECONDS));
+        assertEquals(traceId, workerTraceId.get());
+        assertEquals(userId, workerUserId.get());
     }
 }

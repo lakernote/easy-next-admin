@@ -3,9 +3,9 @@ package com.laker.admin.module.assistant.context;
 import com.laker.admin.common.exception.BusinessException;
 import com.laker.admin.common.exception.ErrorCode;
 import com.laker.admin.infrastructure.id.EasyIdGenerator;
-import io.github.lakernote.observability.trace.TraceIdContext;
 import com.laker.admin.infrastructure.security.exception.EasyAuthException;
 import com.laker.admin.infrastructure.security.model.AuthPrincipal;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -78,7 +78,7 @@ public class AssistantContextBuilder {
         Clock requestClock = clock.withZone(zoneId);
         Instant requestInstant = requestClock.instant();
         String runId = nextRunId();
-        String traceId = TraceIdContext.getOrCreateTraceId();
+        String traceId = TraceIdContext.currentTraceId();
         Long effectiveConversationId = resolveConversationId(conversationId);
 
         // “今天/下午”等相对表达统一依赖这个请求级时间快照。

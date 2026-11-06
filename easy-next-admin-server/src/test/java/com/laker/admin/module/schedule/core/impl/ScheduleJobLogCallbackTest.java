@@ -5,7 +5,7 @@ import com.laker.admin.infrastructure.observability.metrics.EasyAdminMetrics;
 import com.laker.admin.module.schedule.core.ScheduleJobDefinition;
 import com.laker.admin.module.schedule.entity.ScheduleJobLog;
 import com.laker.admin.module.schedule.service.IScheduleJobLogService;
-import io.github.lakernote.observability.trace.TraceIdContext;
+import io.github.lakernote.meerkat.trace.TraceIdContext;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -23,12 +23,11 @@ class ScheduleJobLogCallbackTest {
     @AfterEach
     void tearDown() {
         MDC.clear();
-        TraceIdContext.clear();
     }
 
     @Test
     void startPreservesExistingTraceIdAndRecordsJobLog() {
-        TraceIdContext.putTraceId("existing-trace-id");
+        MDC.put(TraceIdContext.MDC_KEY, "existing-trace-id");
         IScheduleJobLogService logService = mock(IScheduleJobLogService.class);
         when(logService.save(any(ScheduleJobLog.class))).thenReturn(true);
         EasyAdminMetrics metrics = new EasyAdminMetrics(new SimpleMeterRegistry());
@@ -41,7 +40,7 @@ class ScheduleJobLogCallbackTest {
         verify(logService).save(saved.capture());
         assertThat(saved.getValue().getTraceId()).isEqualTo("existing-trace-id");
         assertThat(saved.getValue().getEndTime()).isNotNull();
-        assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isNull();
+        assertThat(MDC.get(EasyNextAdminConstants.TRACE_ID)).isEqualTo("existing-trace-id");
     }
 
     @Test
